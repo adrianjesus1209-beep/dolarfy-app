@@ -32,8 +32,8 @@ export class DashboardView {
         <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 p-5 border border-cyan-500/20 glow-cyan">
           <div class="relative z-10">
             <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">Resumen Diario</span>
-            <h3 class="text-lg font-bold text-white mt-2">Dólar Paralelo supera los 41.80 VES</h3>
-            <p class="text-xs text-gray-300 mt-1">Brecha con respecto al BCV se mantiene en aproximadamente 14.05%.</p>
+            <h3 class="text-lg font-bold text-white mt-2">Dólar Paralelo alcanza los 917.50 VES</h3>
+            <p class="text-xs text-gray-300 mt-1">Brecha respecto a la tasa oficial del BCV (785.07 VES) se ubica en 16.8%.</p>
           </div>
         </div>
 
