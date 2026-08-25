@@ -1,0 +1,16 @@
+{
+  "appId": "com.dolarfy.app",
+  "appName": "Dolarfy",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#0B0E14",
+      "showSpinner": false
+    }
+  }
+}

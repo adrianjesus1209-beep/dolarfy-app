@@ -1,0 +1,15 @@
+# Logs & temp
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE & Editor
+.vscode/
+.idea/
+
+# Capacitor / Native build artifacts
+android/
+ios/
+www/
+dist/

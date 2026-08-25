@@ -1,0 +1,22 @@
+{
+  "short_name": "Dolarfy",
+  "name": "Dolarfy - Tasas de Cambio y Finanzas Venezuela",
+  "description": "Monitoreo de tasas de cambio oficial BCV, paralelos, divisas y cripto en tiempo real para Venezuela e Internacional.",
+  "icons": [
+    {
+      "src": "assets/icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#0B0E14",
+  "theme_color": "#0B0E14",
+  "display": "standalone",
+  "orientation": "portrait"
+}
