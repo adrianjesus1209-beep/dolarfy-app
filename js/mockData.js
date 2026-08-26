@@ -63,7 +63,8 @@ class MockDataEngine {
     };
 
     this.listeners = [];
-    this.startLiveFluctuations();
+    // Desactivado: variaciones automáticas deshabilitadas
+    // this.startLiveFluctuations();
   }
 
   getRates() {
@@ -86,7 +87,7 @@ class MockDataEngine {
   }
 
   startLiveFluctuations() {
-    // Simular variaciones ligeras de tasas cada 4 segundos
+    // Simular variaciones ligeras de tasas cada 30 segundos
     setInterval(() => {
       const rateKeys = Object.keys(this.rates);
       const randomKey = rateKeys[Math.floor(Math.random() * rateKeys.length)];
@@ -104,7 +105,7 @@ class MockDataEngine {
       targetRate.updatedAt = new Date();
 
       this.notifyListeners(randomKey, direction);
-    }, 4000);
+    }, 30000);
   }
 }
 

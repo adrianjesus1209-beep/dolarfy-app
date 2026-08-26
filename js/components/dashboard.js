@@ -15,7 +15,6 @@ export class DashboardView {
         <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4">
           <div class="flex items-center space-x-3">
             <span class="relative flex h-3 w-3">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
             </span>
             <div>
@@ -89,7 +88,7 @@ export class DashboardView {
               <p class="text-xs text-gray-400">${rate.code}</p>
             </div>
           </div>
-          <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
+          <span id="badge-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
             <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
             <span>${formatPercentage(rate.change)}</span>
           </span>
@@ -110,21 +109,29 @@ export class DashboardView {
   subscribeToUpdates() {
     if (this.unsubscribe) this.unsubscribe();
 
-    this.unsubscribe = mockEngine.subscribe((rates, updatedId, direction) => {
-      const cardEl = document.getElementById(`card-${updatedId}`);
+    this.unsubscribe = mockEngine.subscribe((rates, updatedId) => {
       const valEl = document.getElementById(`val-${updatedId}`);
+      const badgeEl = document.getElementById(`badge-${updatedId}`);
       const lastUpdateEl = document.getElementById('dash-last-update');
 
       if (lastUpdateEl) lastUpdateEl.textContent = formatTime();
 
-      if (cardEl && valEl && rates[updatedId]) {
+      if (valEl && rates[updatedId]) {
         const rate = rates[updatedId];
         valEl.textContent = formatCurrency(rate.value, rate.currency, rate.id === 'eurusd' ? 4 : 2);
-        
-        // Animación de parpadeo de precio
-        const animClass = direction === 'up' ? 'price-up' : 'price-down';
-        cardEl.classList.add(animClass);
-        setTimeout(() => cardEl.classList.remove(animClass), 1000);
+
+        if (badgeEl) {
+          const isPositive = rate.change >= 0;
+          const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
+          const trendIcon = isPositive ? 'trending-up' : 'trending-down';
+
+          badgeEl.className = `inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}`;
+          badgeEl.innerHTML = `
+            <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
+            <span>${formatPercentage(rate.change)}</span>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+        }
       }
     });
   }
