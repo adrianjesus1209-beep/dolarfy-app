@@ -1,4 +1,5 @@
 import { COUNTRIES_DATA } from './countriesData.js';
+import { apiService } from './apiService.js';
 
 class MockDataEngine {
   constructor() {
@@ -11,6 +12,7 @@ class MockDataEngine {
     this.currentCountryId = this.loadSelectedCountry() || this.defaultCountryId;
 
     this.listeners = [];
+    this.syncRealRates();
     this.startLiveFluctuations();
   }
 
@@ -38,6 +40,19 @@ class MockDataEngine {
     return null;
   }
 
+  async syncRealRates() {
+    const current = this.getCurrentCountry();
+    try {
+      const realRates = await apiService.fetchRatesForCountry(current);
+      if (realRates) {
+        current.rates = realRates;
+        this.notifyListeners(null, 'update');
+      }
+    } catch (e) {
+      console.warn('Error al sincronizar tasas reales:', e);
+    }
+  }
+
   getCountries() {
     return this.countries;
   }
@@ -60,6 +75,8 @@ class MockDataEngine {
       console.warn('LocalStorage no disponible', e);
     }
 
+    // Sincronizar API real para el nuevo país
+    this.syncRealRates();
     this.notifyListeners(null, 'country_change');
   }
 
@@ -110,8 +127,8 @@ class MockDataEngine {
       const randomKey = rateKeys[Math.floor(Math.random() * rateKeys.length)];
       const targetRate = current.rates[randomKey];
 
-      // Variación pequeña entre -0.10% y +0.10%
-      const deltaPercent = (Math.random() * 0.2 - 0.10);
+      // Variación pequeña entre -0.05% y +0.05%
+      const deltaPercent = (Math.random() * 0.1 - 0.05);
       const factor = 1 + (deltaPercent / 100);
       const precision = targetRate.value < 10 ? 4 : 2;
       const newValue = parseFloat((targetRate.value * factor).toFixed(precision));
