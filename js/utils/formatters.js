@@ -9,16 +9,29 @@ export const formatCurrency = (amount, currency = 'USD', decimals = 2) => {
   const symbols = {
     USD: '$',
     VES: 'Bs.',
+    COP: '$',
+    ARS: '$',
+    MXN: '$',
+    CLP: '$',
+    PEN: 'S/',
+    BRL: 'R$',
+    DOP: 'RD$',
     EUR: '€',
-    USDT: '₮'
+    USDT: '₮',
+    GBP: '£'
   };
 
+  const symbol = symbols[currency] || '$';
+
+  // Si el valor es menor a 10 (ej. Pen 3.75, BRL 5.52, EUR/USD 1.088), ajustamos decimales dinámicamente si no viene forzado
+  const finalDecimals = (parsed < 10 && parsed > 0 && decimals === 2) ? (parsed < 2 ? 3 : 2) : decimals;
+
   const formatted = parsed.toLocaleString('es-VE', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
+    minimumFractionDigits: finalDecimals,
+    maximumFractionDigits: finalDecimals
   });
 
-  return `${symbols[currency] || ''} ${formatted}`.trim();
+  return `${symbol} ${formatted}`.trim();
 };
 
 export const formatPercentage = (value) => {

@@ -1,78 +1,92 @@
-/**
- * Mock Data Engine reactivo con fluctuación simulada en tiempo real
- */
+import { COUNTRIES_DATA } from './countriesData.js';
 
 class MockDataEngine {
   constructor() {
-    this.rates = {
-      bcv: {
-        id: 'bcv',
-        name: 'Dólar Oficial (BCV)',
-        code: 'USD/VES',
-        value: 785.07,
-        change: 0.12,
-        currency: 'VES',
-        type: 'official',
-        icon: 'building-2',
-        updatedAt: new Date()
-      },
-      paralelo: {
-        id: 'paralelo',
-        name: 'Dólar Paralelo',
-        code: 'USD/VES',
-        value: 917.50,
-        change: 0.75,
-        currency: 'VES',
-        type: 'parallel',
-        icon: 'trending-up',
-        updatedAt: new Date()
-      },
-      euro: {
-        id: 'euro',
-        name: 'Euro Oficial (BCV)',
-        code: 'EUR/VES',
-        value: 854.15,
-        change: 0.08,
-        currency: 'VES',
-        type: 'official',
-        icon: 'euro',
-        updatedAt: new Date()
-      },
-      usdt: {
-        id: 'usdt',
-        name: 'Binance USDT (P2P)',
-        code: 'USDT/VES',
-        value: 922.30,
-        change: 0.45,
-        currency: 'VES',
-        type: 'crypto',
-        icon: 'coins',
-        updatedAt: new Date()
-      },
-      eurusd: {
-        id: 'eurusd',
-        name: 'EUR / USD Global',
-        code: 'EUR/USD',
-        value: 1.088,
-        change: -0.04,
-        currency: 'USD',
-        type: 'forex',
-        icon: 'globe',
-        updatedAt: new Date()
-      }
-    };
+    this.countries = COUNTRIES_DATA;
+    this.STORAGE_KEY_DEFAULT = 'dolarfy_default_country';
+    this.STORAGE_KEY_SELECTED = 'dolarfy_selected_country';
+
+    // Inicializar país predeterminado y seleccionado
+    this.defaultCountryId = this.loadDefaultCountry();
+    this.currentCountryId = this.loadSelectedCountry() || this.defaultCountryId;
 
     this.listeners = [];
-    // Desactivado: variaciones automáticas deshabilitadas
-    // this.startLiveFluctuations();
+    this.startLiveFluctuations();
+  }
+
+  loadDefaultCountry() {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY_DEFAULT);
+      if (saved && this.countries.some(c => c.id === saved)) {
+        return saved;
+      }
+    } catch (e) {
+      console.warn('LocalStorage no disponible', e);
+    }
+    return 'VE'; // Por defecto Venezuela
+  }
+
+  loadSelectedCountry() {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY_SELECTED);
+      if (saved && this.countries.some(c => c.id === saved)) {
+        return saved;
+      }
+    } catch (e) {
+      console.warn('LocalStorage no disponible', e);
+    }
+    return null;
+  }
+
+  getCountries() {
+    return this.countries;
+  }
+
+  getCurrentCountry() {
+    return this.countries.find(c => c.id === this.currentCountryId) || this.countries[0];
+  }
+
+  getDefaultCountryId() {
+    return this.defaultCountryId;
+  }
+
+  setSelectedCountry(countryId) {
+    if (!this.countries.some(c => c.id === countryId)) return;
+
+    this.currentCountryId = countryId;
+    try {
+      localStorage.setItem(this.STORAGE_KEY_SELECTED, countryId);
+    } catch (e) {
+      console.warn('LocalStorage no disponible', e);
+    }
+
+    this.notifyListeners(null, 'country_change');
+  }
+
+  setDefaultCountry(countryId) {
+    if (!this.countries.some(c => c.id === countryId)) return;
+
+    this.defaultCountryId = countryId;
+    try {
+      localStorage.setItem(this.STORAGE_KEY_DEFAULT, countryId);
+    } catch (e) {
+      console.warn('LocalStorage no disponible', e);
+    }
+
+    this.notifyListeners(null, 'default_country_change');
   }
 
   getRates() {
-    return { ...this.rates };
+    const current = this.getCurrentCountry();
+    return { ...current.rates };
   }
 
   getRate(id) {
-    return this.rates[id];
+    const current = this.getCurrentCountry();
+    if (current.rates[id]) return current.rates[id];
+
+    const firstKey = Object.keys(current.rates)[0];
+    return current.rates[firstKey];
   }
 
   subscribe(listener) {
@@ -82,30 +96,31 @@ class MockDataEngine {
     };
   }
 
-  notifyListeners(updatedRateId, direction) {
-    this.listeners.forEach(listener => listener(this.rates, updatedRateId, direction));
+  notifyListeners(updatedRateId, action = 'update') {
+    this.listeners.forEach(listener => listener(this.getRates(), updatedRateId, action));
   }
 
   startLiveFluctuations() {
-    // Simular variaciones ligeras de tasas cada 30 segundos
+    // Simulación ligera de fluctuación en vivo cada 25 segundos para el país activo
     setInterval(() => {
-      const rateKeys = Object.keys(this.rates);
-      const randomKey = rateKeys[Math.floor(Math.random() * rateKeys.length)];
-      const targetRate = this.rates[randomKey];
+      const current = this.getCurrentCountry();
+      const rateKeys = Object.keys(current.rates);
+      if (rateKeys.length === 0) return;
 
-      // Variación pequeña de -0.15% a +0.15%
-      const deltaPercent = (Math.random() * 0.3 - 0.15);
+      const randomKey = rateKeys[Math.floor(Math.random() * rateKeys.length)];
+      const targetRate = current.rates[randomKey];
+
+      // Variación pequeña entre -0.10% y +0.10%
+      const deltaPercent = (Math.random() * 0.2 - 0.10);
       const factor = 1 + (deltaPercent / 100);
-      const newValue = parseFloat((targetRate.value * factor).toFixed(targetRate.id === 'eurusd' ? 4 : 2));
-      
-      const direction = newValue >= targetRate.value ? 'up' : 'down';
-      
+      const precision = targetRate.value < 10 ? 4 : 2;
+      const newValue = parseFloat((targetRate.value * factor).toFixed(precision));
+
       targetRate.value = newValue;
       targetRate.change = parseFloat((targetRate.change + deltaPercent).toFixed(2));
-      targetRate.updatedAt = new Date();
 
-      this.notifyListeners(randomKey, direction);
-    }, 30000);
+      this.notifyListeners(randomKey, 'update');
+    }, 25000);
   }
 }
 

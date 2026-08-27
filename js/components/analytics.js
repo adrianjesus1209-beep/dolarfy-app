@@ -8,11 +8,22 @@ export class AnalyticsView {
   }
 
   render() {
+    const currentCountry = mockEngine.getCurrentCountry();
+    const rates = currentCountry.rates;
+    const rateKeys = Object.keys(rates);
+    const firstRate = rates[rateKeys[0]];
+    const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : firstRate;
+
     this.container.innerHTML = `
       <div class="space-y-6 pb-24 animate-fade-in">
-        <div>
-          <h2 class="text-xl font-extrabold text-white">Tendencias y Analítica</h2>
-          <p class="text-xs text-gray-400 mt-1">Histórico y predicciones de mercado cambiario.</p>
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-xl font-extrabold text-white">Tendencias y Analítica</h2>
+            <p class="text-xs text-gray-400 mt-1">Histórico de tasas para ${currentCountry.name} ${currentCountry.flag}</p>
+          </div>
+          <span class="bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-bold px-2.5 py-1 rounded-xl">
+            ${currentCountry.currency.code}
+          </span>
         </div>
 
         <!-- Chart Container Card -->
@@ -20,7 +31,7 @@ export class AnalyticsView {
           <div class="flex justify-between items-center mb-4">
             <div>
               <span class="text-xs text-gray-400 font-semibold uppercase">Comportamiento</span>
-              <h3 class="text-base font-bold text-white">BCV vs Paralelo</h3>
+              <h3 class="text-sm font-bold text-white">${firstRate.name.split(' ')[0]} vs ${secondRate.name.split(' ')[0]}</h3>
             </div>
             <!-- Time period selector -->
             <div class="flex bg-black/40 p-1 rounded-xl border border-white/10" id="period-selector">
@@ -37,7 +48,7 @@ export class AnalyticsView {
 
         <!-- Proyecciones e Indicadores Inteligentes -->
         <div>
-          <h3 class="text-sm font-bold uppercase tracking-wider text-gray-400 mb-3">Señales de Mercado</h3>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Señales de Mercado</h3>
           <div class="space-y-3">
             <div class="glass-card rounded-2xl p-4 flex items-center justify-between">
               <div class="flex items-center space-x-3">
@@ -45,11 +56,11 @@ export class AnalyticsView {
                   <i data-lucide="trending-up" class="w-5 h-5"></i>
                 </div>
                 <div>
-                  <h4 class="text-sm font-bold text-gray-100">Tendencia Alcista Moderada</h4>
-                  <p class="text-xs text-gray-400">Paralelo prevé incremento de +1.2% semanal.</p>
+                  <h4 class="text-sm font-bold text-gray-100">Tendencia Estable en ${currentCountry.name}</h4>
+                  <p class="text-xs text-gray-400">Variación proyectada moderada (+0.5% mensual).</p>
                 </div>
               </div>
-              <span class="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">+1.2%</span>
+              <span class="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">+0.5%</span>
             </div>
 
             <div class="glass-card rounded-2xl p-4 flex items-center justify-between">
@@ -58,11 +69,11 @@ export class AnalyticsView {
                   <i data-lucide="shield-check" class="w-5 h-5"></i>
                 </div>
                 <div>
-                  <h4 class="text-sm font-bold text-gray-100">Estabilidad Oficial BCV</h4>
-                  <p class="text-xs text-gray-400">Ajustes diarios graduales bajo control bancario.</p>
+                  <h4 class="text-sm font-bold text-gray-100">Supervisión Financiera Local</h4>
+                  <p class="text-xs text-gray-400">Monitoreo continuo de liquidez y divisas.</p>
                 </div>
               </div>
-              <span class="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-full">Estable</span>
+              <span class="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-full">Monitoreado</span>
             </div>
           </div>
         </div>
@@ -78,12 +89,18 @@ export class AnalyticsView {
     const chartContainer = document.getElementById('apex-analytics-chart');
     if (!chartContainer || !window.ApexCharts) return;
 
-    const dataSeries = this.generateMockChartData(this.selectedPeriod);
+    const currentCountry = mockEngine.getCurrentCountry();
+    const rates = currentCountry.rates;
+    const rateKeys = Object.keys(rates);
+    const r1 = rates[rateKeys[0]];
+    const r2 = rateKeys.length > 1 ? rates[rateKeys[1]] : r1;
+
+    const dataSeries = this.generateMockChartData(this.selectedPeriod, r1.value, r2.value);
 
     const options = {
       series: [
-        { name: 'Dólar BCV', data: dataSeries.bcv },
-        { name: 'Dólar Paralelo', data: dataSeries.paralelo }
+        { name: r1.name, data: dataSeries.series1 },
+        { name: r2.name, data: dataSeries.series2 }
       ],
       chart: {
         type: 'area',
@@ -134,7 +151,7 @@ export class AnalyticsView {
     this.chart.render();
   }
 
-  generateMockChartData(period) {
+  generateMockChartData(period, base1, base2) {
     let count = 7;
     let labels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -149,13 +166,13 @@ export class AnalyticsView {
       labels = ['Ene', 'Mar', 'May', 'Jul', 'Sep', 'Nov'];
     }
 
-    const bcvBase = mockEngine.getRate('bcv').value;
-    const parBase = mockEngine.getRate('paralelo').value;
+    const step1 = base1 * 0.002;
+    const step2 = base2 * 0.003;
 
-    const bcvData = Array.from({ length: count }, (_, i) => parseFloat((bcvBase - (count - i) * 0.15).toFixed(2)));
-    const parData = Array.from({ length: count }, (_, i) => parseFloat((parBase - (count - i) * 0.25 + (Math.random() * 0.2)).toFixed(2)));
+    const series1 = Array.from({ length: count }, (_, i) => parseFloat((base1 - (count - i) * step1).toFixed(base1 < 10 ? 4 : 2)));
+    const series2 = Array.from({ length: count }, (_, i) => parseFloat((base2 - (count - i) * step2).toFixed(base2 < 10 ? 4 : 2)));
 
-    return { labels, bcv: bcvData, paralelo: parData };
+    return { labels, series1, series2 };
   }
 
   attachEvents() {

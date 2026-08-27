@@ -1,17 +1,59 @@
 import { DashboardView } from './components/dashboard.js';
 import { CalculatorView } from './components/calculator.js';
 import { AnalyticsView } from './components/analytics.js';
+import { CountryModal } from './components/countryModal.js';
+import { mockEngine } from './mockData.js';
 
 class App {
   constructor() {
     this.currentView = null;
     this.activeTab = 'dashboard'; // 'dashboard', 'calculator', 'analytics'
+    this.countryModal = new CountryModal(() => this.onCountryChanged());
     this.init();
   }
 
   init() {
     this.bindNavigation();
+    this.bindCountrySelector();
+    this.updateHeaderCountryUI();
     this.navigateTo(this.activeTab);
+
+    // Suscribir a cambios globales en mockEngine
+    mockEngine.subscribe((rates, updatedRateId, action) => {
+      if (action === 'country_change') {
+        this.updateHeaderCountryUI();
+        this.navigateTo(this.activeTab, true); // re-render view
+      }
+    });
+  }
+
+  bindCountrySelector() {
+    // Delegación de eventos para abrir el modal desde cualquier botón selector
+    document.addEventListener('click', (e) => {
+      const trigger = e.target.closest('#header-country-btn, .country-selector-trigger, #dash-country-badge');
+      if (trigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.countryModal.open();
+      }
+    });
+  }
+
+  updateHeaderCountryUI() {
+    const current = mockEngine.getCurrentCountry();
+    const flagImgEl = document.getElementById('header-country-flag-img');
+    const codeEl = document.getElementById('header-country-code');
+
+    if (flagImgEl && current.flagUrl) {
+      flagImgEl.src = current.flagUrl;
+      flagImgEl.alt = current.name;
+    }
+    if (codeEl) codeEl.textContent = current.id;
+  }
+
+  onCountryChanged() {
+    this.updateHeaderCountryUI();
+    this.navigateTo(this.activeTab, true);
   }
 
   bindNavigation() {
@@ -27,7 +69,11 @@ class App {
     });
   }
 
-  navigateTo(tab) {
+  navigateTo(tab, forceReload = false) {
+    if (!forceReload && this.activeTab === tab && this.currentView) {
+      return;
+    }
+
     if (this.currentView && typeof this.currentView.destroy === 'function') {
       this.currentView.destroy();
     }
@@ -58,7 +104,6 @@ class App {
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
       const tab = item.getAttribute('data-tab');
-      const icon = item.querySelector('i');
       const label = item.querySelector('span');
 
       if (tab === activeTab) {
@@ -72,7 +117,15 @@ class App {
   }
 }
 
-// Inicializar la aplicación al cargar el DOM
-document.addEventListener('DOMContentLoaded', () => {
-  window.dolarfyApp = new App();
-});
+// Inicializar la aplicación de forma segura si el DOM ya está listo
+const startApp = () => {
+  if (!window.dolarfyApp) {
+    window.dolarfyApp = new App();
+  }
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startApp);
+} else {
+  startApp();
+}
