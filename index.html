@@ -55,8 +55,9 @@
         <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-cyan-400"></i>
       </button>
 
-      <button type="button" aria-label="Notificaciones" class="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-all active:scale-95">
-        <i data-lucide="bell" class="w-4 h-4"></i>
+      <button id="header-bell-btn" type="button" aria-label="Notificaciones" class="relative p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-all active:scale-95 cursor-pointer">
+        <i data-lucide="bell" class="w-4 h-4 text-cyan-400"></i>
+        <span id="header-bell-dot" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
       </button>
     </div>
   </header>

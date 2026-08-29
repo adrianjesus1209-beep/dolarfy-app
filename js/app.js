@@ -2,6 +2,8 @@ import { DashboardView } from './components/dashboard.js';
 import { CalculatorView } from './components/calculator.js';
 import { AnalyticsView } from './components/analytics.js';
 import { CountryModal } from './components/countryModal.js';
+import { NotificationModal } from './components/notificationModal.js';
+import { notificationService } from './notificationService.js';
 import { mockEngine } from './mockData.js';
 
 class App {
@@ -9,32 +11,53 @@ class App {
     this.currentView = null;
     this.activeTab = 'dashboard'; // 'dashboard', 'calculator', 'analytics'
     this.countryModal = new CountryModal(() => this.onCountryChanged());
+    this.notificationModal = new NotificationModal();
     this.init();
   }
 
   init() {
     this.bindNavigation();
     this.bindCountrySelector();
+    this.bindNotificationBell();
     this.updateHeaderCountryUI();
+    this.updateHeaderBellUI();
     this.navigateTo(this.activeTab);
 
     // Suscribir a cambios globales en mockEngine
     mockEngine.subscribe((rates, updatedRateId, action) => {
-      if (action === 'country_change' || action === 'rates_refreshed') {
+      const currentCountry = mockEngine.getCurrentCountry();
+
+      if (action === 'rates_refreshed' || action === 'country_change') {
+        notificationService.checkDailyUpdate(currentCountry, rates);
         this.updateHeaderCountryUI();
         this.navigateTo(this.activeTab, true); // re-render view con tasas reales
       }
     });
+
+    // Escuchar toggle de notificaciones
+    document.addEventListener('dolarfy:notification_toggled', () => {
+      this.updateHeaderBellUI();
+    });
   }
 
   bindCountrySelector() {
-    // Delegación de eventos para abrir el modal desde cualquier botón selector
     document.addEventListener('click', (e) => {
       const trigger = e.target.closest('#header-country-btn, .country-selector-trigger, #dash-country-badge');
       if (trigger) {
         e.preventDefault();
         e.stopPropagation();
         this.countryModal.open();
+      }
+    });
+  }
+
+  bindNotificationBell() {
+    document.addEventListener('click', (e) => {
+      const bellBtn = e.target.closest('#header-bell-btn');
+      if (bellBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.notificationModal.open();
       }
     });
   }
@@ -49,6 +72,14 @@ class App {
       flagImgEl.alt = current.name;
     }
     if (codeEl) codeEl.textContent = current.id;
+  }
+
+  updateHeaderBellUI() {
+    const isEnabled = notificationService.isEnabled();
+    const dotEl = document.getElementById('header-bell-dot');
+    if (dotEl) {
+      dotEl.style.display = isEnabled ? 'block' : 'none';
+    }
   }
 
   onCountryChanged() {
