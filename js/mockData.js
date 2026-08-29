@@ -46,7 +46,7 @@ class MockDataEngine {
       const realRates = await apiService.fetchRatesForCountry(current);
       if (realRates) {
         current.rates = realRates;
-        this.notifyListeners(null, 'update');
+        this.notifyListeners(null, 'rates_refreshed');
       }
     } catch (e) {
       console.warn('Error al sincronizar tasas reales:', e);
@@ -75,9 +75,8 @@ class MockDataEngine {
       console.warn('LocalStorage no disponible', e);
     }
 
-    // Sincronizar API real para el nuevo país
-    this.syncRealRates();
     this.notifyListeners(null, 'country_change');
+    this.syncRealRates();
   }
 
   setDefaultCountry(countryId) {
@@ -118,7 +117,7 @@ class MockDataEngine {
   }
 
   startLiveFluctuations() {
-    // Simulación ligera de fluctuación en vivo cada 25 segundos para el país activo
+    // Simulación de fluctuación liviana en vivo cada 25 segundos
     setInterval(() => {
       const current = this.getCurrentCountry();
       const rateKeys = Object.keys(current.rates);

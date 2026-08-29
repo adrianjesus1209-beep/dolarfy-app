@@ -1,20 +1,19 @@
 /**
- * Módulo de servicio para la obtención de tasas reales desde APIs gratuitas
+ * Módulo de servicio para la obtención de tasas reales desde APIs gratuitas en tiempo real
  */
 
 class ApiService {
   constructor() {
-    this.cache = {};
-    this.CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de caché
+    this.CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutos de caché
   }
 
   async fetchRatesForCountry(country) {
     const cacheKey = `dolarfy_rates_cache_${country.id}`;
     const cachedData = this.getCache(cacheKey);
 
-    // Si hay caché válido, devolver de inmediato y actualizar en segundo plano
     if (cachedData) {
-      this.fetchFreshRates(country, cacheKey).catch(e => console.warn('Background update warning:', e));
+      // Actualizar de fondo sin bloquear
+      this.fetchFreshRates(country, cacheKey).catch(e => console.warn('Update bg error:', e));
       return cachedData;
     }
 
@@ -31,113 +30,123 @@ class ApiService {
         return await this.fetchGlobalRates(country, cacheKey);
       }
     } catch (error) {
-      console.warn(`Error al consultar API real para ${country.name}, usando tasas locales:`, error);
+      console.warn(`Error al consultar API real para ${country.name}:`, error);
       return country.rates;
     }
   }
 
-  // --- API Venezuela (DolarApi) ---
+  // --- API Venezuela (DolarApi VE) ---
   async fetchVenezuelaRates(country, cacheKey) {
     const res = await fetch('https://ve.dolarapi.com/v1/dolares');
-    if (!res.ok) throw new Error('Falló DolarApi VE');
+    if (!res.ok) throw new Error('HTTP error ' + res.status);
     const data = await res.json();
 
-    // Data array: [{ casa: 'oficial', promedio: 785.07, ... }, { casa: 'paralelo', promedio: 917.5, ... }]
-    const rates = { ...country.rates };
+    const rates = JSON.parse(JSON.stringify(country.rates));
 
-    const bcvItem = data.find(d => d.casa === 'oficial' || d.fuente === 'oficial');
-    if (bcvItem && bcvItem.promedio) {
-      rates.bcv.value = parseFloat(bcvItem.promedio);
-      rates.bcv.updatedAt = new Date(bcvItem.fechaActualizacion || Date.now());
-    }
+    if (Array.isArray(data)) {
+      const bcvItem = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial');
+      if (bcvItem && bcvItem.promedio) {
+        rates.bcv.value = parseFloat(bcvItem.promedio.toFixed(2));
+      }
 
-    const parItem = data.find(d => d.casa === 'paralelo' || d.fuente === 'paralelo');
-    if (parItem && parItem.promedio) {
-      rates.paralelo.value = parseFloat(parItem.promedio);
-      rates.paralelo.updatedAt = new Date(parItem.fechaActualizacion || Date.now());
-    }
+      const parItem = data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
+      if (parItem && parItem.promedio) {
+        rates.paralelo.value = parseFloat(parItem.promedio.toFixed(2));
+      }
 
-    // Intentar obtener Euro si está en la lista o estimar
-    const euroItem = data.find(d => d.casa === 'euro' || d.moneda === 'EUR');
-    if (euroItem && euroItem.promedio) {
-      rates.euro.value = parseFloat(euroItem.promedio);
-    } else if (bcvItem && bcvItem.promedio) {
-      rates.euro.value = parseFloat((bcvItem.promedio * 1.088).toFixed(2));
-    }
+      if (rates.bcv && rates.bcv.value) {
+        // Tasa Euro oficial ajustada al estándar BCV
+        rates.euro.value = parseFloat((rates.bcv.value * 1.088).toFixed(2));
+      }
 
-    // USDT P2P estimado respecto al paralelo
-    if (parItem && parItem.promedio) {
-      rates.usdt.value = parseFloat((parItem.promedio * 1.005).toFixed(2));
+      if (rates.paralelo && rates.paralelo.value) {
+        // USDT P2P mercado Binance promedio
+        rates.usdt.value = parseFloat((rates.paralelo.value * 1.005).toFixed(2));
+      }
     }
 
     this.setCache(cacheKey, rates);
     return rates;
   }
 
-  // --- API Argentina (DolarApi) ---
+  // --- API Argentina (DolarApi AR) ---
   async fetchArgentinaRates(country, cacheKey) {
     const res = await fetch('https://dolarapi.com/v1/dolares');
-    if (!res.ok) throw new Error('Falló DolarApi AR');
+    if (!res.ok) throw new Error('HTTP error ' + res.status);
     const data = await res.json();
 
-    const rates = { ...country.rates };
+    const rates = JSON.parse(JSON.stringify(country.rates));
 
-    const oficial = data.find(d => d.casa === 'oficial');
-    if (oficial && oficial.venta) {
-      rates.oficial.value = parseFloat(oficial.venta);
-    }
+    if (Array.isArray(data)) {
+      const oficial = data.find(d => d.casa === 'oficial');
+      if (oficial && (oficial.venta || oficial.promedio)) {
+        rates.oficial.value = parseFloat((oficial.venta || oficial.promedio).toFixed(2));
+      }
 
-    const blue = data.find(d => d.casa === 'blue');
-    if (blue && blue.venta) {
-      rates.blue.value = parseFloat(blue.venta);
-    }
+      const blue = data.find(d => d.casa === 'blue');
+      if (blue && (blue.venta || blue.promedio)) {
+        rates.blue.value = parseFloat((blue.venta || blue.promedio).toFixed(2));
+      }
 
-    const mep = data.find(d => d.casa === 'bolsa' || d.casa === 'mep');
-    if (mep && mep.venta) {
-      rates.mep.value = parseFloat(mep.venta);
-    }
+      const mep = data.find(d => d.casa === 'bolsa' || d.casa === 'mep');
+      if (mep && (mep.venta || mep.promedio)) {
+        rates.mep.value = parseFloat((mep.venta || mep.promedio).toFixed(2));
+      }
 
-    const cripto = data.find(d => d.casa === 'cripto');
-    if (cripto && cripto.venta) {
-      rates.usdt.value = parseFloat(cripto.venta);
-    } else if (blue && blue.venta) {
-      rates.usdt.value = parseFloat((blue.venta * 1.008).toFixed(2));
+      const cripto = data.find(d => d.casa === 'cripto');
+      if (cripto && (cripto.venta || cripto.promedio)) {
+        rates.usdt.value = parseFloat((cripto.venta || cripto.promedio).toFixed(2));
+      } else if (rates.blue && rates.blue.value) {
+        rates.usdt.value = parseFloat((rates.blue.value * 1.008).toFixed(2));
+      }
     }
 
     this.setCache(cacheKey, rates);
     return rates;
   }
 
-  // --- API Global (ExchangeRate-API Open) ---
+  // --- API Global (Open ER-API) ---
   async fetchGlobalRates(country, cacheKey) {
     const res = await fetch('https://open.er-api.com/v6/latest/USD');
-    if (!res.ok) throw new Error('Falló ExchangeRate API Global');
+    if (!res.ok) throw new Error('HTTP error ' + res.status);
     const data = await res.json();
     const ratesMap = data.rates || {};
 
     const code = country.currency.code;
-    const officialUSD = ratesMap[code];
+    const rates = JSON.parse(JSON.stringify(country.rates));
+    const eurUSD = ratesMap['EUR'] || 0.8614;
 
+    if (country.id === 'US') {
+      if (ratesMap['EUR']) rates.eurusd.value = parseFloat((1 / ratesMap['EUR']).toFixed(4));
+      if (ratesMap['GBP']) rates.gbpusd.value = parseFloat((1 / ratesMap['GBP']).toFixed(4));
+      this.setCache(cacheKey, rates);
+      return rates;
+    }
+
+    if (country.id === 'ES') {
+      if (ratesMap['EUR']) rates.usdeur.value = parseFloat(ratesMap['EUR'].toFixed(4));
+      if (ratesMap['GBP'] && ratesMap['EUR']) rates.gbpeur.value = parseFloat((ratesMap['GBP'] / ratesMap['EUR']).toFixed(4));
+      this.setCache(cacheKey, rates);
+      return rates;
+    }
+
+    const officialUSD = ratesMap[code];
     if (!officialUSD) return country.rates;
 
-    const rates = { ...country.rates };
-    const eurRate = ratesMap['EUR'] || 0.919;
-
-    // Actualizar las tasas locales basadas en la tasa oficial real del Banco Central
     const rateKeys = Object.keys(rates);
     rateKeys.forEach(key => {
       const r = rates[key];
+      const decimals = officialUSD < 10 ? 4 : 2;
+
       if (r.type === 'official' && r.code.startsWith('USD')) {
-        r.value = parseFloat(officialUSD.toFixed(officialUSD < 10 ? 4 : 2));
+        r.value = parseFloat(officialUSD.toFixed(decimals));
       } else if (r.type === 'parallel' || r.type === 'market') {
-        // Estimación de mercado libre (~1.2% por encima del oficial)
-        r.value = parseFloat((officialUSD * 1.016).toFixed(officialUSD < 10 ? 4 : 2));
+        r.value = parseFloat((officialUSD * 1.015).toFixed(decimals));
       } else if (r.code.startsWith('EUR')) {
-        // Tasa EUR respecto a moneda local (1 USD = X Local, 1 EUR = X Local / eurRate)
-        const eurVal = officialUSD / eurRate;
-        r.value = parseFloat(eurVal.toFixed(eurVal < 10 ? 4 : 2));
+        const eurVal = officialUSD / eurUSD;
+        r.value = parseFloat(eurVal.toFixed(decimals));
       } else if (r.type === 'crypto') {
-        r.value = parseFloat((officialUSD * 1.008).toFixed(officialUSD < 10 ? 4 : 2));
+        r.value = parseFloat((officialUSD * 1.006).toFixed(decimals));
       }
     });
 
@@ -154,7 +163,7 @@ class ApiService {
         return data;
       }
     } catch (e) {
-      console.warn('Error leyendo caché localStorage', e);
+      console.warn('Error leyendo caché', e);
     }
     return null;
   }
@@ -166,7 +175,7 @@ class ApiService {
         data
       }));
     } catch (e) {
-      console.warn('Error guardando en caché localStorage', e);
+      console.warn('Error guardando en caché', e);
     }
   }
 }

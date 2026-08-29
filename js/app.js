@@ -20,9 +20,9 @@ class App {
 
     // Suscribir a cambios globales en mockEngine
     mockEngine.subscribe((rates, updatedRateId, action) => {
-      if (action === 'country_change') {
+      if (action === 'country_change' || action === 'rates_refreshed') {
         this.updateHeaderCountryUI();
-        this.navigateTo(this.activeTab, true); // re-render view
+        this.navigateTo(this.activeTab, true); // re-render view con tasas reales
       }
     });
   }

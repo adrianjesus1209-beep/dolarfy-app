@@ -114,7 +114,12 @@ export class DashboardView {
   subscribeToUpdates() {
     if (this.unsubscribe) this.unsubscribe();
 
-    this.unsubscribe = mockEngine.subscribe((rates, updatedId) => {
+    this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
+      if (action === 'rates_refreshed' || action === 'country_change') {
+        this.render();
+        return;
+      }
+
       const valEl = document.getElementById(`val-${updatedId}`);
       const badgeEl = document.getElementById(`badge-${updatedId}`);
       const lastUpdateEl = document.getElementById('dash-last-update');
