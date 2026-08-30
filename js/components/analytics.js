@@ -79,24 +79,24 @@ export class AnalyticsView {
         <!-- Tarjetas de Métricas Principales (Brecha, Mín, Máx) -->
         <div class="grid grid-cols-3 gap-2">
           <!-- Brecha Cambiaria -->
-          <div class="glass-card rounded-2xl p-3 text-center border border-cyan-500/20 glow-cyan">
-            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha Tasa</span>
+          <div class="glass-card rounded-2xl p-3 text-center border border-cyan-500/30 bg-cyan-500/5 glow-cyan">
+            <span class="text-[9px] font-bold text-cyan-300/80 uppercase tracking-wider block">Brecha Tasa</span>
             <p class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent}%` : '0.0%'}</p>
             <span class="text-[9px] text-gray-400 font-semibold block truncate">${mainLabel} vs ${secondLabel}</span>
           </div>
 
           <!-- Mínimo del Período -->
-          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
-            <span id="min-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Mínimo (${periodDetails.short})</span>
+          <div class="glass-card rounded-2xl p-3 text-center border border-emerald-500/30 bg-emerald-500/5 glow-green">
+            <span id="min-period-label" class="text-[9px] font-bold text-emerald-300/80 uppercase tracking-wider block">Mínimo (${periodDetails.short})</span>
             <p class="text-sm font-black text-emerald-400 mt-1">${formatCurrency(minVal, currentCountry.currency.code, minVal < 10 ? 4 : 2)}</p>
-            <span class="text-[9px] text-gray-500 font-medium block">Piso estimado</span>
+            <span class="text-[9px] text-emerald-500/80 font-medium block">Piso estimado</span>
           </div>
 
           <!-- Máximo del Período -->
-          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
-            <span id="max-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Máximo (${periodDetails.short})</span>
+          <div class="glass-card rounded-2xl p-3 text-center border border-amber-500/30 bg-amber-500/5">
+            <span id="max-period-label" class="text-[9px] font-bold text-amber-300/80 uppercase tracking-wider block">Máximo (${periodDetails.short})</span>
             <p class="text-sm font-black text-amber-400 mt-1">${formatCurrency(maxVal, currentCountry.currency.code, maxVal < 10 ? 4 : 2)}</p>
-            <span class="text-[9px] text-gray-500 font-medium block">Techo estimado</span>
+            <span class="text-[9px] text-amber-500/80 font-medium block">Techo estimado</span>
           </div>
         </div>
 
