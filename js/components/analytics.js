@@ -20,6 +20,21 @@ export class AnalyticsView {
     return map[period] || map['1M'];
   }
 
+  getPillLabel(rateKey, rateObj) {
+    if (rateKey === 'usdt' || rateObj.id === 'usdt' || rateObj.name.toLowerCase().includes('usdt')) {
+      return 'USDT';
+    }
+    if (rateKey === 'bcv') return 'BCV';
+    if (rateKey === 'paralelo') return 'Paralelo';
+    if (rateKey === 'blue') return 'Blue';
+    if (rateKey === 'oficial') return 'BNA';
+    if (rateKey === 'trm') return 'TRM';
+    if (rateKey === 'banxico') return 'Banxico';
+    if (rateKey === 'ventanilla') return 'Ventanilla';
+    if (rateKey === 'euro') return 'Euro';
+    return rateObj.name.split(' ')[0];
+  }
+
   render() {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = currentCountry.rates;
@@ -102,7 +117,7 @@ export class AnalyticsView {
               ${rateKeys.map(key => {
                 const r = rates[key];
                 const isSel = this.selectedRateFilter === key;
-                const pillName = key === 'usdt' ? 'USDT' : r.name.split(' ')[0];
+                const pillName = this.getPillLabel(key, r);
                 return `
                   <button data-rate="${key}" class="px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                     ${pillName}
