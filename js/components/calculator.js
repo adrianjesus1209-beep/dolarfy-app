@@ -4,10 +4,10 @@ import { formatCurrency } from '../utils/formatters.js';
 export class CalculatorView {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
-    this.amountStr = '0'; // Inicializa en 0
+    this.amountStr = '0';
     this.currentCountry = mockEngine.getCurrentCountry();
     
-    // Monedas por defecto según país activo
+    // Monedas por defecto
     const localCode = this.currentCountry.currency.code;
     this.fromCurrency = 'USD';
     this.toCurrency = localCode === 'USD' ? 'EUR' : localCode;
@@ -45,134 +45,99 @@ export class CalculatorView {
     }
 
     this.container.innerHTML = `
-      <div class="space-y-4 pb-24 animate-fade-in">
+      <div class="space-y-3 pb-20 animate-fade-in max-w-md mx-auto">
         
-        <!-- Header de la Calculadora con icono y país -->
-        <div class="flex justify-between items-center">
-          <div class="flex items-center space-x-2">
-            <div class="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-              <i data-lucide="calculator" class="w-5 h-5"></i>
+        <!-- Header compacto + Selector de Tasa de Referencia -->
+        <div class="glass-card rounded-2xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="calculator" class="w-4 h-4 text-cyan-400"></i>
+              <span class="text-xs font-black text-white">Calculadora ${this.currentCountry.name}</span>
             </div>
-            <div>
-              <h2 class="text-base font-extrabold text-white leading-none">Calculadora Financiera</h2>
-              <p class="text-[11px] text-gray-400 mt-0.5">Conversión en vivo para ${this.currentCountry.name}</p>
-            </div>
-          </div>
-
-          <button type="button" class="country-selector-trigger bg-white/5 border border-white/10 text-cyan-300 text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center space-x-1.5 active:scale-95 transition-all">
             <img src="${this.currentCountry.flagUrl}" alt="${this.currentCountry.name}" class="w-4 h-4 rounded-full object-cover">
-            <span>${this.currentCountry.currency.code}</span>
-            <i data-lucide="chevron-down" class="w-3 h-3 text-cyan-400"></i>
-          </button>
-        </div>
-
-        <!-- Filtros de Tasas del País (Píldoras) -->
-        <div class="glass-card rounded-2xl p-2 space-y-1.5">
-          <div class="flex items-center justify-between px-1">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-              <i data-lucide="sliders" class="w-3 h-3 text-cyan-400"></i> Tasa de Referencia
-            </span>
           </div>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5" id="rate-selector-group">
-            ${rateKeys.map(key => {
-              const r = rates[key];
-              const isSelected = this.selectedRateId === key;
-              return `
-                <button data-rate="${key}" type="button" class="rate-btn py-1.5 px-2 rounded-xl border text-[11px] font-bold text-center transition-all truncate ${isSelected ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-md shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}">
-                  ${r.name.split(' ')[0]} (${r.value.toFixed(r.value < 10 ? 2 : 2)})
-                </button>
-              `;
-            }).join('')}
+
+          <!-- Select Compacto de Tasa de Referencia -->
+          <div class="relative">
+            <select id="rate-dropdown-select" class="w-full bg-black/50 border border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-cyan-300 outline-none appearance-none cursor-pointer pr-8">
+              ${rateKeys.map(key => {
+                const r = rates[key];
+                const isSelected = this.selectedRateId === key;
+                return `
+                  <option value="${key}" class="bg-[#0F141C] text-white" ${isSelected ? 'selected' : ''}>
+                    ${r.name} (${formatCurrency(r.value, r.currency, r.value < 10 ? 4 : 2)})
+                  </option>
+                `;
+              }).join('')}
+            </select>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-cyan-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
           </div>
         </div>
 
-        <!-- Pantalla Digital de la Calculadora -->
-        <div class="glass-card rounded-3xl p-4 relative space-y-3 shadow-2xl border border-white/10">
+        <!-- Pantalla de Conversión Integrada y Compacta -->
+        <div class="glass-card rounded-2xl p-3 space-y-2 shadow-xl border border-white/10">
           
-          <!-- Origen / Tú envías -->
-          <div class="bg-black/40 border border-white/10 rounded-2xl p-3.5">
-            <div class="flex justify-between items-center mb-1">
-              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <i data-lucide="arrow-up-right" class="w-3 h-3 text-cyan-400"></i> Tú envías / Origen
-              </span>
-              <select id="from-currency-select" class="bg-black/60 border border-white/10 rounded-lg px-2 py-0.5 text-xs font-bold text-cyan-300 outline-none cursor-pointer">
-                ${availableCurrencies.map(c => `
-                  <option value="${c.code}" class="bg-[#0B0E14] text-white" ${this.fromCurrency === c.code ? 'selected' : ''}>${c.name}</option>
-                `).join('')}
-              </select>
+          <!-- Fila Origen -->
+          <div class="flex items-center justify-between bg-black/40 border border-white/10 rounded-xl p-2.5">
+            <div>
+              <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Tú envías</span>
+              <span id="calc-display-input" class="text-2xl font-black text-white tracking-tight leading-none">${this.amountStr}</span>
             </div>
-            <div class="flex items-center justify-between">
-              <span id="calc-display-input" class="text-3xl font-black text-white tracking-tight break-all leading-none">${this.amountStr}</span>
-              <span class="text-sm font-bold text-cyan-400 ml-2" id="from-symbol">${this.fromCurrency}</span>
-            </div>
+            <select id="from-currency-select" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-cyan-300 outline-none cursor-pointer">
+              ${availableCurrencies.map(c => `
+                <option value="${c.code}" class="bg-[#0F141C] text-white" ${this.fromCurrency === c.code ? 'selected' : ''}>${c.code}</option>
+              `).join('')}
+            </select>
           </div>
 
-          <!-- Botón de Intercambio Flotante (Swap) -->
-          <div class="flex justify-center -my-2 relative z-10">
-            <button id="swap-currency-btn" type="button" aria-label="Intercambiar divisas" class="p-2.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-lg shadow-cyan-500/30 active:scale-95 transition-all cursor-pointer">
-              <i data-lucide="arrow-up-down" class="w-4 h-4"></i>
+          <!-- Fila Intermedia (Swap + Tasa Aplicada) -->
+          <div class="flex items-center justify-between px-1 text-[10px]">
+            <span id="applied-rate-info" class="text-gray-400 font-semibold truncate max-w-[80%]">1 USD = 0.00</span>
+            <button id="swap-currency-btn" type="button" aria-label="Intercambiar divisas" class="p-1.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 active:scale-95 transition-all cursor-pointer">
+              <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
             </button>
           </div>
 
-          <!-- Destino / Tú recibes -->
-          <div class="bg-black/40 border border-white/10 rounded-2xl p-3.5">
-            <div class="flex justify-between items-center mb-1">
-              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <i data-lucide="arrow-down-left" class="w-3 h-3 text-emerald-400"></i> Tú recibes / Destino
-              </span>
-              <select id="to-currency-select" class="bg-black/60 border border-white/10 rounded-lg px-2 py-0.5 text-xs font-bold text-cyan-300 outline-none cursor-pointer">
-                ${availableCurrencies.map(c => `
-                  <option value="${c.code}" class="bg-[#0B0E14] text-white" ${this.toCurrency === c.code ? 'selected' : ''}>${c.name}</option>
-                `).join('')}
-              </select>
+          <!-- Fila Destino -->
+          <div class="flex items-center justify-between bg-black/40 border border-white/10 rounded-xl p-2.5">
+            <div>
+              <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Tú recibes</span>
+              <p id="calc-result-amount" class="text-2xl font-black text-emerald-400 tracking-tight leading-none">0,00</p>
             </div>
-            <div class="flex items-center justify-between">
-              <p id="calc-result-amount" class="text-3xl font-black text-emerald-400 tracking-tight leading-none">0.00</p>
-              <span class="text-sm font-bold text-emerald-400 ml-2" id="to-symbol">${this.toCurrency}</span>
-            </div>
-          </div>
-
-          <!-- Leyenda de Tasa Aplicada -->
-          <div class="flex justify-between items-center text-[11px] text-gray-400 px-1 pt-1">
-            <span class="flex items-center gap-1"><i data-lucide="info" class="w-3 h-3 text-cyan-400"></i> Tasa aplicada:</span>
-            <span id="applied-rate-info" class="font-bold text-gray-200">1 USD = 0.00</span>
+            <select id="to-currency-select" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-cyan-300 outline-none cursor-pointer">
+              ${availableCurrencies.map(c => `
+                <option value="${c.code}" class="bg-[#0F141C] text-white" ${this.toCurrency === c.code ? 'selected' : ''}>${c.code}</option>
+              `).join('')}
+            </select>
           </div>
 
         </div>
 
-        <!-- Teclado Numérico Real de Calculadora (Keypad) -->
-        <div class="grid grid-cols-4 gap-2 pt-1" id="calc-keypad">
-          <button data-key="C" type="button" class="calc-key-btn calc-key-clear py-3.5 rounded-2xl text-base font-extrabold flex items-center justify-center">C</button>
-          <button data-key="BACKSPACE" type="button" class="calc-key-btn calc-key-action py-3.5 rounded-2xl text-sm font-extrabold flex items-center justify-center">
-            <i data-lucide="delete" class="w-5 h-5"></i>
+        <!-- Teclado Numérico Ultra-Compacto (Keypad) -->
+        <div class="grid grid-cols-4 gap-1.5" id="calc-keypad">
+          <button data-key="C" type="button" class="calc-key-btn calc-key-clear py-2.5 rounded-xl text-sm font-extrabold">C</button>
+          <button data-key="BACKSPACE" type="button" class="calc-key-btn calc-key-action py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center">
+            <i data-lucide="delete" class="w-4 h-4"></i>
           </button>
-          <button data-key="00" type="button" class="calc-key-btn calc-key-action py-3.5 rounded-2xl text-sm font-extrabold">00</button>
-          <button data-key="SWAP" type="button" class="calc-key-btn calc-key-action py-3.5 rounded-2xl text-sm font-extrabold flex items-center justify-center">
-            <i data-lucide="arrow-up-down" class="w-4 h-4"></i>
-          </button>
-
-          <button data-key="7" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">7</button>
-          <button data-key="8" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">8</button>
-          <button data-key="9" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">9</button>
-          <button data-key="RATE_NEXT" type="button" class="calc-key-btn calc-key-action py-3.5 rounded-2xl text-xs font-bold flex flex-col items-center justify-center">
-            <i data-lucide="repeat" class="w-4 h-4"></i>
+          <button data-key="00" type="button" class="calc-key-btn calc-key-action py-2.5 rounded-xl text-xs font-extrabold">00</button>
+          <button data-key="SWAP" type="button" class="calc-key-btn calc-key-action py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center">
+            <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
           </button>
 
-          <button data-key="4" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">4</button>
-          <button data-key="5" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">5</button>
-          <button data-key="6" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">6</button>
-          <button data-key="CLEAR_ENTRY" type="button" class="calc-key-btn calc-key-action py-3.5 rounded-2xl text-xs font-bold flex flex-col items-center justify-center">CE</button>
+          <button data-key="7" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">7</button>
+          <button data-key="8" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">8</button>
+          <button data-key="9" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">9</button>
+          <button data-key="CLEAR_ENTRY" type="button" class="calc-key-btn calc-key-action py-2.5 rounded-xl text-xs font-bold">CE</button>
 
-          <button data-key="1" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">1</button>
-          <button data-key="2" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">2</button>
-          <button data-key="3" type="button" class="calc-key-btn py-3.5 rounded-2xl text-lg text-white">3</button>
-          <button data-key="." type="button" class="calc-key-btn py-3.5 rounded-2xl text-xl text-cyan-400 font-black">.</button>
+          <button data-key="4" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">4</button>
+          <button data-key="5" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">5</button>
+          <button data-key="6" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">6</button>
+          <button data-key="." type="button" class="calc-key-btn py-2.5 rounded-xl text-lg text-cyan-400 font-black">.</button>
 
-          <button data-key="0" type="button" class="calc-key-btn col-span-2 py-3.5 rounded-2xl text-lg text-white">0</button>
-          <button data-key="CALCULATE" type="button" class="calc-key-btn col-span-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-black py-3.5 rounded-2xl text-base font-extrabold flex items-center justify-center space-x-1 shadow-lg shadow-cyan-500/20 active:scale-95">
-            <i data-lucide="check" class="w-5 h-5"></i>
-            <span>Calcular</span>
-          </button>
+          <button data-key="1" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">1</button>
+          <button data-key="2" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">2</button>
+          <button data-key="3" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">3</button>
+          <button data-key="0" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">0</button>
         </div>
 
       </div>
@@ -184,23 +149,24 @@ export class CalculatorView {
   }
 
   attachEvents() {
+    const rateSelect = document.getElementById('rate-dropdown-select');
     const fromSelect = document.getElementById('from-currency-select');
     const toSelect = document.getElementById('to-currency-select');
     const swapBtn = document.getElementById('swap-currency-btn');
-    const rateBtns = document.querySelectorAll('.rate-btn');
     const keypadKeys = document.querySelectorAll('#calc-keypad button');
+
+    rateSelect?.addEventListener('change', (e) => {
+      this.selectedRateId = e.target.value;
+      this.calculate();
+    });
 
     fromSelect?.addEventListener('change', (e) => {
       this.fromCurrency = e.target.value;
-      const sym = document.getElementById('from-symbol');
-      if (sym) sym.textContent = this.fromCurrency;
       this.calculate();
     });
 
     toSelect?.addEventListener('change', (e) => {
       this.toCurrency = e.target.value;
-      const sym = document.getElementById('to-symbol');
-      if (sym) sym.textContent = this.toCurrency;
       this.calculate();
     });
 
@@ -214,28 +180,11 @@ export class CalculatorView {
       if (fromSel) fromSel.value = this.fromCurrency;
       if (toSel) toSel.value = this.toCurrency;
 
-      const fromSym = document.getElementById('from-symbol');
-      const toSym = document.getElementById('to-symbol');
-      if (fromSym) fromSym.textContent = this.fromCurrency;
-      if (toSym) toSym.textContent = this.toCurrency;
-
       this.calculate();
     };
 
     swapBtn?.addEventListener('click', triggerSwap);
 
-    rateBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.selectedRateId = btn.getAttribute('data-rate');
-        rateBtns.forEach(b => {
-          const isSelected = b.getAttribute('data-rate') === this.selectedRateId;
-          b.className = `rate-btn py-1.5 px-2 rounded-xl border text-[11px] font-bold text-center transition-all truncate ${isSelected ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-md shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'}`;
-        });
-        this.calculate();
-      });
-    });
-
-    // Eventos del Teclado Numérico
     keypadKeys.forEach(btn => {
       btn.addEventListener('click', () => {
         const key = btn.getAttribute('data-key');
@@ -249,12 +198,12 @@ export class CalculatorView {
       if (this.amountStr === '0') {
         this.amountStr = key;
       } else {
-        if (this.amountStr.length < 12) {
+        if (this.amountStr.length < 10) {
           this.amountStr += key;
         }
       }
     } else if (key === '00') {
-      if (this.amountStr !== '0' && this.amountStr.length < 10) {
+      if (this.amountStr !== '0' && this.amountStr.length < 9) {
         this.amountStr += '00';
       }
     } else if (key === '.') {
@@ -271,14 +220,6 @@ export class CalculatorView {
       }
     } else if (key === 'SWAP') {
       if (triggerSwap) triggerSwap();
-    } else if (key === 'RATE_NEXT') {
-      const rates = this.currentCountry.rates;
-      const keys = Object.keys(rates);
-      const idx = keys.indexOf(this.selectedRateId);
-      const nextIdx = (idx + 1) % keys.length;
-      this.selectedRateId = keys[nextIdx];
-      this.render();
-      return;
     }
 
     const displayInput = document.getElementById('calc-display-input');
