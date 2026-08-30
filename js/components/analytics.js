@@ -6,7 +6,8 @@ export class AnalyticsView {
     this.container = document.getElementById(containerId);
     this.chart = null;
     this.selectedPeriod = '1M'; // 1D, 1W, 1M, 3M, 1Y
-    this.selectedRateFilter = null; // null = sin filtro (muestra todas), o ID de tasa específica
+    this.selectedRateFilter = 'all'; // 'all' o ID de tasa específica
+    this.activeStatCard = null; // 'brecha', 'min', 'max' o null
   }
 
   getPeriodDetails(period) {
@@ -79,25 +80,25 @@ export class AnalyticsView {
         <!-- Tarjetas de Métricas Principales (Brecha, Mín, Máx) -->
         <div class="grid grid-cols-3 gap-2">
           <!-- Brecha Cambiaria -->
-          <div class="glass-card-interactive rounded-2xl p-3 text-center border border-white/10">
+          <button data-stat="brecha" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'brecha' ? 'border-cyan-500/60 glow-cyan bg-cyan-500/15' : 'border-white/10 hover:border-cyan-500/30'}">
             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha Tasa</span>
             <p class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent}%` : '0.0%'}</p>
             <span class="text-[9px] text-gray-400 font-semibold block truncate">${mainLabel} vs ${secondLabel}</span>
-          </div>
+          </button>
 
           <!-- Mínimo del Período -->
-          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
+          <button data-stat="min" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'min' ? 'border-emerald-500/60 glow-green bg-emerald-500/15' : 'border-white/10 hover:border-emerald-500/30'}">
             <span id="min-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Mínimo (${periodDetails.short})</span>
             <p class="text-sm font-black text-emerald-400 mt-1">${formatCurrency(minVal, currentCountry.currency.code, minVal < 10 ? 4 : 2)}</p>
             <span class="text-[9px] text-gray-500 font-medium block">Piso estimado</span>
-          </div>
+          </button>
 
           <!-- Máximo del Período -->
-          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
+          <button data-stat="max" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'max' ? 'border-amber-500/60 bg-amber-500/15 shadow-lg shadow-amber-500/20' : 'border-white/10 hover:border-amber-500/30'}">
             <span id="max-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Máximo (${periodDetails.short})</span>
             <p class="text-sm font-black text-amber-400 mt-1">${formatCurrency(maxVal, currentCountry.currency.code, maxVal < 10 ? 4 : 2)}</p>
             <span class="text-[9px] text-gray-500 font-medium block">Techo estimado</span>
-          </div>
+          </button>
         </div>
 
         <!-- Tarjeta del Gráfico ApexCharts -->
@@ -114,14 +115,15 @@ export class AnalyticsView {
             </div>
 
             <div class="grid grid-cols-5 gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="analytics-rate-filter">
-              <button data-rate="all" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate text-gray-400 hover:text-white">
+              <button data-rate="all" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${this.selectedRateFilter === 'all' ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                 Todas
               </button>
               ${rateKeys.map(key => {
                 const r = rates[key];
+                const isSel = this.selectedRateFilter === key;
                 const pillLabel = this.getPillLabel(key, r);
                 return `
-                  <button data-rate="${key}" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate text-gray-400 hover:text-white">
+                  <button data-rate="${key}" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                     ${pillLabel}
                   </button>
                 `;
@@ -204,7 +206,7 @@ export class AnalyticsView {
     const rateKeys = Object.keys(rates);
 
     let activeKeys = rateKeys;
-    if (this.selectedRateFilter && this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]) {
+    if (this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]) {
       activeKeys = [this.selectedRateFilter];
     }
 
@@ -348,9 +350,18 @@ export class AnalyticsView {
         this.selectedRateFilter = btn.getAttribute('data-rate');
         rateFilterBtns.forEach(b => {
           const isSel = b.getAttribute('data-rate') === this.selectedRateFilter;
-          b.className = `w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
+          b.className = `px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
         });
         this.initChart();
+      });
+    });
+
+    const statBtns = document.querySelectorAll('.stat-card-btn');
+    statBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.getAttribute('data-stat');
+        this.activeStatCard = this.activeStatCard === type ? null : type;
+        this.render();
       });
     });
   }
