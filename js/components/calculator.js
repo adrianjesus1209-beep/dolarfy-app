@@ -98,11 +98,16 @@ export class CalculatorView {
             </button>
           </div>
 
-          <!-- Fila Destino -->
+          <!-- Fila Destino + Icono de Copiar Resultado -->
           <div class="flex items-center justify-between bg-black/40 border border-white/10 rounded-xl p-2.5">
-            <div>
+            <div class="flex-1 pr-2">
               <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Tú recibes</span>
-              <p id="calc-result-amount" class="text-2xl font-black text-emerald-400 tracking-tight leading-none">0,00</p>
+              <div class="flex items-center space-x-2 mt-0.5">
+                <p id="calc-result-amount" class="text-2xl font-black text-emerald-400 tracking-tight leading-none">0,00</p>
+                <button id="copy-result-btn" type="button" title="Copiar resultado" aria-label="Copiar resultado" class="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-emerald-400 active:scale-95 transition-all cursor-pointer">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
             </div>
             <select id="to-currency-select" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-cyan-300 outline-none cursor-pointer">
               ${availableCurrencies.map(c => `
@@ -153,6 +158,7 @@ export class CalculatorView {
     const fromSelect = document.getElementById('from-currency-select');
     const toSelect = document.getElementById('to-currency-select');
     const swapBtn = document.getElementById('swap-currency-btn');
+    const copyBtn = document.getElementById('copy-result-btn');
     const keypadKeys = document.querySelectorAll('#calc-keypad button');
 
     rateSelect?.addEventListener('change', (e) => {
@@ -184,6 +190,21 @@ export class CalculatorView {
     };
 
     swapBtn?.addEventListener('click', triggerSwap);
+
+    copyBtn?.addEventListener('click', () => {
+      const resultEl = document.getElementById('calc-result-amount');
+      if (!resultEl) return;
+      const textToCopy = resultEl.textContent;
+
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        copyBtn.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>`;
+        if (window.lucide) window.lucide.createIcons();
+        setTimeout(() => {
+          copyBtn.innerHTML = `<i data-lucide="copy" class="w-3.5 h-3.5 text-gray-400"></i>`;
+          if (window.lucide) window.lucide.createIcons();
+        }, 2000);
+      }).catch(e => console.warn('Error al copiar al portapapeles:', e));
+    });
 
     keypadKeys.forEach(btn => {
       btn.addEventListener('click', () => {
