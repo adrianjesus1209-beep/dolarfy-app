@@ -132,7 +132,7 @@ export class CalculatorView {
           <button data-key="7" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">7</button>
           <button data-key="8" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">8</button>
           <button data-key="9" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">9</button>
-          <button data-key="CLEAR_ENTRY" type="button" class="calc-key-btn calc-key-action py-2.5 rounded-xl text-xs font-bold">CE</button>
+          <button data-key="PERCENT" type="button" class="calc-key-btn calc-key-action py-2.5 rounded-xl text-xs font-bold">%</button>
 
           <button data-key="4" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">4</button>
           <button data-key="5" type="button" class="calc-key-btn py-2.5 rounded-xl text-base text-white">5</button>
@@ -231,8 +231,11 @@ export class CalculatorView {
       if (!this.amountStr.includes('.')) {
         this.amountStr += '.';
       }
-    } else if (key === 'C' || key === 'CLEAR_ENTRY') {
+    } else if (key === 'C') {
       this.amountStr = '0';
+    } else if (key === 'PERCENT') {
+      const val = parseFloat(this.amountStr) || 0;
+      this.amountStr = (val / 100).toString();
     } else if (key === 'BACKSPACE') {
       if (this.amountStr.length > 1) {
         this.amountStr = this.amountStr.slice(0, -1);
