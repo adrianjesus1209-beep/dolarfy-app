@@ -51,31 +51,20 @@ export class CalculatorView {
     this.container.innerHTML = `
       <div class="space-y-3 pb-24 animate-fade-in max-w-md mx-auto">
         
-        <!-- 1. Barra Superior de Píldoras (Tasas del país + Filtro temporal) -->
-        <div class="flex items-center justify-between text-xs gap-2">
-          <!-- Píldoras de Tasas del País (Distribución perfecta en grid) -->
-          <div class="grid grid-cols-4 gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 flex-1 items-center" id="rate-pills-group">
+        <!-- 1. Barra Superior de Píldoras (Tasas del país) -->
+        <div class="w-full text-xs">
+          <!-- Píldoras de Tasas del País (Distribución perfecta en grid a todo el ancho) -->
+          <div class="grid grid-cols-4 gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="rate-pills-group">
             ${rateKeys.map(key => {
               const r = rates[key];
               const isSelected = this.selectedRateId === key;
               const pillLabel = this.getPillLabel(key, r);
               return `
-                <button data-rate="${key}" type="button" class="rate-pill-btn w-full py-1.5 px-1 rounded-xl font-bold text-center transition-all text-[11px] truncate flex items-center justify-center ${isSelected ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+                <button data-rate="${key}" type="button" class="rate-pill-btn w-full py-1.5 px-1 rounded-xl font-bold text-center transition-all text-xs truncate flex items-center justify-center ${isSelected ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                   ${pillLabel}
                 </button>
               `;
             }).join('')}
-          </div>
-
-          <!-- Píldoras de Filtro Temporal -->
-          <div class="flex bg-black/40 p-1 rounded-2xl border border-white/10 space-x-1 shrink-0">
-            <button data-time="hoy" type="button" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              Hoy
-            </button>
-            <button data-time="lun" type="button" class="px-2 py-1 rounded-xl text-xs font-medium text-gray-400 flex items-center gap-1">
-              <span>Lun.</span>
-              <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-            </button>
           </div>
         </div>
 
