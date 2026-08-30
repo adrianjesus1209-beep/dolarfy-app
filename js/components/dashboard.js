@@ -49,7 +49,7 @@ export class DashboardView {
         </div>
 
         <!-- Banner Promocional / Alerta de Mercado -->
-        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 p-5 border border-cyan-500/20 glow-cyan">
+        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 p-5 border border-white/10">
           <div class="relative z-10">
             <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">Resumen del Día</span>
             <h3 class="text-lg font-bold text-white mt-2">${bannerText}</h3>
