@@ -118,14 +118,14 @@ class ApiService {
 
     if (country.id === 'US') {
       if (ratesMap['EUR']) rates.eurusd.value = parseFloat((1 / ratesMap['EUR']).toFixed(4));
-      if (ratesMap['GBP']) rates.gbpusd.value = parseFloat((1 / ratesMap['GBP']).toFixed(4));
+      if (rates.usdc) rates.usdc.value = 1.0000;
       this.setCache(cacheKey, rates);
       return rates;
     }
 
     if (country.id === 'ES') {
       if (ratesMap['EUR']) rates.usdeur.value = parseFloat(ratesMap['EUR'].toFixed(4));
-      if (ratesMap['GBP'] && ratesMap['EUR']) rates.gbpeur.value = parseFloat((ratesMap['GBP'] / ratesMap['EUR']).toFixed(4));
+      if (ratesMap['EUR'] && rates.usdc) rates.usdc.value = parseFloat(ratesMap['EUR'].toFixed(4));
       this.setCache(cacheKey, rates);
       return rates;
     }

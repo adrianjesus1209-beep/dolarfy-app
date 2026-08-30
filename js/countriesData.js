@@ -452,22 +452,22 @@ export const COUNTRIES_DATA = [
         type: 'forex',
         icon: 'globe'
       },
-      gbpusd: {
-        id: 'gbpusd',
-        name: 'GBP / USD Forex',
-        code: 'GBP/USD',
-        value: 1.355,
-        change: 0.12,
-        currency: 'USD',
-        type: 'forex',
-        icon: 'line-chart'
-      },
       usdt: {
         id: 'usdt',
         name: 'Tether USDT Global',
         code: 'USDT/USD',
         value: 1.001,
         change: 0.01,
+        currency: 'USD',
+        type: 'crypto',
+        icon: 'coins'
+      },
+      usdc: {
+        id: 'usdc',
+        name: 'USD Coin (USDC)',
+        code: 'USDC/USD',
+        value: 1.000,
+        change: 0.00,
         currency: 'USD',
         type: 'crypto',
         icon: 'coins'
@@ -504,22 +504,22 @@ export const COUNTRIES_DATA = [
         type: 'forex',
         icon: 'globe'
       },
-      gbpeur: {
-        id: 'gbpeur',
-        name: 'GBP / EUR Forex',
-        code: 'GBP/EUR',
-        value: 0.856,
-        change: 0.08,
-        currency: 'EUR',
-        type: 'forex',
-        icon: 'line-chart'
-      },
       usdt: {
         id: 'usdt',
         name: 'USDT P2P Europa',
         code: 'USDT/EUR',
         value: 0.8650,
         change: 0.02,
+        currency: 'EUR',
+        type: 'crypto',
+        icon: 'coins'
+      },
+      usdc: {
+        id: 'usdc',
+        name: 'USDC P2P Europa',
+        code: 'USDC/EUR',
+        value: 0.8614,
+        change: 0.04,
         currency: 'EUR',
         type: 'crypto',
         icon: 'coins'

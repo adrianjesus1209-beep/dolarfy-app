@@ -22,7 +22,12 @@ export class CalculatorView {
   }
 
   getPillLabel(rateKey, rateObj) {
-    if (rateKey === 'usdt' || rateObj.id === 'usdt' || rateObj.name.toLowerCase().includes('binance') || rateObj.name.toLowerCase().includes('usdt')) {
+    if (!rateObj) return rateKey || '';
+    const nameLower = rateObj.name.toLowerCase();
+    if (rateKey === 'usdc' || rateObj.id === 'usdc' || nameLower.includes('usdc')) {
+      return 'USDC';
+    }
+    if (rateKey === 'usdt' || rateObj.id === 'usdt' || nameLower.includes('binance') || nameLower.includes('usdt')) {
       return 'USDT';
     }
     if (rateKey === 'bcv') return 'BCV';
@@ -30,8 +35,33 @@ export class CalculatorView {
     if (rateKey === 'blue') return 'Blue';
     if (rateKey === 'oficial') return 'Oficial';
     if (rateKey === 'trm') return 'TRM';
+    if (rateKey === 'callejero') return 'Callejero';
+    if (rateKey === 'banxico') return 'Banxico';
+    if (rateKey === 'ventanilla') return 'Ventanilla';
+    if (rateKey === 'observado') return 'Observado';
+    if (rateKey === 'informal') return 'Informal';
+    if (rateKey === 'sunat') return 'SUNAT';
+    if (rateKey === 'ocona') return 'Ocoña';
+    if (rateKey === 'comercial') return 'Comercial';
+    if (rateKey === 'turismo') return 'Turismo';
+    if (rateKey === 'bancentral') return 'BCRD';
+    if (rateKey === 'mercado') return 'Mercado';
+    if (rateKey === 'mep') return 'MEP';
     if (rateKey === 'euro') return 'Euro';
+    if (rateKey === 'eurusd') return 'EUR';
+    if (rateKey === 'gbpusd' || rateKey === 'gbpeur') return 'GBP';
+    if (rateKey === 'usdeur') return 'USD';
+    if (rateKey === 'base') return rateObj.currency === 'USD' ? 'Dólar' : 'Euro';
+
     return rateObj.name.split(' ')[0];
+  }
+
+  getCurrencySymbol(code) {
+    const symbols = {
+      USD: '$', VES: 'Bs.', COP: '$', ARS: '$', MXN: '$', CLP: '$',
+      PEN: 'S/', BRL: 'R$', DOP: 'RD$', EUR: '€', USDT: '₮', USDC: '₮', GBP: '£'
+    };
+    return symbols[code] || '$';
   }
 
   render() {
@@ -40,13 +70,29 @@ export class CalculatorView {
     const rateKeys = Object.keys(rates);
 
     if (!rates[this.selectedRateId]) {
-      this.selectedRateId = this.currentCountry.defaultRateId && rates[this.currentCountry.defaultRateId]
+      this.selectedRateId = this.currentCountry.defaultRateId && rates[this.selectedRateId]
         ? this.currentCountry.defaultRateId
         : rateKeys[0];
     }
 
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
     const activeRate = activeRateObj ? activeRateObj.value : 1;
+    const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
+    const ratePair = [baseCode, targetCode];
+
+    // Ajustar monedas de origen y destino si alguna no pertenece al par de la tasa activa
+    if (!ratePair.includes(this.fromCurrency) || !ratePair.includes(this.toCurrency)) {
+      if (targetCode === 'USD' && baseCode !== 'USD') {
+        this.fromCurrency = 'USD';
+        this.toCurrency = baseCode;
+      } else {
+        this.fromCurrency = baseCode;
+        this.toCurrency = targetCode;
+      }
+    }
+
+    const fromSym = this.getCurrencySymbol(this.fromCurrency);
+    const toSym = this.getCurrencySymbol(this.toCurrency);
 
     this.container.innerHTML = `
       <div class="space-y-3 pb-24 animate-fade-in max-w-md mx-auto">
@@ -85,13 +131,13 @@ export class CalculatorView {
 
           <!-- User typed amount display (Middle Right) -->
           <div class="text-right py-1">
-            <span id="calc-display-input" class="text-3xl sm:text-4xl font-black text-white tracking-tight break-all">${this.expression} $</span>
+            <span id="calc-display-input" class="text-3xl sm:text-4xl font-black text-white tracking-tight break-all">${this.expression} ${fromSym}</span>
           </div>
 
           <!-- Large Green Equality Result Display (Center) -->
           <div class="text-left border-t border-white/5 pt-2 flex justify-between items-center">
             <p id="calc-equality-display" class="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight leading-tight">
-              $0,00 = 0,00 ${this.toCurrency}
+              ${fromSym}0,00 = 0,00 ${toSym}
             </p>
             <button id="copy-result-btn" type="button" title="Copiar resultado" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-emerald-400 active:scale-95 transition-all cursor-pointer">
               <i data-lucide="copy" class="w-4 h-4"></i>
@@ -100,7 +146,7 @@ export class CalculatorView {
 
           <!-- Mode Badge at Bottom Right of card -->
           <div class="flex justify-end items-center space-x-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider pt-1">
-            <span>${this.getPillLabel(this.selectedRateId, activeRateObj)} ${this.fromCurrency}</span>
+            <span id="calc-mode-badge">${this.fromCurrency} → ${this.toCurrency}</span>
             <i data-lucide="arrow-left-right" class="w-3 h-3 text-cyan-400"></i>
           </div>
 
@@ -156,8 +202,23 @@ export class CalculatorView {
 
     ratePills.forEach(btn => {
       btn.addEventListener('click', () => {
-        this.selectedRateId = btn.getAttribute('data-rate');
-        this.render();
+        const newRateId = btn.getAttribute('data-rate');
+        if (this.selectedRateId !== newRateId) {
+          this.selectedRateId = newRateId;
+          const rates = this.currentCountry.rates;
+          const newRateObj = rates[newRateId];
+          if (newRateObj && newRateObj.code) {
+            const [baseCode, targetCode] = newRateObj.code.split('/');
+            if (targetCode === 'USD' && baseCode !== 'USD') {
+              this.fromCurrency = 'USD';
+              this.toCurrency = baseCode;
+            } else {
+              this.fromCurrency = baseCode;
+              this.toCurrency = targetCode;
+            }
+          }
+          this.render();
+        }
       });
     });
 
@@ -235,9 +296,19 @@ export class CalculatorView {
       this.saveToHistory();
     }
 
+    const rates = this.currentCountry.rates;
+    const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
+    const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
+    const currentSym = this.fromCurrency === baseCode ? (baseCode === 'EUR' ? '€' : (baseCode === 'GBP' ? '£' : '$')) : (this.fromCurrency === 'USD' ? '$' : '$');
+
     const displayInput = document.getElementById('calc-display-input');
     if (displayInput) {
-      displayInput.textContent = `${this.expression} $`;
+      displayInput.textContent = `${this.expression} ${currentSym}`;
+    }
+
+    const modeBadge = document.getElementById('calc-mode-badge');
+    if (modeBadge) {
+      modeBadge.textContent = `${this.fromCurrency} → ${this.toCurrency}`;
     }
 
     this.calculate();
@@ -371,9 +442,10 @@ export class CalculatorView {
   calculate() {
     const rates = this.currentCountry.rates;
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
-    const activeRate = activeRateObj ? activeRateObj.value : 1;
-    const localSymbol = this.currentCountry.currency.symbol;
-    const localCode = this.currentCountry.currency.code;
+    if (!activeRateObj) return;
+
+    const activeRate = activeRateObj.value || 1;
+    const [baseCode, targetCode] = activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
 
     let numericAmount = 0;
     try {
@@ -387,37 +459,32 @@ export class CalculatorView {
       numericAmount = parseFloat(this.expression.replace(/,/g, '.')) || 0;
     }
 
-    let inUSD = 0;
-    if (this.fromCurrency === 'USD' || this.fromCurrency === 'USDT') {
-      inUSD = numericAmount;
-    } else if (this.fromCurrency === localCode) {
-      inUSD = numericAmount / activeRate;
-    } else if (this.fromCurrency === 'EUR') {
-      const euroRate = rates.euro ? rates.euro.value : (activeRate * 1.088);
-      inUSD = (numericAmount * euroRate) / activeRate;
-    } else {
-      inUSD = numericAmount;
-    }
-
     let finalResult = 0;
-    if (this.toCurrency === 'USD' || this.toCurrency === 'USDT') {
-      finalResult = inUSD;
-    } else if (this.toCurrency === localCode) {
-      finalResult = inUSD * activeRate;
-    } else if (this.toCurrency === 'EUR') {
-      const euroRate = rates.euro ? rates.euro.value : (activeRate * 1.088);
-      finalResult = (inUSD * activeRate) / euroRate;
+    if (this.fromCurrency === baseCode && this.toCurrency === targetCode) {
+      finalResult = numericAmount * activeRate;
+    } else if (this.fromCurrency === targetCode && this.toCurrency === baseCode) {
+      finalResult = numericAmount / activeRate;
+    } else if (this.fromCurrency === this.toCurrency) {
+      finalResult = numericAmount;
     } else {
-      finalResult = inUSD;
+      if (this.fromCurrency === baseCode) {
+        finalResult = numericAmount * activeRate;
+      } else {
+        finalResult = numericAmount / activeRate;
+      }
     }
 
     const equalityEl = document.getElementById('calc-equality-display');
     if (equalityEl) {
+      const symbols = {
+        USD: '$', VES: 'Bs.', COP: '$', ARS: '$', MXN: '$', CLP: '$',
+        PEN: 'S/', BRL: 'R$', DOP: 'RD$', EUR: '€', USDT: '₮', GBP: '£'
+      };
+      const fromSym = symbols[this.fromCurrency] || '$';
+      const toSym = symbols[this.toCurrency] || '$';
+
       const fromFormatted = numericAmount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const toFormatted = finalResult.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: finalResult < 10 ? 4 : 2 });
-      
-      const fromSym = this.fromCurrency === 'USD' ? '$' : (this.fromCurrency === localCode ? localSymbol : this.fromCurrency);
-      const toSym = this.toCurrency === localCode ? localSymbol : (this.toCurrency === 'USD' ? '$' : this.toCurrency);
 
       equalityEl.textContent = `${fromSym}${fromFormatted} = ${toFormatted} ${toSym}`;
     }
