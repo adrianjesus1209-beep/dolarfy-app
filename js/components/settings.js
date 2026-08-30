@@ -109,7 +109,7 @@ export class SettingsView {
 
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold text-gray-300">Desarrollo</span>
-              <span class="text-xs font-bold text-cyan-300">Desarrollado por ti</span>
+              <span class="text-xs font-bold text-cyan-300">Adrian Bello</span>
             </div>
           </div>
         </div>
