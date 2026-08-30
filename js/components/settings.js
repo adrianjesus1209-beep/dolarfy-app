@@ -97,7 +97,7 @@ export class SettingsView {
           <div class="glass-card rounded-2xl p-4 space-y-3 border border-white/10">
             <div class="flex items-center justify-between border-b border-white/5 pb-2.5">
               <span class="text-xs font-semibold text-gray-300">Versión</span>
-              <span class="text-xs font-extrabold text-cyan-400">1.2.0 (Mobile Edition)</span>
+              <span class="text-xs font-extrabold text-cyan-400">1.0</span>
             </div>
 
             <div class="flex items-center justify-between border-b border-white/5 pb-2.5">
@@ -109,7 +109,7 @@ export class SettingsView {
 
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold text-gray-300">Desarrollo</span>
-              <span class="text-xs font-bold text-gray-400">Google DeepMind Pair Engine</span>
+              <span class="text-xs font-bold text-cyan-300">Desarrollado por ti</span>
             </div>
           </div>
         </div>
