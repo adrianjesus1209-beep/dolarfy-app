@@ -31,12 +31,14 @@ export class DashboardView {
         <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4">
           <div class="flex items-center space-x-3">
             <span class="relative flex h-3 w-3">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
             </span>
             <div>
-              <p class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Mercado En Vivo</p>
-              <p class="text-xs text-gray-400">Actualizado: <span id="dash-last-update">${formatTime()}</span></p>
+              <p class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                <i data-lucide="landmark" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>Publicación Bancaria Oficial</span>
+              </p>
+              <p class="text-[11px] text-gray-300 font-semibold mt-0.5">${currentCountry.officialSchedule || 'Cierre Banco Central'}</p>
             </div>
           </div>
           <button type="button" id="dash-country-badge" aria-label="Cambiar país" class="country-selector-trigger text-xs font-bold px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center space-x-1.5 hover:bg-cyan-500/20 active:scale-95 transition-all cursor-pointer">

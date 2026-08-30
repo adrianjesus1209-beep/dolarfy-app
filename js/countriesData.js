@@ -10,6 +10,7 @@ export const COUNTRIES_DATA = [
     flag: '🇻🇪',
     flagUrl: 'https://flagcdn.com/w40/ve.png',
     region: 'latam',
+    officialSchedule: '5:00 PM VET (Cierre BCV Oficial)',
     currency: { code: 'VES', symbol: 'Bs', name: 'Bolívar Digital' },
     defaultRateId: 'bcv',
     rates: {
@@ -61,6 +62,7 @@ export const COUNTRIES_DATA = [
     flag: '🇨🇴',
     flagUrl: 'https://flagcdn.com/w40/co.png',
     region: 'latam',
+    officialSchedule: '5:00 PM COT (TRM Banco Rep.)',
     currency: { code: 'COP', symbol: '$', name: 'Peso Colombiano' },
     defaultRateId: 'trm',
     rates: {
@@ -112,6 +114,7 @@ export const COUNTRIES_DATA = [
     flag: '🇦🇷',
     flagUrl: 'https://flagcdn.com/w40/ar.png',
     region: 'latam',
+    officialSchedule: '3:00 PM ART (Cierre BNA Oficial)',
     currency: { code: 'ARS', symbol: '$', name: 'Peso Argentino' },
     defaultRateId: 'blue',
     rates: {
@@ -163,6 +166,7 @@ export const COUNTRIES_DATA = [
     flag: '🇲🇽',
     flagUrl: 'https://flagcdn.com/w40/mx.png',
     region: 'latam',
+    officialSchedule: '12:00 PM CST (Banxico Fix)',
     currency: { code: 'MXN', symbol: '$', name: 'Peso Mexicano' },
     defaultRateId: 'banxico',
     rates: {
@@ -214,6 +218,7 @@ export const COUNTRIES_DATA = [
     flag: '🇨🇱',
     flagUrl: 'https://flagcdn.com/w40/cl.png',
     region: 'latam',
+    officialSchedule: '5:00 PM CLT (BCCh Observado)',
     currency: { code: 'CLP', symbol: '$', name: 'Peso Chileno' },
     defaultRateId: 'observado',
     rates: {
@@ -265,6 +270,7 @@ export const COUNTRIES_DATA = [
     flag: '🇵🇪',
     flagUrl: 'https://flagcdn.com/w40/pe.png',
     region: 'latam',
+    officialSchedule: '1:30 PM PET (BCRP / SUNAT)',
     currency: { code: 'PEN', symbol: 'S/', name: 'Sol Peruano' },
     defaultRateId: 'sunat',
     rates: {
@@ -316,6 +322,7 @@ export const COUNTRIES_DATA = [
     flag: '🇧🇷',
     flagUrl: 'https://flagcdn.com/w40/br.png',
     region: 'latam',
+    officialSchedule: '1:00 PM BRT (BCB PTAX)',
     currency: { code: 'BRL', symbol: 'R$', name: 'Real Brasileño' },
     defaultRateId: 'comercial',
     rates: {
@@ -367,6 +374,7 @@ export const COUNTRIES_DATA = [
     flag: '🇩🇴',
     flagUrl: 'https://flagcdn.com/w40/do.png',
     region: 'latam',
+    officialSchedule: '5:00 PM AST (Banco Central BCRD)',
     currency: { code: 'DOP', symbol: 'RD$', name: 'Peso Dominicano' },
     defaultRateId: 'bancentral',
     rates: {
@@ -420,6 +428,7 @@ export const COUNTRIES_DATA = [
     flag: '🇺🇸',
     flagUrl: 'https://flagcdn.com/w40/us.png',
     region: 'exterior',
+    officialSchedule: '10:00 AM EST (FED / Forex)',
     currency: { code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
     defaultRateId: 'eurusd',
     rates: {
@@ -471,6 +480,7 @@ export const COUNTRIES_DATA = [
     flag: '🇪🇸',
     flagUrl: 'https://flagcdn.com/w40/es.png',
     region: 'exterior',
+    officialSchedule: '4:00 PM CET (BCE Eurozona)',
     currency: { code: 'EUR', symbol: '€', name: 'Euro' },
     defaultRateId: 'usdeur',
     rates: {

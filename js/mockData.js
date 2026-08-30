@@ -13,7 +13,7 @@ class MockDataEngine {
 
     this.listeners = [];
     this.syncRealRates();
-    this.startLiveFluctuations();
+    this.startScheduleCheck();
   }
 
   loadDefaultCountry() {
@@ -116,27 +116,11 @@ class MockDataEngine {
     this.listeners.forEach(listener => listener(this.getRates(), updatedRateId, action));
   }
 
-  startLiveFluctuations() {
-    // Simulación de fluctuación liviana en vivo cada 25 segundos
+  startScheduleCheck() {
+    // Comprobar la API oficial cada 10 minutos para capturar la emisión de la tasa bancaria
     setInterval(() => {
-      const current = this.getCurrentCountry();
-      const rateKeys = Object.keys(current.rates);
-      if (rateKeys.length === 0) return;
-
-      const randomKey = rateKeys[Math.floor(Math.random() * rateKeys.length)];
-      const targetRate = current.rates[randomKey];
-
-      // Variación pequeña entre -0.05% y +0.05%
-      const deltaPercent = (Math.random() * 0.1 - 0.05);
-      const factor = 1 + (deltaPercent / 100);
-      const precision = targetRate.value < 10 ? 4 : 2;
-      const newValue = parseFloat((targetRate.value * factor).toFixed(precision));
-
-      targetRate.value = newValue;
-      targetRate.change = parseFloat((targetRate.change + deltaPercent).toFixed(2));
-
-      this.notifyListeners(randomKey, 'update');
-    }, 25000);
+      this.syncRealRates();
+    }, 10 * 60 * 1000);
   }
 }
 
