@@ -107,3 +107,40 @@ body {
 .custom-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(6, 182, 212, 0.7);
 }
+
+/* Teclado numérico real de la calculadora */
+.calc-key-btn {
+  background: rgba(22, 27, 34, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 700;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+}
+
+.calc-key-btn:active {
+  transform: scale(0.93);
+  background: rgba(6, 182, 212, 0.25);
+  border-color: rgba(6, 182, 212, 0.6);
+}
+
+.calc-key-action {
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  color: #06B6D4;
+}
+
+.calc-key-action:active {
+  background: rgba(6, 182, 212, 0.4);
+}
+
+.calc-key-clear {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #EF4444;
+}
+
+.calc-key-clear:active {
+  background: rgba(239, 68, 68, 0.4);
+}
