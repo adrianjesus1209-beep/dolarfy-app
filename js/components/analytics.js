@@ -9,6 +9,17 @@ export class AnalyticsView {
     this.selectedRateFilter = 'all'; // 'all' o ID de tasa específica
   }
 
+  getPeriodDetails(period) {
+    const map = {
+      '1D': { short: 'Hoy (24h)', text: '⏱️ Mostrando comportamiento de Hoy (Últimas 24 horas)' },
+      '1W': { short: '7 Días', text: '📅 Mostrando comportamiento de la Última Semana (7 días)' },
+      '1M': { short: '30 Días', text: '🗓️ Mostrando comportamiento del Último Mes (30 días)' },
+      '3M': { short: '90 Días', text: '📊 Mostrando comportamiento del Último Trimestre (90 días)' },
+      '1Y': { short: '1 Año', text: '📈 Mostrando comportamiento del Último Año (365 días)' }
+    };
+    return map[period] || map['1M'];
+  }
+
   render() {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = currentCountry.rates;
@@ -28,6 +39,7 @@ export class AnalyticsView {
     const allValues = rateKeys.map(k => rates[k].value);
     const minVal = Math.min(...allValues) * 0.98;
     const maxVal = Math.max(...allValues) * 1.02;
+    const periodDetails = this.getPeriodDetails(this.selectedPeriod);
 
     this.container.innerHTML = `
       <div class="space-y-4 pb-24 animate-fade-in max-w-md mx-auto">
@@ -57,14 +69,14 @@ export class AnalyticsView {
 
           <!-- Mínimo del Período -->
           <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
-            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Mínimo (${this.selectedPeriod})</span>
+            <span id="min-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Mínimo (${periodDetails.short})</span>
             <p class="text-sm font-black text-emerald-400 mt-1">${formatCurrency(minVal, currentCountry.currency.code, minVal < 10 ? 4 : 2)}</p>
             <span class="text-[9px] text-gray-500 font-medium block">Piso estimado</span>
           </div>
 
           <!-- Máximo del Período -->
           <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
-            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Máximo (${this.selectedPeriod})</span>
+            <span id="max-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Máximo (${periodDetails.short})</span>
             <p class="text-sm font-black text-amber-400 mt-1">${formatCurrency(maxVal, currentCountry.currency.code, maxVal < 10 ? 4 : 2)}</p>
             <span class="text-[9px] text-gray-500 font-medium block">Techo estimado</span>
           </div>
@@ -90,26 +102,42 @@ export class AnalyticsView {
               ${rateKeys.map(key => {
                 const r = rates[key];
                 const isSel = this.selectedRateFilter === key;
+                const pillName = key === 'usdt' ? 'USDT' : r.name.split(' ')[0];
                 return `
                   <button data-rate="${key}" class="px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
-                    ${r.name.split(' ')[0]}
+                    ${pillName}
                   </button>
                 `;
               }).join('')}
             </div>
 
             <!-- Selector de Período Temporal -->
-            <div class="flex bg-black/40 p-1 rounded-xl border border-white/10 justify-between" id="period-selector">
-              ${['1D', '1W', '1M', '3M', '1Y'].map(p => `
-                <button data-period="${p}" class="flex-1 py-1 text-[11px] font-bold rounded-lg text-center transition-all ${this.selectedPeriod === p ? 'bg-cyan-500 text-black shadow-sm' : 'text-gray-400 hover:text-white'}">
-                  ${p}
-                </button>
-              `).join('')}
+            <div class="space-y-1.5 pt-1">
+              <div class="flex bg-black/40 p-1 rounded-xl border border-white/10 justify-between" id="period-selector">
+                ${[
+                  { code: '1D', name: '1D (Hoy)' },
+                  { code: '1W', name: '1W (Semana)' },
+                  { code: '1M', name: '1M (Mes)' },
+                  { code: '3M', name: '3M (Trimestre)' },
+                  { code: '1Y', name: '1Y (Año)' }
+                ].map(p => `
+                  <button data-period="${p.code}" title="${p.name}" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-center transition-all ${this.selectedPeriod === p.code ? 'bg-cyan-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+                    ${p.code}
+                  </button>
+                `).join('')}
+              </div>
+
+              <!-- Cuadro Explicativo del Período Seleccionado -->
+              <div class="bg-cyan-500/10 border border-cyan-500/30 rounded-xl px-3 py-2 flex items-center space-x-2 text-[11px] text-cyan-300" id="period-info-box">
+                <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
+                <span id="period-info-text" class="font-semibold leading-tight">${periodDetails.text}</span>
+              </div>
             </div>
+
           </div>
 
           <!-- Contenedor del Gráfico -->
-          <div id="apex-analytics-chart" class="w-full h-60 pt-2"></div>
+          <div id="apex-analytics-chart" class="w-full h-60 pt-1"></div>
         </div>
 
         <!-- Indicadores y Señales de Mercado -->
@@ -159,7 +187,6 @@ export class AnalyticsView {
     const rates = currentCountry.rates;
     const rateKeys = Object.keys(rates);
 
-    // Filtrar tasas según la píldora activa
     let activeKeys = rateKeys;
     if (this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]) {
       activeKeys = [this.selectedRateFilter];
@@ -185,7 +212,7 @@ export class AnalyticsView {
       series: seriesData.map(s => ({ name: s.name, data: s.data })),
       chart: {
         type: 'area',
-        height: 230,
+        height: 220,
         toolbar: { show: false },
         background: 'transparent',
         sparkline: { enabled: false },
@@ -279,10 +306,22 @@ export class AnalyticsView {
     periodBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         this.selectedPeriod = btn.getAttribute('data-period');
+        const details = this.getPeriodDetails(this.selectedPeriod);
+
         periodBtns.forEach(b => {
           const isSel = b.getAttribute('data-period') === this.selectedPeriod;
-          b.className = `flex-1 py-1 text-[11px] font-bold rounded-lg text-center transition-all ${isSel ? 'bg-cyan-500 text-black shadow-sm' : 'text-gray-400 hover:text-white'}`;
+          b.className = `flex-1 py-1.5 text-[11px] font-bold rounded-lg text-center transition-all ${isSel ? 'bg-cyan-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
         });
+
+        const infoText = document.getElementById('period-info-text');
+        if (infoText) infoText.textContent = details.text;
+
+        const minLabel = document.getElementById('min-period-label');
+        if (minLabel) minLabel.textContent = `Mínimo (${details.short})`;
+
+        const maxLabel = document.getElementById('max-period-label');
+        if (maxLabel) maxLabel.textContent = `Máximo (${details.short})`;
+
         this.initChart();
       });
     });
