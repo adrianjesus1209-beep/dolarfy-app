@@ -1,5 +1,6 @@
 import { mockEngine } from '../mockData.js';
 import { formatCurrency } from '../utils/formatters.js';
+import { calcHistoryService } from '../calcHistoryService.js';
 
 export class CalculatorView {
   constructor(containerId) {
@@ -18,6 +19,19 @@ export class CalculatorView {
     this.selectedRateId = this.currentCountry.defaultRateId && rates[this.currentCountry.defaultRateId] 
       ? this.currentCountry.defaultRateId 
       : rateKeys[0];
+  }
+
+  getPillLabel(rateKey, rateObj) {
+    if (rateKey === 'usdt' || rateObj.id === 'usdt' || rateObj.name.toLowerCase().includes('binance') || rateObj.name.toLowerCase().includes('usdt')) {
+      return 'USDT';
+    }
+    if (rateKey === 'bcv') return 'BCV';
+    if (rateKey === 'paralelo') return 'Paralelo';
+    if (rateKey === 'blue') return 'Blue';
+    if (rateKey === 'oficial') return 'Oficial';
+    if (rateKey === 'trm') return 'TRM';
+    if (rateKey === 'euro') return 'Euro';
+    return rateObj.name.split(' ')[0];
   }
 
   render() {
@@ -44,9 +58,10 @@ export class CalculatorView {
             ${rateKeys.map(key => {
               const r = rates[key];
               const isSelected = this.selectedRateId === key;
+              const pillLabel = this.getPillLabel(key, r);
               return `
                 <button data-rate="${key}" type="button" class="rate-pill-btn px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap text-xs ${isSelected ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20' : 'text-gray-400 hover:text-white'}">
-                  ${r.name.split(' ')[0]}
+                  ${pillLabel}
                 </button>
               `;
             }).join('')}
@@ -64,7 +79,7 @@ export class CalculatorView {
           </div>
         </div>
 
-        <!-- 2. Pantalla Digital de Conversión Integrada (Fiel a la foto) -->
+        <!-- 2. Pantalla Digital de Conversión Integrada -->
         <div class="glass-card rounded-3xl p-4 relative space-y-3 shadow-2xl border border-white/10 bg-[#111622]/95">
           
           <!-- Top info bar inside card -->
@@ -75,7 +90,7 @@ export class CalculatorView {
             <div class="flex items-center space-x-3 text-cyan-400">
               <button id="calc-shift-btn" type="button" title="Shift / Swap" class="hover:text-white transition-all cursor-pointer"><i data-lucide="code-2" class="w-4 h-4"></i></button>
               <button id="swap-currency-btn" type="button" title="Intercambiar divisas" class="hover:text-white transition-all cursor-pointer"><i data-lucide="arrow-up-down" class="w-4 h-4"></i></button>
-              <button id="copy-result-btn" type="button" title="Copiar resultado" class="hover:text-emerald-400 transition-all cursor-pointer"><i data-lucide="history" class="w-4 h-4"></i></button>
+              <button id="calc-history-btn" type="button" title="Historial de conversiones" class="hover:text-emerald-400 transition-all cursor-pointer"><i data-lucide="history" class="w-4 h-4 text-emerald-400"></i></button>
             </div>
           </div>
 
@@ -85,21 +100,24 @@ export class CalculatorView {
           </div>
 
           <!-- Large Green Equality Result Display (Center) -->
-          <div class="text-left border-t border-white/5 pt-2">
+          <div class="text-left border-t border-white/5 pt-2 flex justify-between items-center">
             <p id="calc-equality-display" class="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight leading-tight">
               $0,00 = 0,00 ${this.toCurrency}
             </p>
+            <button id="copy-result-btn" type="button" title="Copiar resultado" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-emerald-400 active:scale-95 transition-all cursor-pointer">
+              <i data-lucide="copy" class="w-4 h-4"></i>
+            </button>
           </div>
 
           <!-- Mode Badge at Bottom Right of card -->
           <div class="flex justify-end items-center space-x-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider pt-1">
-            <span>${activeRateObj ? activeRateObj.name.split(' ')[0] : 'BCV'} ${this.fromCurrency}</span>
+            <span>${this.getPillLabel(this.selectedRateId, activeRateObj)} ${this.fromCurrency}</span>
             <i data-lucide="arrow-left-right" class="w-3 h-3 text-cyan-400"></i>
           </div>
 
         </div>
 
-        <!-- 3. Teclado Numérico de 5 Filas (Idéntico a la Foto de Referencia) -->
+        <!-- 3. Teclado Numérico de 5 Filas -->
         <div class="grid grid-cols-4 gap-2 pt-1" id="calc-keypad">
           <!-- Row 1 -->
           <button data-key="C" type="button" class="calc-key-btn calc-key-clear py-3.5 rounded-2xl text-xl font-black text-amber-400">C</button>
@@ -144,6 +162,7 @@ export class CalculatorView {
     const swapBtn = document.getElementById('swap-currency-btn');
     const shiftBtn = document.getElementById('calc-shift-btn');
     const copyBtn = document.getElementById('copy-result-btn');
+    const historyBtn = document.getElementById('calc-history-btn');
     const keypadKeys = document.querySelectorAll('#calc-keypad button');
 
     ratePills.forEach(btn => {
@@ -172,10 +191,14 @@ export class CalculatorView {
         copyBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-emerald-400"></i>`;
         if (window.lucide) window.lucide.createIcons();
         setTimeout(() => {
-          copyBtn.innerHTML = `<i data-lucide="history" class="w-4 h-4 text-cyan-400"></i>`;
+          copyBtn.innerHTML = `<i data-lucide="copy" class="w-4 h-4 text-gray-400"></i>`;
           if (window.lucide) window.lucide.createIcons();
         }, 2000);
       }).catch(e => console.warn('Clipboard write error:', e));
+    });
+
+    historyBtn?.addEventListener('click', () => {
+      this.openHistoryModal();
     });
 
     keypadKeys.forEach(btn => {
@@ -220,6 +243,7 @@ export class CalculatorView {
       }
     } else if (key === '=') {
       this.evaluateExpression();
+      this.saveToHistory();
     }
 
     const displayInput = document.getElementById('calc-display-input');
@@ -232,17 +256,127 @@ export class CalculatorView {
 
   evaluateExpression() {
     try {
-      // Reemplazar coma por punto para evaluador matemático
       const mathExpr = this.expression.replace(/,/g, '.');
-      // Evaluar la expresión matemática de forma segura
       const fn = new Function(`return ${mathExpr}`);
       const evalResult = fn();
       if (!isNaN(evalResult) && isFinite(evalResult)) {
         this.expression = evalResult.toString().replace(/\./g, ',');
       }
-    } catch (e) {
-      // Si la expresión estaba incompleta, ignora el error
+    } catch (e) {}
+  }
+
+  saveToHistory() {
+    const equalityEl = document.getElementById('calc-equality-display');
+    if (!equalityEl) return;
+    const rates = this.currentCountry.rates;
+    const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
+
+    calcHistoryService.addEntry({
+      expression: this.expression,
+      resultText: equalityEl.textContent.trim(),
+      countryId: this.currentCountry.id,
+      countryName: this.currentCountry.name,
+      flagUrl: this.currentCountry.flagUrl,
+      rateName: activeRateObj ? activeRateObj.name : '',
+      rateId: this.selectedRateId,
+      rateValue: activeRateObj ? activeRateObj.value : 1,
+      fromCurrency: this.fromCurrency,
+      toCurrency: this.toCurrency
+    });
+  }
+
+  openHistoryModal() {
+    let container = document.getElementById('calc-history-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'calc-history-modal-container';
+      document.body.appendChild(container);
     }
+
+    const history = calcHistoryService.getHistory();
+
+    container.innerHTML = `
+      <div id="calc-history-backdrop" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-fade-in">
+        <div class="w-full max-w-md bg-[#0F141C] border border-white/10 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+          
+          <!-- Modal Header -->
+          <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="history" class="w-5 h-5 text-emerald-400"></i>
+              <h3 class="text-base font-extrabold text-white">Historial de Conversiones</h3>
+            </div>
+            <div class="flex items-center space-x-2">
+              ${history.length > 0 ? `
+                <button id="clear-calc-history-btn" type="button" class="text-xs text-red-400 hover:text-red-300 font-bold px-2 py-1 bg-red-500/10 rounded-lg border border-red-500/20">
+                  Borrar todo
+                </button>
+              ` : ''}
+              <button id="close-calc-history-btn" type="button" class="p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- History Content -->
+          <div class="p-4 overflow-y-auto space-y-2.5 max-h-[65vh] custom-scroll">
+            ${history.length === 0 ? `
+              <div class="text-center py-10 bg-black/20 rounded-2xl border border-white/5 space-y-2">
+                <i data-lucide="calculator" class="w-8 h-8 text-gray-600 mx-auto"></i>
+                <p class="text-xs text-gray-400 font-semibold">Sin conversiones en el historial</p>
+                <p class="text-[10px] text-gray-500">Realiza un cálculo y presiona = para guardarlo aquí.</p>
+              </div>
+            ` : `
+              ${history.map(item => `
+                <div data-id="${item.id}" class="calc-history-item glass-card-interactive rounded-2xl p-3 border border-white/10 flex items-center justify-between cursor-pointer hover:border-emerald-500/40">
+                  <div class="flex items-center space-x-3">
+                    <img src="${item.flagUrl}" alt="${item.countryName}" class="w-6 h-6 rounded-full object-cover">
+                    <div>
+                      <p class="text-xs font-black text-emerald-400">${item.resultText}</p>
+                      <p class="text-[10px] text-gray-400">${item.rateName} • ${item.timestamp}</p>
+                    </div>
+                  </div>
+                  <i data-lucide="arrow-up-right" class="w-4 h-4 text-cyan-400"></i>
+                </div>
+              `).join('')}
+            `}
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    if (window.lucide) window.lucide.createIcons();
+
+    // Eventos del Modal
+    const backdrop = document.getElementById('calc-history-backdrop');
+    backdrop?.addEventListener('click', (e) => {
+      if (e.target === backdrop) container.innerHTML = '';
+    });
+
+    document.getElementById('close-calc-history-btn')?.addEventListener('click', () => {
+      container.innerHTML = '';
+    });
+
+    document.getElementById('clear-calc-history-btn')?.addEventListener('click', () => {
+      calcHistoryService.clearHistory();
+      this.openHistoryModal();
+    });
+
+    const items = container.querySelectorAll('.calc-history-item');
+    items.forEach(itemEl => {
+      itemEl.addEventListener('click', () => {
+        const id = parseInt(itemEl.getAttribute('data-id'));
+        const entry = history.find(h => h.id === id);
+        if (entry) {
+          this.expression = entry.expression;
+          this.selectedRateId = entry.rateId;
+          this.fromCurrency = entry.fromCurrency;
+          this.toCurrency = entry.toCurrency;
+          container.innerHTML = '';
+          this.render();
+        }
+      });
+    });
   }
 
   calculate() {
@@ -252,7 +386,6 @@ export class CalculatorView {
     const localSymbol = this.currentCountry.currency.symbol;
     const localCode = this.currentCountry.currency.code;
 
-    // Obtener valor numérico de la expresión actual
     let numericAmount = 0;
     try {
       const mathExpr = this.expression.replace(/,/g, '.');
@@ -265,7 +398,6 @@ export class CalculatorView {
       numericAmount = parseFloat(this.expression.replace(/,/g, '.')) || 0;
     }
 
-    // Convertir de origen a USD equivalente
     let inUSD = 0;
     if (this.fromCurrency === 'USD' || this.fromCurrency === 'USDT') {
       inUSD = numericAmount;
@@ -278,7 +410,6 @@ export class CalculatorView {
       inUSD = numericAmount;
     }
 
-    // Convertir de USD a destino
     let finalResult = 0;
     if (this.toCurrency === 'USD' || this.toCurrency === 'USDT') {
       finalResult = inUSD;
