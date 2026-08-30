@@ -1,6 +1,7 @@
 import { DashboardView } from './components/dashboard.js';
 import { CalculatorView } from './components/calculator.js';
 import { AnalyticsView } from './components/analytics.js';
+import { SettingsView } from './components/settings.js';
 import { CountryModal } from './components/countryModal.js';
 import { NotificationModal } from './components/notificationModal.js';
 import { notificationService } from './notificationService.js';
@@ -9,7 +10,7 @@ import { mockEngine } from './mockData.js';
 class App {
   constructor() {
     this.currentView = null;
-    this.activeTab = 'dashboard'; // 'dashboard', 'calculator', 'analytics'
+    this.activeTab = 'dashboard'; // 'dashboard', 'calculator', 'analytics', 'settings'
     this.countryModal = new CountryModal(() => this.onCountryChanged());
     this.notificationModal = new NotificationModal();
     this.init();
@@ -123,6 +124,9 @@ class App {
         break;
       case 'analytics':
         this.currentView = new AnalyticsView(mainContainer);
+        break;
+      case 'settings':
+        this.currentView = new SettingsView(mainContainer);
         break;
       default:
         this.currentView = new DashboardView(mainContainer);
