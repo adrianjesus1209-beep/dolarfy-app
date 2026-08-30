@@ -53,14 +53,14 @@ export class CalculatorView {
         
         <!-- 1. Barra Superior de Píldoras (Tasas del país + Filtro temporal) -->
         <div class="flex items-center justify-between text-xs gap-2">
-          <!-- Píldoras de Tasas del País -->
-          <div class="flex items-center bg-black/50 p-1 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar flex-1 space-x-1" id="rate-pills-group">
+          <!-- Píldoras de Tasas del País (Distribución perfecta en grid) -->
+          <div class="grid grid-cols-4 gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 flex-1 items-center" id="rate-pills-group">
             ${rateKeys.map(key => {
               const r = rates[key];
               const isSelected = this.selectedRateId === key;
               const pillLabel = this.getPillLabel(key, r);
               return `
-                <button data-rate="${key}" type="button" class="rate-pill-btn shrink-0 px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap text-xs ${isSelected ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20' : 'text-gray-400 hover:text-white'}">
+                <button data-rate="${key}" type="button" class="rate-pill-btn w-full py-1.5 px-1 rounded-xl font-bold text-center transition-all text-[11px] truncate flex items-center justify-center ${isSelected ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                   ${pillLabel}
                 </button>
               `;
@@ -68,11 +68,11 @@ export class CalculatorView {
           </div>
 
           <!-- Píldoras de Filtro Temporal -->
-          <div class="flex items-center bg-black/50 p-1 rounded-2xl border border-white/10 space-x-1 shrink-0">
-            <button data-time="hoy" type="button" class="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+          <div class="flex bg-black/40 p-1 rounded-2xl border border-white/10 space-x-1 shrink-0">
+            <button data-time="hoy" type="button" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
               Hoy
             </button>
-            <button data-time="lun" type="button" class="shrink-0 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-400 flex items-center gap-1">
+            <button data-time="lun" type="button" class="px-2 py-1 rounded-xl text-xs font-medium text-gray-400 flex items-center gap-1">
               <span>Lun.</span>
               <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
             </button>
