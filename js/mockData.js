@@ -117,10 +117,10 @@ class MockDataEngine {
   }
 
   startScheduleCheck() {
-    // Comprobar la API oficial cada 10 minutos para capturar la emisión de la tasa bancaria
+    // Comprobar la API oficial cada 30 minutos para ahorrar batería y tráfico de red
     setInterval(() => {
       this.syncRealRates();
-    }, 10 * 60 * 1000);
+    }, 30 * 60 * 1000);
   }
 }
 

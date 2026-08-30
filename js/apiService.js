@@ -4,7 +4,7 @@
 
 class ApiService {
   constructor() {
-    this.CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutos de caché
+    this.CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutos de caché inteligente
   }
 
   async fetchRatesForCountry(country) {
