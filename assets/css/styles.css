@@ -167,3 +167,115 @@ body {
   transform: scale(0.95);
   background: #059669;
 }
+
+/* ==========================================
+   TEMA CLARO (LIGHT MODE) OVERRIDES
+   ========================================== */
+html.light body {
+  background-color: #F4F6F9 !important;
+  color: #0F172A !important;
+}
+
+html.light header {
+  background-color: rgba(244, 246, 249, 0.85) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+html.light header h1 {
+  color: #0F172A !important;
+}
+
+html.light .glass-card,
+html.light .glass-card-interactive {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+}
+
+html.light .glass-nav {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-top-color: rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.03);
+}
+
+html.light .text-white,
+html.light .text-gray-100,
+html.light .text-gray-200,
+html.light .text-gray-300 {
+  color: #0F172A !important;
+}
+
+html.light .text-gray-400,
+html.light .text-gray-500 {
+  color: #475569 !important;
+}
+
+html.light .bg-white\/5 {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
+html.light .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.07) !important;
+}
+
+html.light .bg-black\/40,
+html.light .bg-black\/60 {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+html.light .border-white\/10,
+html.light .border-white\/5 {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+html.light select option {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+/* Modales en modo claro */
+html.light #country-modal > div:last-child,
+html.light #notif-modal > div:last-child {
+  background-color: #FFFFFF !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  color: #0F172A !important;
+  box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.15);
+}
+
+/* Calculadora en modo claro */
+html.light .calc-key-btn {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  color: #0F172A !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+html.light .calc-key-btn:active {
+  background: rgba(6, 182, 212, 0.15) !important;
+  border-color: rgba(6, 182, 212, 0.5) !important;
+}
+
+html.light .calc-key-op {
+  background: rgba(16, 185, 129, 0.1) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  color: #047857 !important;
+}
+
+html.light .calc-key-action {
+  background: rgba(6, 182, 212, 0.1) !important;
+  border-color: rgba(6, 182, 212, 0.3) !important;
+  color: #0284C7 !important;
+}
+
+html.light .calc-key-clear {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #B91C1C !important;
+}
+
+html.light .calc-key-equals {
+  background: #10B981 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 15px -2px rgba(16, 185, 129, 0.4);
+}
+

@@ -1,6 +1,7 @@
 import { mockEngine } from '../mockData.js';
 import { notificationService } from '../notificationService.js';
 import { calcHistoryService } from '../calcHistoryService.js';
+import { themeService } from '../themeService.js';
 
 export class SettingsView {
   constructor(containerId) {
@@ -11,6 +12,7 @@ export class SettingsView {
     const countries = mockEngine.getCountries();
     const defaultCountryId = mockEngine.getDefaultCountryId();
     const isNotifEnabled = notificationService.isEnabled();
+    const currentTheme = themeService.getTheme();
 
     this.container.innerHTML = `
       <div class="space-y-4 pb-24 animate-fade-in max-w-md mx-auto">
@@ -29,6 +31,30 @@ export class SettingsView {
         <!-- 1. Sección: Preferencias Principales -->
         <div class="space-y-2">
           <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Preferencias del Sistema</h3>
+
+          <!-- Tema de la Aplicación -->
+          <div class="glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/10">
+            <div class="flex items-center space-x-3">
+              <div class="p-2 rounded-xl bg-white/5 text-amber-400">
+                <i data-lucide="${currentTheme === 'light' ? 'sun' : 'moon'}" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-gray-100">Tema de la Aplicación</h4>
+                <p class="text-[10px] text-gray-400">Selecciona el modo visual de la interfaz.</p>
+              </div>
+            </div>
+
+            <div id="settings-theme-selector" class="flex items-center bg-black/40 p-1 rounded-xl border border-white/10 space-x-1">
+              <button type="button" data-theme="dark" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${currentTheme === 'dark' ? 'bg-cyan-500 text-slate-950 shadow-md font-black' : 'text-gray-400 hover:text-white'}">
+                <i data-lucide="moon" class="w-3.5 h-3.5"></i>
+                <span>Oscuro</span>
+              </button>
+              <button type="button" data-theme="light" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${currentTheme === 'light' ? 'bg-cyan-500 text-slate-950 shadow-md font-black' : 'text-gray-400 hover:text-white'}">
+                <i data-lucide="sun" class="w-3.5 h-3.5"></i>
+                <span>Claro</span>
+              </button>
+            </div>
+          </div>
 
           <!-- País Predeterminado -->
           <div class="glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/10">
@@ -125,6 +151,18 @@ export class SettingsView {
     const countrySelect = document.getElementById('settings-default-country-select');
     const notifToggle = document.getElementById('settings-notif-toggle');
     const clearHistoryBtn = document.getElementById('settings-clear-history-btn');
+    const themeSelector = document.getElementById('settings-theme-selector');
+
+    themeSelector?.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-theme]');
+      if (btn) {
+        const selectedTheme = btn.getAttribute('data-theme');
+        if (selectedTheme && selectedTheme !== themeService.getTheme()) {
+          themeService.setTheme(selectedTheme);
+          this.render();
+        }
+      }
+    });
 
     countrySelect?.addEventListener('change', (e) => {
       mockEngine.setDefaultCountry(e.target.value);

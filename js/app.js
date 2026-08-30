@@ -6,6 +6,7 @@ import { CountryModal } from './components/countryModal.js';
 import { NotificationModal } from './components/notificationModal.js';
 import { notificationService } from './notificationService.js';
 import { mockEngine } from './mockData.js';
+import { themeService } from './themeService.js';
 
 class App {
   constructor() {
@@ -17,6 +18,7 @@ class App {
   }
 
   init() {
+    themeService.init();
     this.bindNavigation();
     this.bindCountrySelector();
     this.bindNotificationBell();
@@ -38,6 +40,13 @@ class App {
     // Escuchar toggle de notificaciones
     document.addEventListener('dolarfy:notification_toggled', () => {
       this.updateHeaderBellUI();
+    });
+
+    // Escuchar cambios de tema
+    document.addEventListener('dolarfy:theme_changed', () => {
+      if (this.activeTab === 'analytics' && this.currentView) {
+        this.navigateTo('analytics', true);
+      }
     });
   }
 

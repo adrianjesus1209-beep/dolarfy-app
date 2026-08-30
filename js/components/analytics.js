@@ -1,5 +1,6 @@
 import { mockEngine } from '../mockData.js';
 import { formatCurrency, formatPercentage } from '../utils/formatters.js';
+import { themeService } from '../themeService.js';
 
 export class AnalyticsView {
   constructor(containerId) {
@@ -250,29 +251,29 @@ export class AnalyticsView {
       stroke: { curve: 'smooth', width: 2.5 },
       xaxis: {
         categories: categories,
-        labels: { style: { colors: '#9CA3AF', fontSize: '9px', fontWeight: 600 } },
+        labels: { style: { colors: themeService.getTheme() === 'light' ? '#64748B' : '#9CA3AF', fontSize: '9px', fontWeight: 600 } },
         axisBorder: { show: false },
         axisTicks: { show: false }
       },
       yaxis: {
         labels: {
-          style: { colors: '#9CA3AF', fontSize: '9px', fontWeight: 600 },
+          style: { colors: themeService.getTheme() === 'light' ? '#64748B' : '#9CA3AF', fontSize: '9px', fontWeight: 600 },
           formatter: (val) => val.toFixed(val < 10 ? 2 : 0)
         }
       },
       grid: {
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: themeService.getTheme() === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.05)',
         strokeDashArray: 4
       },
       legend: {
-        labels: { colors: '#E5E7EB', useSeriesColors: false },
+        labels: { colors: themeService.getTheme() === 'light' ? '#0F172A' : '#E5E7EB', useSeriesColors: false },
         fontSize: '10px',
         position: 'top',
         horizontalAlign: 'right',
         markers: { radius: 12 }
       },
       tooltip: {
-        theme: 'dark',
+        theme: themeService.getTheme() === 'light' ? 'light' : 'dark',
         x: { show: true },
         y: {
           formatter: (val) => `${val.toLocaleString('es-VE')} ${currentCountry.currency.code}`
