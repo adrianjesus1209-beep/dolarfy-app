@@ -21,16 +21,16 @@ export class AnalyticsView {
   }
 
   getPillLabel(rateKey, rateObj) {
-    if (rateKey === 'usdt' || rateObj.id === 'usdt' || rateObj.name.toLowerCase().includes('usdt')) {
+    if (!rateObj) return rateKey || '';
+    if (rateKey === 'usdt' || rateObj.id === 'usdt' || rateObj.name.toLowerCase().includes('binance') || rateObj.name.toLowerCase().includes('usdt')) {
       return 'USDT';
     }
     if (rateKey === 'bcv') return 'BCV';
     if (rateKey === 'paralelo') return 'Paralelo';
     if (rateKey === 'blue') return 'Blue';
-    if (rateKey === 'oficial') return 'BNA';
+    if (rateKey === 'oficial') return 'Oficial';
     if (rateKey === 'trm') return 'TRM';
     if (rateKey === 'banxico') return 'Banxico';
-    if (rateKey === 'ventanilla') return 'Ventanilla';
     if (rateKey === 'euro') return 'Euro';
     return rateObj.name.split(' ')[0];
   }
@@ -56,6 +56,9 @@ export class AnalyticsView {
     const maxVal = Math.max(...allValues) * 1.02;
     const periodDetails = this.getPeriodDetails(this.selectedPeriod);
 
+    const mainLabel = this.getPillLabel(mainRate.id, mainRate);
+    const secondLabel = this.getPillLabel(secondRate.id, secondRate);
+
     this.container.innerHTML = `
       <div class="space-y-4 pb-24 animate-fade-in max-w-md mx-auto">
         
@@ -79,7 +82,7 @@ export class AnalyticsView {
           <div class="glass-card rounded-2xl p-3 text-center border border-cyan-500/20 glow-cyan">
             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha Tasa</span>
             <p class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent}%` : '0.0%'}</p>
-            <span class="text-[9px] text-gray-400 font-semibold block truncate">${mainRate.name.split(' ')[0]} vs ${secondRate.name.split(' ')[0]}</span>
+            <span class="text-[9px] text-gray-400 font-semibold block truncate">${mainLabel} vs ${secondLabel}</span>
           </div>
 
           <!-- Mínimo del Período -->
@@ -110,17 +113,17 @@ export class AnalyticsView {
               <span class="text-[10px] text-cyan-400 font-bold">${currentCountry.currency.code}</span>
             </div>
 
-            <div class="flex bg-black/40 p-1 rounded-xl border border-white/10 overflow-x-auto no-scrollbar space-x-1" id="analytics-rate-filter">
-              <button data-rate="all" class="px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${this.selectedRateFilter === 'all' ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+            <div class="grid grid-cols-5 gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="analytics-rate-filter">
+              <button data-rate="all" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${this.selectedRateFilter === 'all' ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                 Todas
               </button>
               ${rateKeys.map(key => {
                 const r = rates[key];
                 const isSel = this.selectedRateFilter === key;
-                const pillName = this.getPillLabel(key, r);
+                const pillLabel = this.getPillLabel(key, r);
                 return `
-                  <button data-rate="${key}" class="px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
-                    ${pillName}
+                  <button data-rate="${key}" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+                    ${pillLabel}
                   </button>
                 `;
               }).join('')}
