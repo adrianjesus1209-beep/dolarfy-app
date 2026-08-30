@@ -11,11 +11,11 @@ export class AnalyticsView {
 
   getPeriodDetails(period) {
     const map = {
-      '1D': { short: 'Hoy (24h)', text: '⏱️ Mostrando comportamiento de Hoy (Últimas 24 horas)' },
-      '1W': { short: '7 Días', text: '📅 Mostrando comportamiento de la Última Semana (7 días)' },
-      '1M': { short: '30 Días', text: '🗓️ Mostrando comportamiento del Último Mes (30 días)' },
-      '3M': { short: '90 Días', text: '📊 Mostrando comportamiento del Último Trimestre (90 días)' },
-      '1Y': { short: '1 Año', text: '📈 Mostrando comportamiento del Último Año (365 días)' }
+      '1D': { short: 'Hoy (24h)', text: '⏱️ Histórico de Hoy (Últimas 24h)' },
+      '1W': { short: '7 Días', text: '📅 Histórico de los Últimos 7 Días' },
+      '1M': { short: '30 Días', text: '🗓️ Histórico de los Últimos 30 Días' },
+      '3M': { short: '90 Días', text: '📊 Histórico del Trimestre (90d)' },
+      '1Y': { short: '1 Año', text: '📈 Histórico Anual (365d)' }
     };
     return map[period] || map['1M'];
   }
