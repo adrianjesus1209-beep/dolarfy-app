@@ -6,7 +6,7 @@ export class AnalyticsView {
     this.container = document.getElementById(containerId);
     this.chart = null;
     this.selectedPeriod = '1M'; // 1D, 1W, 1M, 3M, 1Y
-    this.selectedRateFilter = 'all'; // 'all' o ID de tasa específica
+    this.selectedRateFilter = null; // null = sin filtro (muestra todas), o ID de tasa específica
   }
 
   getPeriodDetails(period) {
@@ -114,15 +114,14 @@ export class AnalyticsView {
             </div>
 
             <div class="grid grid-cols-5 gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="analytics-rate-filter">
-              <button data-rate="all" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${this.selectedRateFilter === 'all' ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+              <button data-rate="all" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate text-gray-400 hover:text-white">
                 Todas
               </button>
               ${rateKeys.map(key => {
                 const r = rates[key];
-                const isSel = this.selectedRateFilter === key;
                 const pillLabel = this.getPillLabel(key, r);
                 return `
-                  <button data-rate="${key}" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+                  <button data-rate="${key}" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate text-gray-400 hover:text-white">
                     ${pillLabel}
                   </button>
                 `;
@@ -205,7 +204,7 @@ export class AnalyticsView {
     const rateKeys = Object.keys(rates);
 
     let activeKeys = rateKeys;
-    if (this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]) {
+    if (this.selectedRateFilter && this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]) {
       activeKeys = [this.selectedRateFilter];
     }
 
@@ -349,7 +348,7 @@ export class AnalyticsView {
         this.selectedRateFilter = btn.getAttribute('data-rate');
         rateFilterBtns.forEach(b => {
           const isSel = b.getAttribute('data-rate') === this.selectedRateFilter;
-          b.className = `px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
+          b.className = `w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
         });
         this.initChart();
       });
