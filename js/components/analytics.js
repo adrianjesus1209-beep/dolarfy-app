@@ -11,11 +11,11 @@ export class AnalyticsView {
 
   getPeriodDetails(period) {
     const map = {
-      '1D': { short: 'Hoy (24h)', text: '⏱️ Histórico de Hoy (Últimas 24h)' },
-      '1W': { short: '7 Días', text: '📅 Histórico de los Últimos 7 Días' },
-      '1M': { short: '30 Días', text: '🗓️ Histórico de los Últimos 30 Días' },
-      '3M': { short: '90 Días', text: '📊 Histórico del Trimestre (90d)' },
-      '1Y': { short: '1 Año', text: '📈 Histórico Anual (365d)' }
+      '1D': { short: 'Hoy', text: 'Últimas 24 horas' },
+      '1W': { short: '7 Días', text: 'Últimos 7 días' },
+      '1M': { short: '30 Días', text: 'Últimos 30 días' },
+      '3M': { short: '90 Días', text: 'Últimos 90 días' },
+      '1Y': { short: '1 Año', text: 'Últimos 365 días' }
     };
     return map[period] || map['1M'];
   }
@@ -127,11 +127,10 @@ export class AnalyticsView {
                 `).join('')}
               </div>
 
-              <!-- Cuadro Explicativo del Período Seleccionado -->
-              <div class="bg-cyan-500/10 border border-cyan-500/30 rounded-xl px-3 py-2 flex items-center space-x-2 text-[11px] text-cyan-300" id="period-info-box">
-                <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
-                <span id="period-info-text" class="font-semibold leading-tight">${periodDetails.text}</span>
-              </div>
+              <!-- Texto Explicativo Simple sin contenedor ni iconos -->
+              <p id="period-info-text" class="text-[10px] text-gray-400 font-semibold text-right pt-0.5 px-1">
+                ${periodDetails.text}
+              </p>
             </div>
 
           </div>
