@@ -121,38 +121,26 @@ body {
 
 .calc-key-btn:active {
   transform: scale(0.93);
-  background: rgba(16, 185, 129, 0.25);
-  border-color: rgba(16, 185, 129, 0.6);
+  background: rgba(6, 182, 212, 0.25);
+  border-color: rgba(6, 182, 212, 0.6);
 }
 
-/* Estilos exactos del nuevo diseño estilo Mockup */
-.calc-mockup-card {
-  background: #131B2A;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.calc-key-action {
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  color: #06B6D4;
 }
 
-.calc-mockup-btn {
-  background: #1B2537;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  font-weight: 700;
-  transition: all 0.12s ease-in-out;
-  user-select: none;
+.calc-key-action:active {
+  background: rgba(6, 182, 212, 0.4);
 }
 
-.calc-mockup-btn:active {
-  transform: scale(0.92);
-  background: #25334A;
+.calc-key-clear {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #EF4444;
 }
 
-.calc-mockup-equal-btn {
-  background: #10B981;
-  color: #FFFFFF;
-  font-weight: 900;
-  transition: all 0.12s ease-in-out;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
-}
-
-.calc-mockup-equal-btn:active {
-  transform: scale(0.92);
-  background: #059669;
+.calc-key-clear:active {
+  background: rgba(239, 68, 68, 0.4);
 }
