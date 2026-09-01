@@ -8,7 +8,7 @@
 
 ¡Ya puedes instalar Dolarfy en tu dispositivo Android! Descarga el archivo ejecutable APK directamente desde el siguiente enlace:
 
-👉 [**Descargar Dolarfy APK v1.0**](releases/dolarfy-v1.0.apk?raw=true)
+👉 [**Descargar Dolarfy APK v1.0 (Descarga Directa)**](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.apk)
 
 ### 📥 Pasos para instalar el APK en tu celular Android:
 1. Haz clic en el enlace superior para descargar el archivo `dolarfy-v1.0.apk` en tu celular.
