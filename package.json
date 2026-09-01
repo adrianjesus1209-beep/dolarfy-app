@@ -1,0 +1,25 @@
+{
+  "name": "dolarfy-app",
+  "version": "1.0.0",
+  "description": "Calculadora y conversor de divisas con cotizaciones del dólar en tiempo real",
+  "main": "index.html",
+  "scripts": {
+    "cap:sync": "npx cap sync",
+    "cap:add:android": "npx cap add android",
+    "cap:open:android": "npx cap open android"
+  },
+  "keywords": [
+    "dolar",
+    "divisas",
+    "calculadora",
+    "cotizaciones",
+    "capacitor"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  }
+}
