@@ -57,4 +57,4 @@ npm run cap:sync
 
 ## Licencia
 
-Este proyecto está distribuido bajo la licencia ISC.
+Este proyecto está creado por mi.
