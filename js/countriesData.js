@@ -22,7 +22,13 @@ export const COUNTRIES_DATA = [
         change: 0.12,
         currency: 'VES',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        tomorrow: {
+          value: 795.50,
+          change: 0.48,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       paralelo: {
         id: 'paralelo',
@@ -74,7 +80,13 @@ export const COUNTRIES_DATA = [
         change: -0.35,
         currency: 'COP',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        tomorrow: {
+          value: 3118.40,
+          change: 0.35,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       callejero: {
         id: 'callejero',
@@ -126,7 +138,13 @@ export const COUNTRIES_DATA = [
         change: 0.05,
         currency: 'ARS',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        tomorrow: {
+          value: 1541.50,
+          change: 0.42,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       blue: {
         id: 'blue',
