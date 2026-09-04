@@ -35,55 +35,136 @@ class ApiService {
     }
   }
 
-  // --- API Venezuela (DolarApi VE) ---
+  // --- API Venezuela (DolarApi VE + Web Scraping Oficial BCV) ---
   async fetchVenezuelaRates(country, cacheKey) {
-    const res = await fetch('https://ve.dolarapi.com/v1/dolares');
-    if (!res.ok) throw new Error('HTTP error ' + res.status);
-    const data = await res.json();
-
     const rates = JSON.parse(JSON.stringify(country.rates));
 
-    if (Array.isArray(data)) {
-      const bcvItem = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial');
-      if (bcvItem && bcvItem.promedio) {
-        const officialVal = parseFloat(bcvItem.promedio.toFixed(2));
-        rates.bcv.value = officialVal;
-        
-        // Tasa Oficial BCV exacta emitida por el Banco Central
+    try {
+      const res = await fetch('https://ve.dolarapi.com/v1/dolares');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const bcvItem = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial');
+          if (bcvItem && bcvItem.promedio) {
+            rates.bcv.value = parseFloat(bcvItem.promedio.toFixed(2));
+          }
+
+          const parItem = data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
+          if (parItem && parItem.promedio) {
+            rates.paralelo.value = parseFloat(parItem.promedio.toFixed(2));
+          }
+
+          if (rates.bcv && rates.bcv.value) {
+            rates.euro.value = parseFloat((rates.bcv.value * 1.088).toFixed(2));
+          }
+
+          if (rates.paralelo && rates.paralelo.value) {
+            rates.usdt.value = parseFloat((rates.paralelo.value * 1.005).toFixed(2));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error al consultar DolarApi VE:', e);
+    }
+
+    // Intentar buscar la cotización oficial del día siguiente (Fecha Valor) directamente en la web del BCV
+    try {
+      const bcvSiteData = await this.fetchBcvOfficialSite();
+      if (bcvSiteData && bcvSiteData.usd) {
+        const officialNextUsd = parseFloat(bcvSiteData.usd.toFixed(2));
+        const currentUsd = rates.bcv.value || officialNextUsd;
+        const changeUsd = currentUsd > 0 ? parseFloat((((officialNextUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
+
         rates.bcv.nextDay = {
           published: true,
-          value: officialVal,
-          change: rates.bcv.change || 0,
-          date: 'Tasa BCV Oficial Publicada',
-          scheduleText: 'Valor oficial exacto emitido por el Banco Central de Venezuela'
+          value: officialNextUsd,
+          change: changeUsd,
+          date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Tasa Oficial BCV',
+          scheduleText: 'Emitida directamente por el Banco Central de Venezuela'
         };
-      }
 
-      const parItem = data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
-      if (parItem && parItem.promedio) {
-        rates.paralelo.value = parseFloat(parItem.promedio.toFixed(2));
-      }
+        if (bcvSiteData.eur) {
+          const officialNextEur = parseFloat(bcvSiteData.eur.toFixed(2));
+          const currentEur = rates.euro.value || officialNextEur;
+          const changeEur = currentEur > 0 ? parseFloat((((officialNextEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
 
-      if (rates.bcv && rates.bcv.value) {
-        // Tasa Euro oficial ajustada al estándar BCV
-        rates.euro.value = parseFloat((rates.bcv.value * 1.088).toFixed(2));
-        rates.euro.nextDay = {
-          published: true,
-          value: rates.euro.value,
-          change: rates.euro.change || 0,
-          date: 'Euro Oficial BCV Publicado',
-          scheduleText: 'Valor oficial exacto del Banco Central'
-        };
+          rates.euro.nextDay = {
+            published: true,
+            value: officialNextEur,
+            change: changeEur,
+            date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Euro Oficial BCV',
+            scheduleText: 'Emitida directamente por el Banco Central de Venezuela'
+          };
+        }
       }
-
-      if (rates.paralelo && rates.paralelo.value) {
-        // USDT P2P mercado Binance promedio
-        rates.usdt.value = parseFloat((rates.paralelo.value * 1.005).toFixed(2));
-      }
+    } catch (e) {
+      console.warn('Error al scrapear sitio oficial del BCV:', e);
     }
 
     this.setCache(cacheKey, rates);
     return rates;
+  }
+
+  async fetchBcvOfficialSite() {
+    const urls = [
+      'https://www.bcv.org.ve',
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.bcv.org.ve'),
+      'https://corsproxy.io/?' + encodeURIComponent('https://www.bcv.org.ve')
+    ];
+
+    for (const url of urls) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const html = await res.text();
+          const parsed = this.parseBcvHtml(html);
+          if (parsed && parsed.usd) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn(`Error al consultar BCV URL ${url}:`, e);
+      }
+    }
+    return null;
+  }
+
+  parseBcvHtml(html) {
+    if (!html || typeof html !== 'string') return null;
+    try {
+      const usdMatch = html.match(/id=["']dolar["'][\s\S]*?<strong[^>]*>\s*([\d.,]+)\s*<\/strong>/i);
+      const eurMatch = html.match(/id=["']euro["'][\s\S]*?<strong[^>]*>\s*([\d.,]+)\s*<\/strong>/i);
+      const fechaMatch = html.match(/(?:Fecha\s+Valor|dinamic-date)[\s\S]*?<span[^>]*>\s*([^<]+)\s*<\/span>/i);
+
+      let usd = null;
+      let eur = null;
+      let fecha = null;
+
+      if (usdMatch && usdMatch[1]) {
+        const cleaned = usdMatch[1].trim().replace(/\./g, '').replace(',', '.');
+        usd = parseFloat(cleaned);
+      }
+
+      if (eurMatch && eurMatch[1]) {
+        const cleaned = eurMatch[1].trim().replace(/\./g, '').replace(',', '.');
+        eur = parseFloat(cleaned);
+      }
+
+      if (fechaMatch && fechaMatch[1]) {
+        fecha = fechaMatch[1].trim().replace(/\s+/g, ' ');
+      }
+
+      if (usd && !isNaN(usd)) {
+        return { usd, eur, fecha };
+      }
+    } catch (e) {
+      console.warn('Error parseando HTML BCV:', e);
+    }
+    return null;
   }
 
   // --- API Argentina (DolarApi AR) ---

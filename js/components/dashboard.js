@@ -200,6 +200,7 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${formatCurrency(nextDay.value, rate.currency, nextDay.value < 10 ? 4 : 2)}
             </p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || 'Tasa Oficial BCV'}</p>
           </div>
           <span class="text-[10px] text-cyan-400 font-bold">Ref. Mañana</span>
         </div>
