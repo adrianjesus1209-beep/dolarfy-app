@@ -22,7 +22,14 @@ export const COUNTRIES_DATA = [
         change: 0.12,
         currency: 'VES',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        nextDay: {
+          published: true,
+          value: 795.50,
+          change: 0.48,
+          date: 'Tasa Oficial BCV Mañana',
+          scheduleText: 'Publicada oficialmente por el Banco Central'
+        }
       },
       paralelo: {
         id: 'paralelo',

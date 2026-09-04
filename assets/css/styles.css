@@ -46,14 +46,6 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.rate-dash-pill, .day-dash-pill {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.rate-dash-pill:active, .day-dash-pill:active {
-  transform: scale(0.94);
-}
-
 /* Safe areas para Notch de Smartphones iOS/Android */
 .safe-top {
   padding-top: max(1rem, env(safe-area-inset-top));
@@ -224,6 +216,10 @@ html.light .bg-white\/5 {
 
 html.light .bg-white\/10 {
   background-color: rgba(15, 23, 42, 0.07) !important;
+}
+
+html.light .bg-[#131924] {
+  background-color: rgba(15, 23, 42, 0.06) !important;
 }
 
 html.light .bg-black\/40,
