@@ -67,47 +67,57 @@ class ApiService {
       console.warn('Error al consultar DolarApi VE:', e);
     }
 
-    // Intentar buscar la cotización oficial del día siguiente (Fecha Valor) directamente en la web del BCV
+    // Intentar buscar la cotización oficial del sitio BCV
     try {
       const bcvSiteData = await this.fetchBcvOfficialSite();
       if (bcvSiteData && bcvSiteData.usd) {
-        const officialNextUsd = parseFloat(bcvSiteData.usd.toFixed(2));
-        
-        // Garantizar que la tasa de Hoy (rates.bcv.value) se mantenga como la tasa operativa actual
-        let currentUsd = rates.bcv.value || 804.81;
-        if (currentUsd === officialNextUsd) {
-          currentUsd = parseFloat((officialNextUsd / 1.0032).toFixed(2));
-          rates.bcv.value = currentUsd;
-        }
+        const bcvUsd = parseFloat(bcvSiteData.usd.toFixed(2));
+        const isFutureFechaValor = this.isNextDayPublished(bcvSiteData.fecha);
 
-        const changeUsd = currentUsd > 0 ? parseFloat((((officialNextUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
+        if (isFutureFechaValor) {
+          // Es la cotización oficial del DÍA SIGUIENTE (Publicación oficial de la tarde)
+          const currentUsd = rates.bcv.value || bcvUsd;
+          const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
 
-        rates.bcv.nextDay = {
-          published: true,
-          value: officialNextUsd,
-          change: changeUsd,
-          date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Tasa Oficial BCV',
-          scheduleText: 'Emitida directamente por el Banco Central de Venezuela'
-        };
-
-        if (bcvSiteData.eur) {
-          const officialNextEur = parseFloat(bcvSiteData.eur.toFixed(2));
-          const bcvEurRatio = bcvSiteData.eur / bcvSiteData.usd;
-          const currentEur = parseFloat((rates.bcv.value * bcvEurRatio).toFixed(2));
-          rates.euro.value = currentEur;
-
-          const changeEur = currentEur > 0 ? parseFloat((((officialNextEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
-
-          rates.euro.nextDay = {
+          rates.bcv.nextDay = {
             published: true,
-            value: officialNextEur,
-            change: changeEur,
-            date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Euro Oficial BCV',
+            value: bcvUsd,
+            change: changeUsd,
+            date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Tasa Oficial BCV',
             scheduleText: 'Emitida directamente por el Banco Central de Venezuela'
           };
+
+          if (bcvSiteData.eur) {
+            const officialNextEur = parseFloat(bcvSiteData.eur.toFixed(2));
+            const bcvEurRatio = bcvSiteData.eur / bcvSiteData.usd;
+            const currentEur = rates.euro.value || parseFloat((currentUsd * bcvEurRatio).toFixed(2));
+            const changeEur = currentEur > 0 ? parseFloat((((officialNextEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
+
+            rates.euro.nextDay = {
+              published: true,
+              value: officialNextEur,
+              change: changeEur,
+              date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Euro Oficial BCV',
+              scheduleText: 'Emitida directamente por el Banco Central de Venezuela'
+            };
+          }
+        } else {
+          // La fecha del BCV corresponde al DÍA DE HOY (Madrugada / Mañana transcurriendo)
+          rates.bcv.value = bcvUsd;
+          if (bcvSiteData.eur) {
+            rates.euro.value = parseFloat(bcvSiteData.eur.toFixed(2));
+          } else {
+            rates.euro.value = parseFloat((bcvUsd * 1.162).toFixed(2));
+          }
+
+          // Indicar explícitamente que la cotización del día siguiente aún NO ha sido publicada
+          rates.bcv.nextDay = { published: false };
+          rates.euro.nextDay = { published: false };
         }
       } else if (rates.bcv && rates.bcv.value) {
         rates.euro.value = parseFloat((rates.bcv.value * 1.162).toFixed(2));
+        rates.bcv.nextDay = { published: false };
+        rates.euro.nextDay = { published: false };
       }
     } catch (e) {
       console.warn('Error al scrapear sitio oficial del BCV:', e);
@@ -115,6 +125,34 @@ class ApiService {
 
     this.setCache(cacheKey, rates);
     return rates;
+  }
+
+  isNextDayPublished(fechaStr) {
+    if (!fechaStr) return false;
+    try {
+      const match = fechaStr.match(/(\d{1,2})\s+([A-Za-záéíóúÁÉÍÓÚ]+)(?:\s+(\d{4}))?/i);
+      if (!match) return false;
+
+      const dayNum = parseInt(match[1], 10);
+      const monthName = match[2].toLowerCase();
+      const yearNum = match[3] ? parseInt(match[3], 10) : new Date().getFullYear();
+
+      const monthsMap = {
+        enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+        julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
+      };
+
+      const bcvMonth = monthsMap[monthName];
+      if (bcvMonth === undefined) return false;
+
+      const bcvDate = new Date(yearNum, bcvMonth, dayNum);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      return bcvDate.getTime() > today.getTime();
+    } catch (e) {
+      return false;
+    }
   }
 
   async fetchBcvOfficialSite() {
