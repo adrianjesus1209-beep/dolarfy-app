@@ -75,7 +75,7 @@ export class CalculatorView {
         : rateKeys[0];
     }
 
-    const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
+    const activeRateObj = mockEngine.getEffectiveRate(this.selectedRateId) || Object.values(rates)[0];
     const activeRate = activeRateObj ? activeRateObj.value : 1;
     const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
     const ratePair = [baseCode, targetCode];
@@ -440,8 +440,7 @@ export class CalculatorView {
   }
 
   calculate() {
-    const rates = this.currentCountry.rates;
-    const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
+    const activeRateObj = mockEngine.getEffectiveRate(this.selectedRateId) || Object.values(rates)[0];
     if (!activeRateObj) return;
 
     const activeRate = activeRateObj.value || 1;

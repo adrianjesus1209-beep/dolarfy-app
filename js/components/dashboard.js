@@ -1,39 +1,57 @@
 import { mockEngine } from '../mockData.js';
-import { apiService } from '../apiService.js';
 import { formatCurrency, formatPercentage, formatTime } from '../utils/formatters.js';
 
 export class DashboardView {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
     this.unsubscribe = null;
-    this.forecastData = null;
-    this.activeForecastTab = 'today'; // 'today' | 'tomorrow'
+    this.selectedRateId = null;
+    this.selectedCurrencyType = 'USD'; // 'USD' | 'EUR'
   }
 
-  async render() {
+  render() {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
     const rateKeys = Object.keys(rates);
     
-    // Find main featured rate for banner
-    const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
-    const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
-
-    let bannerText = `${mainRate.name}: ${formatCurrency(mainRate.value, mainRate.currency, 2)}`;
-    let bannerSub = `Tasas de referencia actualizadas para ${currentCountry.name}.`;
-    
-    if (secondRate && mainRate.value && secondRate.value && mainRate.currency === secondRate.currency) {
-      const diff = Math.abs(secondRate.value - mainRate.value);
-      const gapPercent = ((diff / Math.min(mainRate.value, secondRate.value)) * 100).toFixed(1);
-      bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
+    if (!this.selectedRateId || !rates[this.selectedRateId]) {
+      this.selectedRateId = currentCountry.defaultRateId && rates[currentCountry.defaultRateId] 
+        ? currentCountry.defaultRateId 
+        : rateKeys[0];
     }
 
+    const selectedDay = mockEngine.getSelectedDay(); // 'today' | 'tomorrow'
+    const activeRateRaw = rates[this.selectedRateId] || rates[rateKeys[0]];
+    const hasTomorrow = mockEngine.hasTomorrowForRate(this.selectedRateId);
+
+    // Si 'Mañana' fue seleccionado previamente pero no está disponible para esta tasa, fallback a 'today'
+    const effectiveDay = (selectedDay === 'tomorrow' && hasTomorrow) ? 'tomorrow' : 'today';
+    const activeRate = mockEngine.getEffectiveRate(this.selectedRateId, effectiveDay);
+
+    // Obtener valor según tipo de moneda seleccionada (USD o EUR)
+    let displayValue = activeRate ? activeRate.value : 0;
+    let displayCode = '1 USD';
+
+    if (this.selectedCurrencyType === 'EUR') {
+      if (rates.euro) {
+        const eurEffective = mockEngine.getEffectiveRate('euro', effectiveDay);
+        displayValue = eurEffective ? eurEffective.value : (activeRate ? activeRate.value * 1.088 : 0);
+      } else {
+        displayValue = activeRate ? activeRate.value * 1.088 : 0;
+      }
+      displayCode = '1 EUR';
+    }
+
+    const symbol = currentCountry.currency.symbol || 'Bs';
+
     this.container.innerHTML = `
-      <div class="space-y-6 pb-24 animate-fade-in">
-        <!-- Header status bar -->
+      <div class="space-y-5 pb-24 animate-fade-in">
+        
+        <!-- Header Status & País -->
         <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4">
           <div class="flex items-center space-x-3">
             <span class="relative flex h-3 w-3">
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 animate-ping opacity-75"></span>
               <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
             </span>
             <div>
@@ -51,204 +69,94 @@ export class DashboardView {
           </button>
         </div>
 
-        <!-- Banner Promocional / Alerta de Mercado -->
-        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 p-5 border border-white/10">
-          <div class="relative z-10">
-            <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">Resumen del Día</span>
-            <h3 class="text-lg font-bold text-white mt-2">${bannerText}</h3>
-            <p class="text-xs text-gray-300 mt-1">${bannerSub}</p>
+        <!-- Barra Superior de Control (Categorías a la Izq + Hoy/Mañana a la Der) -->
+        <div class="flex items-center justify-between gap-2">
+          
+          <!-- Píldoras de Tasas (Izq) -->
+          <div class="flex items-center space-x-1 bg-black/40 p-1.5 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar">
+            ${rateKeys.map(key => {
+              const r = rates[key];
+              const isSelected = this.selectedRateId === key;
+              const pillName = key === 'bcv' ? 'BCV' : (key === 'usdt' ? 'USDT' : (key === 'paralelo' ? 'Paralelo' : r.name.split(' ')[0]));
+              return `
+                <button type="button" data-rate-id="${key}" class="rate-dash-pill px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${isSelected ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20' : 'text-gray-400 hover:text-white'}">
+                  ${pillName}
+                </button>
+              `;
+            }).join('')}
           </div>
+
+          <!-- Píldoras de Día (Hoy / Mañana) - Mañana se muestra ÚNICAMENTE si está publicado -->
+          <div class="flex items-center space-x-1 bg-black/40 p-1.5 rounded-2xl border border-white/10">
+            <button type="button" data-day="today" class="day-dash-pill px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${effectiveDay === 'today' ? 'bg-emerald-700/80 text-white border border-emerald-500/40 shadow-md' : 'text-gray-400 hover:text-white'}">
+              Hoy
+            </button>
+            ${hasTomorrow ? `
+              <button type="button" data-day="tomorrow" class="day-dash-pill px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${effectiveDay === 'tomorrow' ? 'bg-emerald-700/80 text-white border border-emerald-500/40 shadow-md' : 'text-gray-400 hover:text-white'}">
+                Mañana
+              </button>
+            ` : ''}
+          </div>
+
         </div>
 
-        <!-- Sección Pronóstico Hoy / Mañana -->
-        <div id="forecast-section">
-          ${this._renderForecastSkeleton()}
+        <!-- Tarjeta Principal Destacada de Cotización Dólar/Euro y Fecha Valor -->
+        <div class="glass-card rounded-3xl p-6 relative overflow-hidden space-y-4 border border-white/10 bg-[#111622]/90 text-center shadow-2xl">
+          
+          <!-- Selector Central de Moneda (Dólares / Euros) -->
+          <div class="inline-flex items-center bg-black/50 p-1 rounded-2xl border border-white/10 mx-auto">
+            <button type="button" id="toggle-currency-usd" class="px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${this.selectedCurrencyType === 'USD' ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/30' : 'text-gray-400 hover:text-white'}">
+              Dólares
+            </button>
+            <button type="button" id="toggle-currency-eur" class="px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${this.selectedCurrencyType === 'EUR' ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/30' : 'text-gray-400 hover:text-white'}">
+              Euros
+            </button>
+          </div>
+
+          <!-- Gran Pantalla del Precio -->
+          <div class="py-2">
+            <h2 class="text-3xl sm:text-4xl font-black text-white tracking-tight">
+              ${displayCode} = <span class="text-emerald-400 drop-shadow-sm">${displayValue.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}</span>
+            </h2>
+          </div>
+
+          <!-- Fecha Valor -->
+          <div class="flex items-center justify-center space-x-1.5 text-xs text-gray-400 font-semibold pt-1 border-t border-white/5">
+            <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i>
+            <span>Fecha Valor: ${activeRate ? activeRate.valueDate : 'Al día'}</span>
+          </div>
+
         </div>
 
         <!-- Sección Tasas Principales del País -->
-        <div>
+        <div class="pt-2">
           <div class="flex justify-between items-center mb-3">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-gray-400">Tasas Principales ${currentCountry.name}</h2>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-gray-400">Todas las Tasas ${currentCountry.name}</h2>
             <span class="text-xs font-bold text-cyan-400">${currentCountry.currency.code}</span>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            ${rateKeys.map(key => this.renderRateCard(rates[key])).join('')}
+            ${rateKeys.map(key => this.renderRateCard(rates[key], effectiveDay)).join('')}
           </div>
         </div>
+
       </div>
     `;
 
+    this.attachEvents();
     this.subscribeToUpdates();
     if (window.lucide) {
       window.lucide.createIcons();
     }
-
-    // Load forecast data asynchronously
-    this._loadForecast(currentCountry);
   }
 
-  _renderForecastSkeleton() {
-    return `
-      <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2">
-            <div class="w-7 h-7 rounded-lg bg-white/10 animate-pulse"></div>
-            <div>
-              <div class="h-2.5 bg-white/10 rounded w-24 animate-pulse mb-1"></div>
-              <div class="h-2 bg-white/8 rounded w-16 animate-pulse"></div>
-            </div>
-          </div>
-          <div class="h-7 w-28 bg-white/10 rounded-xl animate-pulse"></div>
-        </div>
-        <div class="h-9 bg-white/10 rounded w-40 animate-pulse mb-2"></div>
-        <div class="h-3 bg-white/8 rounded w-32 animate-pulse"></div>
-      </div>
-    `;
-  }
-
-  async _loadForecast(country) {
-    const section = document.getElementById('forecast-section');
-    if (!section) return;
-
-    try {
-      const forecast = await apiService.fetchForecastData(country);
-      this.forecastData = forecast;
-
-      if (!forecast) {
-        section.innerHTML = '';
-        return;
-      }
-
-      this._renderForecast(forecast);
-    } catch (e) {
-      console.warn('Forecast load error:', e);
-      section.innerHTML = '';
-    }
-  }
-
-  _renderForecast(forecast) {
-    const section = document.getElementById('forecast-section');
-    if (!section || !forecast) return;
-
-    const { today, tomorrow, tomorrowAvailable, mainRateLabel, currency, publicationTime } = forecast;
-    const activeDay = this.activeForecastTab === 'tomorrow' && tomorrowAvailable ? tomorrow : today;
-
-    section.innerHTML = `
-      <div class="rounded-2xl overflow-hidden border border-white/10" style="background: linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(59,130,246,0.06) 50%, rgba(139,92,246,0.08) 100%);">
-        <!-- Section header -->
-        <div class="flex items-center justify-between px-4 pt-4 pb-3">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/20">
-              <i data-lucide="calendar-days" class="w-3.5 h-3.5 text-cyan-400"></i>
-            </div>
-            <div>
-              <h2 class="text-xs font-bold uppercase tracking-wider text-gray-300">${mainRateLabel}</h2>
-              <p class="text-[10px] text-gray-500 font-medium">Publicado · ${publicationTime}</p>
-            </div>
-          </div>
-
-          <!-- Hoy / Mañana toggle pills -->
-          <div class="flex items-center gap-1 bg-white/5 rounded-xl p-1 border border-white/10">
-            <button
-              id="forecast-btn-today"
-              type="button"
-              class="forecast-tab-btn px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 ${this.activeForecastTab === 'today' ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/30' : 'text-gray-400 hover:text-gray-200'}"
-              data-tab="today"
-            >Hoy</button>
-            ${tomorrowAvailable ? `
-            <button
-              id="forecast-btn-tomorrow"
-              type="button"
-              class="forecast-tab-btn px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 ${this.activeForecastTab === 'tomorrow' ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/30' : 'text-gray-400 hover:text-gray-200'}"
-              data-tab="tomorrow"
-            >Mañana</button>
-            ` : `
-            <span class="px-3 py-1 rounded-lg text-xs font-medium text-gray-600 cursor-not-allowed select-none" title="Aún no publicado">
-              Mañana
-            </span>
-            `}
-          </div>
-        </div>
-
-        <!-- Rate display -->
-        <div id="forecast-rate-display" class="px-4 pb-4">
-          ${this._renderForecastRateDisplay(activeDay, currency)}
-        </div>
-
-        ${!tomorrowAvailable ? `
-        <div class="px-4 pb-3">
-          <div class="flex items-center gap-2 rounded-xl px-3 py-2" style="background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2)">
-            <i data-lucide="clock" class="w-3.5 h-3.5 text-amber-400 flex-shrink-0"></i>
-            <p class="text-[10px] text-amber-300/80 font-medium">La tasa del día siguiente se publica a las ${publicationTime}</p>
-          </div>
-        </div>
-        ` : ''}
-      </div>
-    `;
-
-    // Bind tab button events
-    section.querySelectorAll('.forecast-tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.activeForecastTab = btn.dataset.tab;
-        this._renderForecast(forecast);
-        if (window.lucide) window.lucide.createIcons();
-      });
-    });
-
-    if (window.lucide) window.lucide.createIcons();
-  }
-
-  _renderForecastRateDisplay(dayData, currency) {
-    if (!dayData) return '';
-
-    const formatVal = (v) => formatCurrency(v, currency, v < 10 ? 4 : 2);
-    const parallelLabel = currency === 'VES' ? 'Paralelo' : currency === 'ARS' ? 'Blue' : 'Mercado';
-    const isNextDay = dayData.isNextDay || false;
-
-    const pubDate = dayData.publishedAt ? new Date(dayData.publishedAt) : null;
-    const pubDateStr = pubDate ? pubDate.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
-
-    return `
-      <div class="flex items-end justify-between">
-        <div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-black text-white tracking-tight">
-              ${formatVal(dayData.value)}
-            </span>
-            <span class="text-xs text-gray-400 font-semibold">${currency}</span>
-          </div>
-          ${dayData.parallel ? `
-          <div class="flex items-center gap-1.5 mt-1.5">
-            <span class="text-[10px] text-gray-500 font-medium">${parallelLabel}:</span>
-            <span class="text-xs font-bold text-purple-300">${formatVal(dayData.parallel)}</span>
-          </div>
-          ` : ''}
-          ${pubDateStr ? `<p class="text-[10px] text-gray-500 mt-1.5">Publicado: ${pubDateStr}</p>` : ''}
-        </div>
-
-        <div class="text-right">
-          ${isNextDay ? `
-          <div class="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25)">
-            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span class="text-xs font-bold text-emerald-400">Publicado</span>
-          </div>
-          <p class="text-[10px] text-gray-500 mt-1">Vigente mañana</p>
-          ` : `
-          <div class="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.25)">
-            <i data-lucide="circle-dot" class="w-3.5 h-3.5 text-cyan-400"></i>
-            <span class="text-xs font-bold text-cyan-400">Vigente</span>
-          </div>
-          <p class="text-[10px] text-gray-500 mt-1">Tasa actual</p>
-          `}
-        </div>
-      </div>
-    `;
-  }
-
-  renderRateCard(rate) {
+  renderRateCard(rate, day) {
     if (!rate) return '';
-    const isPositive = rate.change >= 0;
+    const eff = mockEngine.getEffectiveRate(rate.id, day);
+    const val = eff ? eff.value : rate.value;
+    const change = eff ? eff.change : rate.change;
+
+    const isPositive = change >= 0;
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
@@ -266,53 +174,64 @@ export class DashboardView {
           </div>
           <span id="badge-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
             <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${formatPercentage(rate.change)}</span>
+            <span>${formatPercentage(change)}</span>
           </span>
         </div>
 
         <div class="mt-4 flex justify-between items-end">
           <div>
             <p class="text-2xl font-extrabold text-white tracking-tight" id="val-${rate.id}">
-              ${formatCurrency(rate.value, rate.currency, rate.value < 10 ? 4 : 2)}
+              ${formatCurrency(val, rate.currency, val < 10 ? 4 : 2)}
             </p>
           </div>
-          <span class="text-[10px] text-gray-500 font-medium">Ref. Hoy</span>
+          <span class="text-[10px] text-gray-400 font-bold uppercase">${eff && eff.isTomorrow ? 'Ref. Mañana' : 'Ref. Hoy'}</span>
         </div>
       </div>
     `;
+  }
+
+  attachEvents() {
+    // Eventos de Píldoras de Tasa
+    const ratePills = this.container.querySelectorAll('.rate-dash-pill');
+    ratePills.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const rateId = btn.getAttribute('data-rate-id');
+        this.selectedRateId = rateId;
+        this.render();
+      });
+    });
+
+    // Eventos de Píldoras de Día (Hoy / Mañana)
+    const dayPills = this.container.querySelectorAll('.day-dash-pill');
+    dayPills.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const day = btn.getAttribute('data-day');
+        mockEngine.setSelectedDay(day);
+        this.render();
+      });
+    });
+
+    // Toggle Moneda USD / EUR
+    const toggleUsd = this.container.querySelector('#toggle-currency-usd');
+    const toggleEur = this.container.querySelector('#toggle-currency-eur');
+
+    toggleUsd?.addEventListener('click', () => {
+      this.selectedCurrencyType = 'USD';
+      this.render();
+    });
+
+    toggleEur?.addEventListener('click', () => {
+      this.selectedCurrencyType = 'EUR';
+      this.render();
+    });
   }
 
   subscribeToUpdates() {
     if (this.unsubscribe) this.unsubscribe();
 
     this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
-      if (action === 'rates_refreshed' || action === 'country_change') {
+      if (action === 'rates_refreshed' || action === 'country_change' || action === 'day_change') {
         this.render();
-        return;
-      }
-
-      const valEl = document.getElementById(`val-${updatedId}`);
-      const badgeEl = document.getElementById(`badge-${updatedId}`);
-      const lastUpdateEl = document.getElementById('dash-last-update');
-
-      if (lastUpdateEl) lastUpdateEl.textContent = formatTime();
-
-      if (valEl && rates[updatedId]) {
-        const rate = rates[updatedId];
-        valEl.textContent = formatCurrency(rate.value, rate.currency, rate.value < 10 ? 4 : 2);
-
-        if (badgeEl) {
-          const isPositive = rate.change >= 0;
-          const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
-          const trendIcon = isPositive ? 'trending-up' : 'trending-down';
-
-          badgeEl.className = `inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}`;
-          badgeEl.innerHTML = `
-            <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${formatPercentage(rate.change)}</span>
-          `;
-          if (window.lucide) window.lucide.createIcons();
-        }
       }
     });
   }

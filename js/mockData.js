@@ -11,9 +11,46 @@ class MockDataEngine {
     this.defaultCountryId = this.loadDefaultCountry();
     this.currentCountryId = this.loadSelectedCountry() || this.defaultCountryId;
 
+    this.selectedDay = 'today'; // 'today' | 'tomorrow'
     this.listeners = [];
     this.syncRealRates();
     this.startScheduleCheck();
+  }
+
+  getSelectedDay() {
+    return this.selectedDay;
+  }
+
+  setSelectedDay(day) {
+    if (day !== 'today' && day !== 'tomorrow') return;
+    this.selectedDay = day;
+    this.notifyListeners(null, 'day_change');
+  }
+
+  hasTomorrowForRate(rateId) {
+    const rate = this.getRate(rateId);
+    return Boolean(rate && rate.tomorrow && rate.tomorrow.published);
+  }
+
+  getEffectiveRate(rateId, day = this.selectedDay) {
+    const rate = this.getRate(rateId);
+    if (!rate) return null;
+
+    if (day === 'tomorrow' && rate.tomorrow && rate.tomorrow.published) {
+      return {
+        ...rate,
+        value: rate.tomorrow.value,
+        change: rate.tomorrow.change,
+        valueDate: rate.tomorrow.valueDate || 'Mañana',
+        isTomorrow: true
+      };
+    }
+
+    return {
+      ...rate,
+      valueDate: rate.valueDate || 'Hoy',
+      isTomorrow: false
+    };
   }
 
   loadDefaultCountry() {
