@@ -30,9 +30,13 @@ export class DashboardView {
       ? mainRateObj.tomorrow.value
       : mainRateObj.value;
 
+    const mainChange = (isTomorrow && mainRateObj.tomorrow && mainRateObj.tomorrow.published)
+      ? mainRateObj.tomorrow.change
+      : mainRateObj.change;
+
     let bannerText = `${mainRateObj.name}: ${formatCurrency(mainValue, mainRateObj.currency, 2)}`;
     let bannerSub = isTomorrow
-      ? `Tasa oficial del día siguiente publicada para ${mainRateObj.tomorrow?.dateLabel || 'Mañana'}.`
+      ? `Tasa oficial del día siguiente publicada (${mainRateObj.tomorrow?.dateLabel || 'Mañana'}). Variación estimada: ${formatPercentage(mainChange)}.`
       : `Tasas de referencia actualizadas para ${currentCountry.name}.`;
 
     const secondRateObj = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
@@ -45,7 +49,7 @@ export class DashboardView {
     this.container.innerHTML = `
       <div class="space-y-5 pb-24 animate-fade-in">
         
-        <!-- Status Bar del Banco Central -->
+        <!-- Status Bar del Banco Central con Selector de País -->
         <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4 shadow-lg">
           <div class="flex items-center space-x-3">
             <span class="relative flex h-3 w-3">
@@ -67,29 +71,29 @@ export class DashboardView {
           </button>
         </div>
 
-        <!-- CONDICIONAL: Sección de Botones Hoy / Mañana (Sólo se muestra si la tasa del día siguiente está publicada) -->
+        <!-- CONDICIONAL: BARRA DE BOTONES HOY / MAÑANA (Predicción) -->
         ${hasTomorrowData ? `
-          <div class="flex items-center justify-between bg-emerald-950/40 border border-emerald-500/30 backdrop-blur-xl rounded-2xl p-3 shadow-xl">
-            <div class="flex items-center space-x-2.5">
-              <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <i data-lucide="calendar-clock" class="w-4.5 h-4.5"></i>
-              </div>
-              <div>
-                <p class="text-xs font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-                  <span>Tasa Oficial Mañana</span>
-                  <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.2 rounded-full font-bold">Publicada</span>
-                </p>
-                <p class="text-[11px] text-gray-300 font-medium">Ver cotización de ${currentCountry.name}</p>
-              </div>
+          <div class="glass-card rounded-2xl p-3 border border-cyan-500/30 bg-gradient-to-r from-slate-900/90 via-emerald-950/40 to-slate-900/90 shadow-2xl space-y-2">
+            <div class="flex items-center justify-between px-1">
+              <span class="text-xs font-extrabold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+                <i data-lucide="sparkles" class="w-4 h-4 text-emerald-400 animate-pulse"></i>
+                <span>Visualizar Cotización</span>
+              </span>
+              <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${isTomorrow ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'}">
+                ${isTomorrow ? '🔮 Tasa Mañana Publicada' : '☀️ Tasa Actual Hoy'}
+              </span>
             </div>
 
-            <!-- Botones Selector de Día (Hoy / Mañana) -->
-            <div class="flex items-center bg-black/60 p-1 rounded-xl border border-white/10 space-x-1">
-              <button id="day-btn-today" type="button" class="px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${!isTomorrow ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/30' : 'text-gray-400 hover:text-white'}">
-                Hoy
+            <!-- Botones Selector a Todo el Ancho (Hoy / Mañana) -->
+            <div class="grid grid-cols-2 gap-2 bg-black/60 p-1.5 rounded-xl border border-white/10 w-full">
+              <button id="day-btn-today" type="button" class="py-2.5 px-3 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-2 ${!isTomorrow ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/40 scale-[1.02]' : 'text-gray-400 hover:text-white bg-white/5'}">
+                <i data-lucide="sun" class="w-4 h-4"></i>
+                <span>HOY</span>
               </button>
-              <button id="day-btn-tomorrow" type="button" class="px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center space-x-1.5 ${isTomorrow ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/30' : 'text-emerald-400 hover:text-white'}">
-                <span>Mañana</span>
+
+              <button id="day-btn-tomorrow" type="button" class="py-2.5 px-3 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-2 relative ${isTomorrow ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/40 scale-[1.02]' : 'text-emerald-400 hover:text-white bg-emerald-500/10 border border-emerald-500/30'}">
+                <i data-lucide="sparkles" class="w-4 h-4 text-amber-300 animate-spin-slow"></i>
+                <span>MAÑANA (Predicción)</span>
                 <span class="relative flex h-2 w-2">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
@@ -99,18 +103,27 @@ export class DashboardView {
           </div>
         ` : ''}
 
-        <!-- Banner Informativo / Resumen del Día -->
-        <div class="relative overflow-hidden rounded-2xl ${isTomorrow ? 'bg-gradient-to-r from-emerald-900/50 via-teal-900/40 to-cyan-900/40 border-emerald-500/30' : 'bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 border-white/10'} p-5 border shadow-xl">
+        <!-- Banner Informativo / Resumen del Día o Predicción -->
+        <div class="relative overflow-hidden rounded-2xl ${isTomorrow ? 'bg-gradient-to-r from-emerald-900/60 via-teal-900/50 to-cyan-900/50 border-emerald-400/50 shadow-emerald-500/20' : 'bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 border-white/10'} p-5 border shadow-2xl transition-all">
           <div class="relative z-10">
-            <span class="${isTomorrow ? 'bg-emerald-500/20 text-emerald-300' : 'bg-cyan-500/20 text-cyan-300'} text-xs px-2.5 py-0.5 rounded-full font-bold">
-              ${isTomorrow ? '🟢 Tasa Oficial Día Siguiente' : 'Resumen del Día'}
-            </span>
-            <h3 class="text-xl font-black text-white mt-2 tracking-tight">${bannerText}</h3>
-            <p class="text-xs text-gray-300 mt-1 font-medium">${bannerSub}</p>
+            <div class="flex items-center justify-between">
+              <span class="${isTomorrow ? 'bg-emerald-400 text-black font-black' : 'bg-cyan-500/20 text-cyan-300 font-bold'} text-xs px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                ${isTomorrow ? '🔮 Predicción Oficial Día Siguiente' : 'Resumen del Día'}
+              </span>
+              ${isTomorrow ? `
+                <span class="text-[11px] font-extrabold text-emerald-300 flex items-center gap-1">
+                  <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>BCV Publicado</span>
+                </span>
+              ` : ''}
+            </div>
+
+            <h3 class="text-2xl font-black text-white mt-2.5 tracking-tight">${bannerText}</h3>
+            <p class="text-xs text-gray-300 mt-1 font-medium leading-relaxed">${bannerSub}</p>
           </div>
         </div>
 
-        <!-- Sección Lista de Tasas -->
+        <!-- Lista de Tarjetas de Cotizaciones -->
         <div>
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-xs font-black uppercase tracking-wider text-gray-400">
@@ -165,14 +178,19 @@ export class DashboardView {
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
     return `
-      <div id="card-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 ${isTomorrow && hasTomorrowForRate ? 'border-emerald-500/40 bg-emerald-950/20' : ''}">
+      <div id="card-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 ${isTomorrow && hasTomorrowForRate ? 'border-emerald-400/50 bg-emerald-950/30 shadow-lg shadow-emerald-500/10' : ''}">
         <div class="flex justify-between items-start">
           <div class="flex items-center space-x-3">
-            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 ${isTomorrow && hasTomorrowForRate ? 'text-emerald-400' : 'text-cyan-400'}">
+            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 ${isTomorrow && hasTomorrowForRate ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500/30' : 'text-cyan-400'}">
               <i data-lucide="${rate.icon || 'coins'}" class="w-5 h-5"></i>
             </div>
             <div>
-              <h4 class="font-bold text-gray-100 text-sm">${rate.name}</h4>
+              <h4 class="font-bold text-gray-100 text-sm flex items-center gap-1.5">
+                <span>${rate.name}</span>
+                ${isTomorrow && hasTomorrowForRate ? `
+                  <span class="text-[9px] font-black bg-emerald-400 text-black px-1.5 py-0.2 rounded-full uppercase">Mañana</span>
+                ` : ''}
+              </h4>
               <p class="text-xs text-gray-400">${rate.code}</p>
             </div>
           </div>
@@ -188,7 +206,7 @@ export class DashboardView {
               ${formatCurrency(activeValue, rate.currency, activeValue < 10 ? 4 : 2)}
             </p>
           </div>
-          <span class="text-[10px] ${isTomorrow && hasTomorrowForRate ? 'text-emerald-300 font-bold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30' : 'text-gray-400 font-semibold'}">
+          <span class="text-[10px] ${isTomorrow && hasTomorrowForRate ? 'text-emerald-300 font-black bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/40 shadow-sm' : 'text-gray-400 font-semibold'}">
             ${refLabel}
           </span>
         </div>

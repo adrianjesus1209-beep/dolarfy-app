@@ -1,5 +1,5 @@
 /**
- * Catálogo de Países y Tasas Financieras por País
+ * Catálogo de Países y Tasas Financieras por País (Con soporte para Tasas del Día Siguiente / Predicciones)
  */
 
 export const COUNTRIES_DATA = [
@@ -38,7 +38,13 @@ export const COUNTRIES_DATA = [
         change: 0.75,
         currency: 'VES',
         type: 'parallel',
-        icon: 'trending-up'
+        icon: 'trending-up',
+        tomorrow: {
+          value: 928.50,
+          change: 0.68,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       euro: {
         id: 'euro',
@@ -48,7 +54,13 @@ export const COUNTRIES_DATA = [
         change: 0.08,
         currency: 'VES',
         type: 'official',
-        icon: 'euro'
+        icon: 'euro',
+        tomorrow: {
+          value: 865.20,
+          change: 0.45,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       usdt: {
         id: 'usdt',
@@ -58,7 +70,13 @@ export const COUNTRIES_DATA = [
         change: 0.45,
         currency: 'VES',
         type: 'crypto',
-        icon: 'coins'
+        icon: 'coins',
+        tomorrow: {
+          value: 932.10,
+          change: 0.57,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       }
     }
   },
@@ -96,7 +114,13 @@ export const COUNTRIES_DATA = [
         change: 0.20,
         currency: 'COP',
         type: 'parallel',
-        icon: 'trending-up'
+        icon: 'trending-up',
+        tomorrow: {
+          value: 3162.00,
+          change: 0.22,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       euro: {
         id: 'euro',
@@ -106,7 +130,13 @@ export const COUNTRIES_DATA = [
         change: -0.15,
         currency: 'COP',
         type: 'official',
-        icon: 'euro'
+        icon: 'euro',
+        tomorrow: {
+          value: 3615.00,
+          change: 0.20,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       usdt: {
         id: 'usdt',
@@ -116,7 +146,13 @@ export const COUNTRIES_DATA = [
         change: 0.10,
         currency: 'COP',
         type: 'crypto',
-        icon: 'coins'
+        icon: 'coins',
+        tomorrow: {
+          value: 3145.00,
+          change: 0.20,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       }
     }
   },
@@ -154,7 +190,13 @@ export const COUNTRIES_DATA = [
         change: 1.15,
         currency: 'ARS',
         type: 'parallel',
-        icon: 'trending-up'
+        icon: 'trending-up',
+        tomorrow: {
+          value: 1565.00,
+          change: 0.64,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       mep: {
         id: 'mep',
@@ -164,7 +206,13 @@ export const COUNTRIES_DATA = [
         change: 0.40,
         currency: 'ARS',
         type: 'market',
-        icon: 'line-chart'
+        icon: 'line-chart',
+        tomorrow: {
+          value: 1550.20,
+          change: 0.39,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       usdt: {
         id: 'usdt',
@@ -174,7 +222,13 @@ export const COUNTRIES_DATA = [
         change: 0.80,
         currency: 'ARS',
         type: 'crypto',
-        icon: 'coins'
+        icon: 'coins',
+        tomorrow: {
+          value: 1602.50,
+          change: 0.41,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       }
     }
   },
@@ -196,7 +250,13 @@ export const COUNTRIES_DATA = [
         change: -0.18,
         currency: 'MXN',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        tomorrow: {
+          value: 17.08,
+          change: 0.41,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       ventanilla: {
         id: 'ventanilla',
@@ -248,7 +308,13 @@ export const COUNTRIES_DATA = [
         change: 0.30,
         currency: 'CLP',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        tomorrow: {
+          value: 929.80,
+          change: 0.50,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       informal: {
         id: 'informal',
@@ -300,7 +366,13 @@ export const COUNTRIES_DATA = [
         change: -0.08,
         currency: 'PEN',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        tomorrow: {
+          value: 3.37,
+          change: 0.60,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       ocona: {
         id: 'ocona',
@@ -352,7 +424,13 @@ export const COUNTRIES_DATA = [
         change: 0.22,
         currency: 'BRL',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        tomorrow: {
+          value: 5.19,
+          change: 0.58,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       turismo: {
         id: 'turismo',
@@ -404,7 +482,13 @@ export const COUNTRIES_DATA = [
         change: 0.05,
         currency: 'DOP',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        tomorrow: {
+          value: 58.45,
+          change: 0.39,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       mercado: {
         id: 'mercado',
@@ -468,7 +552,13 @@ export const COUNTRIES_DATA = [
         change: -0.04,
         currency: 'USD',
         type: 'forex',
-        icon: 'globe'
+        icon: 'globe',
+        tomorrow: {
+          value: 1.165,
+          change: 0.34,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       usdt: {
         id: 'usdt',
@@ -520,7 +610,13 @@ export const COUNTRIES_DATA = [
         change: 0.04,
         currency: 'EUR',
         type: 'forex',
-        icon: 'globe'
+        icon: 'globe',
+        tomorrow: {
+          value: 0.8640,
+          change: 0.30,
+          dateLabel: 'Mañana (4 Sep)',
+          published: true
+        }
       },
       usdt: {
         id: 'usdt',
@@ -535,7 +631,7 @@ export const COUNTRIES_DATA = [
       usdc: {
         id: 'usdc',
         name: 'USDC P2P Europa',
-        code: 'USDC/EUR',
+        code: 'USD/EUR',
         value: 0.8614,
         change: 0.04,
         currency: 'EUR',
