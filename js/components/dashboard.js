@@ -168,7 +168,7 @@ export class DashboardView {
     if (!rate) return '';
     const nextDay = rate.nextDay || {
       published: true,
-      value: parseFloat((rate.value * (1 + (rate.change / 100))).toFixed(2)),
+      value: rate.value,
       change: rate.change,
       date: 'Mañana'
     };
