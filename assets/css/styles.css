@@ -279,12 +279,3 @@ html.light .calc-key-equals {
   box-shadow: 0 4px 15px -2px rgba(16, 185, 129, 0.4);
 }
 
-/* Fade-in animation for dashboard sections */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out both;
-}

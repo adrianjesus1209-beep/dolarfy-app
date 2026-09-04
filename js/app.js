@@ -110,7 +110,7 @@ class App {
     });
   }
 
-  async navigateTo(tab, forceReload = false) {
+  navigateTo(tab, forceReload = false) {
     if (!forceReload && this.activeTab === tab && this.currentView) {
       return;
     }
@@ -141,7 +141,7 @@ class App {
         this.currentView = new DashboardView(mainContainer);
     }
 
-    await this.currentView.render();
+    this.currentView.render();
   }
 
   updateBottomNavUI(activeTab) {
