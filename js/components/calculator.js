@@ -75,7 +75,7 @@ export class CalculatorView {
         : rateKeys[0];
     }
 
-    const activeRateObj = mockEngine.getEffectiveRate(this.selectedRateId) || Object.values(rates)[0];
+    const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
     const activeRate = activeRateObj ? activeRateObj.value : 1;
     const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
     const ratePair = [baseCode, targetCode];
@@ -298,8 +298,7 @@ export class CalculatorView {
 
     const rates = this.currentCountry.rates;
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
-    const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
-    const currentSym = this.fromCurrency === baseCode ? (baseCode === 'EUR' ? '€' : (baseCode === 'GBP' ? '£' : '$')) : (this.fromCurrency === 'USD' ? '$' : '$');
+    const currentSym = this.getCurrencySymbol(this.fromCurrency);
 
     const displayInput = document.getElementById('calc-display-input');
     if (displayInput) {
@@ -440,7 +439,8 @@ export class CalculatorView {
   }
 
   calculate() {
-    const activeRateObj = mockEngine.getEffectiveRate(this.selectedRateId) || Object.values(rates)[0];
+    const rates = this.currentCountry.rates;
+    const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
     if (!activeRateObj) return;
 
     const activeRate = activeRateObj.value || 1;
@@ -475,17 +475,13 @@ export class CalculatorView {
 
     const equalityEl = document.getElementById('calc-equality-display');
     if (equalityEl) {
-      const symbols = {
-        USD: '$', VES: 'Bs.', COP: '$', ARS: '$', MXN: '$', CLP: '$',
-        PEN: 'S/', BRL: 'R$', DOP: 'RD$', EUR: '€', USDT: '₮', GBP: '£'
-      };
-      const fromSym = symbols[this.fromCurrency] || '$';
-      const toSym = symbols[this.toCurrency] || '$';
+      const fromSym = this.getCurrencySymbol(this.fromCurrency);
+      const toSym = this.getCurrencySymbol(this.toCurrency);
 
       const fromFormatted = numericAmount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const toFormatted = finalResult.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: finalResult < 10 ? 4 : 2 });
 
-      equalityEl.textContent = `${fromSym}${fromFormatted} = ${toFormatted} ${toSym}`;
+      equalityEl.textContent = `${fromSym} ${fromFormatted} = ${toFormatted} ${toSym}`;
     }
   }
 

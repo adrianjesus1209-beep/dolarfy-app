@@ -55,7 +55,7 @@ class ApiService {
           }
 
           if (rates.bcv && rates.bcv.value) {
-            rates.euro.value = parseFloat((rates.bcv.value * 1.088).toFixed(2));
+            rates.euro.value = parseFloat((rates.bcv.value * 1.162).toFixed(2));
           }
 
           if (rates.paralelo && rates.paralelo.value) {
@@ -85,7 +85,11 @@ class ApiService {
 
         if (bcvSiteData.eur) {
           const officialNextEur = parseFloat(bcvSiteData.eur.toFixed(2));
-          const currentEur = rates.euro.value || officialNextEur;
+          // Calcular la tasa de Euro de Hoy usando la proporción real del BCV entre Euro y Dólar
+          const bcvEurRatio = bcvSiteData.eur / bcvSiteData.usd;
+          const currentEur = parseFloat((rates.bcv.value * bcvEurRatio).toFixed(2));
+          rates.euro.value = currentEur;
+
           const changeEur = currentEur > 0 ? parseFloat((((officialNextEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
 
           rates.euro.nextDay = {
@@ -96,6 +100,8 @@ class ApiService {
             scheduleText: 'Emitida directamente por el Banco Central de Venezuela'
           };
         }
+      } else if (rates.bcv && rates.bcv.value) {
+        rates.euro.value = parseFloat((rates.bcv.value * 1.162).toFixed(2));
       }
     } catch (e) {
       console.warn('Error al scrapear sitio oficial del BCV:', e);

@@ -52,10 +52,13 @@ export class AnalyticsView {
       gapPercent = ((diff / minVal) * 100).toFixed(2);
     }
 
-    // Cálculo Mínimo y Máximo simulado del período
-    const allValues = rateKeys.map(k => rates[k].value);
-    const minVal = Math.min(...allValues) * 0.98;
-    const maxVal = Math.max(...allValues) * 1.02;
+    // Cálculo Mínimo y Máximo del período según el filtro seleccionado
+    const filteredKeys = (this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]) 
+      ? [this.selectedRateFilter] 
+      : rateKeys;
+    const targetValues = filteredKeys.map(k => rates[k].value).filter(v => typeof v === 'number' && !isNaN(v));
+    const minVal = targetValues.length > 0 ? Math.min(...targetValues) * 0.98 : 1;
+    const maxVal = targetValues.length > 0 ? Math.max(...targetValues) * 1.02 : 1;
     const periodDetails = this.getPeriodDetails(this.selectedPeriod);
 
     const mainLabel = this.getPillLabel(mainRate.id, mainRate);
