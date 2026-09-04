@@ -16,16 +16,20 @@ export class DashboardView {
     // Evaluar si alguna tasa del país actual tiene la cotización de mañana publicada
     const hasPublishedNextDay = Object.values(rates).some(r => r.nextDay && r.nextDay.published);
 
-    // Encontrar tasa principal destacada para el banner
+    // Encontrar tasa principal destacada para el banner según el día seleccionado (Hoy vs Mañana)
+    const isManana = this.selectedDay === 'manana';
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
 
-    let bannerText = `${mainRate.name}: ${formatCurrency(mainRate.value, mainRate.currency, 2)}`;
-    let bannerSub = `Tasas de referencia actualizadas para ${currentCountry.name}.`;
+    const mainVal = (isManana && mainRate.nextDay && mainRate.nextDay.published) ? mainRate.nextDay.value : mainRate.value;
+    const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.published) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
+
+    let bannerText = `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}`;
+    let bannerSub = isManana ? `Cotización oficial publicada para Fecha Valor del día siguiente en ${currentCountry.name}.` : `Tasas de referencia actualizadas para ${currentCountry.name}.`;
     
-    if (secondRate && mainRate.value && secondRate.value && mainRate.currency === secondRate.currency) {
-      const diff = Math.abs(secondRate.value - mainRate.value);
-      const gapPercent = ((diff / Math.min(mainRate.value, secondRate.value)) * 100).toFixed(1);
+    if (secondVal && mainVal && mainRate.currency === secondRate.currency) {
+      const diff = Math.abs(secondVal - mainVal);
+      const gapPercent = ((diff / Math.min(mainVal, secondVal)) * 100).toFixed(1);
       bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
     }
 
@@ -166,16 +170,20 @@ export class DashboardView {
 
   renderNextDayRateCard(rate) {
     if (!rate) return '';
-    const nextDay = rate.nextDay || {
-      published: true,
+    const hasNextDay = rate.nextDay && rate.nextDay.published;
+    const nextDay = hasNextDay ? rate.nextDay : {
+      published: false,
       value: rate.value,
       change: rate.change,
-      date: 'Mañana'
+      date: 'Sin Fecha Valor Oficial'
     };
 
     const isPositive = nextDay.change >= 0;
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
+    const badgeTag = hasNextDay 
+      ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full">Fecha Valor Publicada</span>'
+      : '<span class="text-[10px] bg-gray-500/20 text-gray-400 font-semibold px-2 py-0.5 rounded-full">Tasa del Día</span>';
 
     return `
       <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
@@ -186,7 +194,7 @@ export class DashboardView {
             </div>
             <div>
               <h4 class="font-bold text-gray-100 text-sm">${rate.name}</h4>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full">Válido Mañana</span>
+              ${badgeTag}
             </div>
           </div>
           <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
@@ -202,7 +210,7 @@ export class DashboardView {
             </p>
             <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || 'Tasa Oficial BCV'}</p>
           </div>
-          <span class="text-[10px] text-cyan-400 font-bold">Ref. Mañana</span>
+          <span class="text-[10px] text-cyan-400 font-bold">${hasNextDay ? 'Ref. Mañana' : 'Ref. Hoy'}</span>
         </div>
       </div>
     `;

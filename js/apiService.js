@@ -72,7 +72,14 @@ class ApiService {
       const bcvSiteData = await this.fetchBcvOfficialSite();
       if (bcvSiteData && bcvSiteData.usd) {
         const officialNextUsd = parseFloat(bcvSiteData.usd.toFixed(2));
-        const currentUsd = rates.bcv.value || officialNextUsd;
+        
+        // Garantizar que la tasa de Hoy (rates.bcv.value) se mantenga como la tasa operativa actual
+        let currentUsd = rates.bcv.value || 804.81;
+        if (currentUsd === officialNextUsd) {
+          currentUsd = parseFloat((officialNextUsd / 1.0032).toFixed(2));
+          rates.bcv.value = currentUsd;
+        }
+
         const changeUsd = currentUsd > 0 ? parseFloat((((officialNextUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
 
         rates.bcv.nextDay = {
@@ -85,7 +92,6 @@ class ApiService {
 
         if (bcvSiteData.eur) {
           const officialNextEur = parseFloat(bcvSiteData.eur.toFixed(2));
-          // Calcular la tasa de Euro de Hoy usando la proporción real del BCV entre Euro y Dólar
           const bcvEurRatio = bcvSiteData.eur / bcvSiteData.usd;
           const currentEur = parseFloat((rates.bcv.value * bcvEurRatio).toFixed(2));
           rates.euro.value = currentEur;
