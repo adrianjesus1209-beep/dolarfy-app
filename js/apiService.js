@@ -49,17 +49,9 @@ class ApiService {
             rates.bcv.value = parseFloat(bcvItem.promedio.toFixed(2));
           }
 
-          const parItem = data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
-          if (parItem && parItem.promedio) {
-            rates.paralelo.value = parseFloat(parItem.promedio.toFixed(2));
-          }
-
           if (rates.bcv && rates.bcv.value) {
             rates.euro.value = parseFloat((rates.bcv.value * 1.162).toFixed(2));
-          }
-
-          if (rates.paralelo && rates.paralelo.value) {
-            rates.usdt.value = parseFloat((rates.paralelo.value * 1.005).toFixed(2));
+            rates.usdt.value = parseFloat((rates.bcv.value * 1.05).toFixed(2));
           }
         }
       }

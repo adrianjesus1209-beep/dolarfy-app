@@ -30,16 +30,7 @@ export const COUNTRIES_DATA = [
           scheduleText: 'Cotización emitida por el Banco Central de Venezuela'
         }
       },
-      paralelo: {
-        id: 'paralelo',
-        name: 'Dólar Paralelo',
-        code: 'USD/VES',
-        value: null,
-        change: 0,
-        currency: 'VES',
-        type: 'parallel',
-        icon: 'trending-up'
-      },
+
       euro: {
         id: 'euro',
         name: 'Euro Oficial (BCV)',
