@@ -147,6 +147,24 @@ class ApiService {
   }
 
   async fetchBcvOfficialSite() {
+    // 1. Intentar proveedor directo API especializado DolarVzla (Devuelve Fecha Valor oficial en JSON)
+    try {
+      const resApi = await fetch('https://api.dolarvzla.com/bcv/current.json');
+      if (resApi.ok) {
+        const json = await resApi.json();
+        if (json && json.usd) {
+          return {
+            usd: parseFloat(json.usd),
+            eur: json.eur ? parseFloat(json.eur) : null,
+            fecha: json.fecha_valor || json.fecha || 'Fecha Valor Oficial BCV'
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Error al consultar api.dolarvzla.com:', e);
+    }
+
+    // 2. Intentar scraping de respaldo al portal bcv.org.ve
     const urls = [
       'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.bcv.org.ve'),
       'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.bcv.org.ve'),
