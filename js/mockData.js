@@ -17,27 +17,11 @@ class MockDataEngine {
   }
 
   loadDefaultCountry() {
-    try {
-      const saved = localStorage.getItem(this.STORAGE_KEY_DEFAULT);
-      if (saved && this.countries.some(c => c.id === saved)) {
-        return saved;
-      }
-    } catch (e) {
-      console.warn('LocalStorage no disponible', e);
-    }
-    return 'VE'; // Por defecto Venezuela
+    return 'VE'; // Exclusivo Venezuela
   }
 
   loadSelectedCountry() {
-    try {
-      const saved = localStorage.getItem(this.STORAGE_KEY_SELECTED);
-      if (saved && this.countries.some(c => c.id === saved)) {
-        return saved;
-      }
-    } catch (e) {
-      console.warn('LocalStorage no disponible', e);
-    }
-    return null;
+    return 'VE';
   }
 
   async syncRealRates() {

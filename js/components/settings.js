@@ -56,26 +56,7 @@ export class SettingsView {
             </div>
           </div>
 
-          <!-- País Predeterminado -->
-          <div class="glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/10">
-            <div class="flex items-center space-x-3">
-              <div class="p-2 rounded-xl bg-white/5 text-cyan-400">
-                <i data-lucide="globe" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <h4 class="text-xs font-bold text-gray-100">País Predeterminado</h4>
-                <p class="text-[10px] text-gray-400">Se seleccionará automáticamente al abrir la app.</p>
-              </div>
-            </div>
 
-            <select id="settings-default-country-select" class="bg-black/60 border border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs font-bold text-cyan-300 outline-none cursor-pointer max-w-[120px]">
-              ${countries.map(c => `
-                <option value="${c.id}" class="bg-[#0F141C] text-white" ${c.id === defaultCountryId ? 'selected' : ''}>
-                  ${c.name}
-                </option>
-              `).join('')}
-            </select>
-          </div>
 
           <!-- Alertas de Tasa Diaria -->
           <div class="glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/10">

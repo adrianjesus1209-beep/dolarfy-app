@@ -49,11 +49,10 @@ export class DashboardView {
               <p class="text-[11px] text-gray-300 font-semibold mt-0.5">${currentCountry.officialSchedule || 'Cierre Banco Central'}</p>
             </div>
           </div>
-          <button type="button" id="dash-country-badge" aria-label="Cambiar país" class="country-selector-trigger text-xs font-bold px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center space-x-1.5 hover:bg-cyan-500/20 active:scale-95 transition-all cursor-pointer">
+          <div id="dash-country-badge" class="text-xs font-bold px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center space-x-1.5">
             <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">
             <span>${currentCountry.name}</span>
-            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-cyan-400"></i>
-          </button>
+          </div>
         </div>
 
         <!-- Banner Promocional / Alerta de Mercado -->

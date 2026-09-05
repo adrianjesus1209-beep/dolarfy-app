@@ -74,11 +74,10 @@ export class AnalyticsView {
             <p class="text-xs text-gray-400 mt-0.5">Comportamiento financiero en ${currentCountry.name}</p>
           </div>
 
-          <button type="button" class="country-selector-trigger bg-white/5 border border-white/10 text-cyan-300 text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center space-x-1.5 active:scale-95 transition-all cursor-pointer">
+          <div class="bg-white/5 border border-white/10 text-cyan-300 text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center space-x-1.5">
             <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-4 h-4 rounded-full object-cover">
             <span>${currentCountry.currency.code}</span>
-            <i data-lucide="chevron-down" class="w-3 h-3 text-cyan-400"></i>
-          </button>
+          </div>
         </div>
 
         <!-- Tarjetas de Métricas Principales (Brecha, Mín, Máx) -->
