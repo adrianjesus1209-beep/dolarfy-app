@@ -44,18 +44,26 @@ export class DashboardView {
     const mainVal = (useNextDayData && mainRate.nextDay && mainRate.nextDay.published) ? mainRate.nextDay.value : mainRate.value;
     const secondVal = (secondRate && useNextDayData && secondRate.nextDay && secondRate.nextDay.published) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
-    let bannerTag = isManana ? (hasPublishedNextDay ? `Oficial ${nextDayLabel}` : `Pronóstico ${nextDayLabel}`) : 'Resumen del Día';
-    let bannerText = mainVal ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : 'Obteniendo tasas oficiales en vivo...';
-    let bannerSub = mainVal 
-      ? (useNextDayData 
-          ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` 
-          : (isManana ? `La tasa oficial del ${nextDayLabel} aún no se ha publicado.` : `Tasas de referencia actualizadas para ${currentCountry.name}.`))
-      : 'Consultando servidores del Banco Central y fuentes del mercado...';
-    
-    if (secondVal && mainVal && mainRate.currency === secondRate.currency && (!isManana || hasPublishedNextDay)) {
-      const diff = Math.abs(secondVal - mainVal);
-      const gapPercent = ((diff / Math.min(mainVal, secondVal)) * 100).toFixed(1);
-      bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
+    let bannerTag = isManana ? (hasPublishedNextDay ? `Oficial ${nextDayLabel}` : `Esperando ${nextDayLabel}`) : 'Resumen del Día';
+    let bannerText = '';
+    let bannerSub = '';
+
+    if (isManana && !hasPublishedNextDay) {
+      bannerText = `Fecha Valor ${nextDayLabel}: Pendiente por el BCV`;
+      bannerSub = `El Banco Central de Venezuela aún no ha publicado la cotización oficial del dólar para el día ${nextDayLabel}.`;
+    } else {
+      bannerText = mainVal ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : 'Obteniendo tasas oficiales en vivo...';
+      bannerSub = mainVal 
+        ? (useNextDayData 
+            ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` 
+            : `Tasas de referencia actualizadas para ${currentCountry.name}.`)
+        : 'Consultando servidores del Banco Central y fuentes del mercado...';
+
+      if (secondVal && mainVal && mainRate.currency === secondRate.currency && (!isManana || hasPublishedNextDay)) {
+        const diff = Math.abs(secondVal - mainVal);
+        const gapPercent = ((diff / Math.min(mainVal, secondVal)) * 100).toFixed(1);
+        bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
+      }
     }
 
     this.container.innerHTML = `
