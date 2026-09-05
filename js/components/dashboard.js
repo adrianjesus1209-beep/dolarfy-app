@@ -45,10 +45,12 @@ export class DashboardView {
     const secondVal = (secondRate && useNextDayData && secondRate.nextDay && secondRate.nextDay.published) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
     let bannerTag = isManana ? (hasPublishedNextDay ? `Oficial ${nextDayLabel}` : `Pronóstico ${nextDayLabel}`) : 'Resumen del Día';
-    let bannerText = `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}`;
-    let bannerSub = useNextDayData 
-      ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` 
-      : (isManana ? `La tasa oficial del ${nextDayLabel} aún no se ha publicado.` : `Tasas de referencia actualizadas para ${currentCountry.name}.`);
+    let bannerText = mainVal ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : 'Obteniendo tasas oficiales en vivo...';
+    let bannerSub = mainVal 
+      ? (useNextDayData 
+          ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` 
+          : (isManana ? `La tasa oficial del ${nextDayLabel} aún no se ha publicado.` : `Tasas de referencia actualizadas para ${currentCountry.name}.`))
+      : 'Consultando servidores del Banco Central y fuentes del mercado...';
     
     if (secondVal && mainVal && mainRate.currency === secondRate.currency && (!isManana || hasPublishedNextDay)) {
       const diff = Math.abs(secondVal - mainVal);
@@ -163,6 +165,10 @@ export class DashboardView {
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
+    const valueDisplay = rate.value !== null && rate.value !== undefined
+      ? formatCurrency(rate.value, rate.currency, rate.value < 10 ? 4 : 2)
+      : `<span class="inline-block w-24 h-7 bg-white/10 rounded-lg animate-pulse"></span>`;
+
     return `
       <div id="card-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300">
         <div class="flex justify-between items-start">
@@ -184,10 +190,10 @@ export class DashboardView {
         <div class="mt-4 flex justify-between items-end">
           <div>
             <p class="text-2xl font-extrabold text-white tracking-tight" id="val-${rate.id}">
-              ${formatCurrency(rate.value, rate.currency, rate.value < 10 ? 4 : 2)}
+              ${valueDisplay}
             </p>
           </div>
-          <span class="text-[10px] text-gray-500 font-medium">Ref. Hoy</span>
+          <span class="text-[10px] text-gray-500 font-medium">Ref. En Vivo</span>
         </div>
       </div>
     `;
