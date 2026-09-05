@@ -23,11 +23,11 @@ export const COUNTRIES_DATA = [
         type: 'official',
         icon: 'building-2',
         nextDay: {
-          published: false,
-          value: 807.39,
-          change: 0.32,
-          date: 'Fecha Valor no emitida aún',
-          scheduleText: 'Publicada oficialmente por el Banco Central en la tarde'
+          published: true,
+          value: 813.74,
+          change: 1.11,
+          date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
+          scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
         }
       },
       paralelo: {
@@ -44,17 +44,17 @@ export const COUNTRIES_DATA = [
         id: 'euro',
         name: 'Euro Oficial (BCV)',
         code: 'EUR/VES',
-        value: 938.45,
+        value: 935.46,
         change: 0.08,
         currency: 'VES',
         type: 'official',
         icon: 'euro',
         nextDay: {
-          published: false,
-          value: 938.45,
-          change: 0.32,
-          date: 'Fecha Valor no emitida aún',
-          scheduleText: 'Publicada oficialmente por el Banco Central en la tarde'
+          published: true,
+          value: 945.65,
+          change: 1.09,
+          date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
+          scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
         }
       },
       usdt: {

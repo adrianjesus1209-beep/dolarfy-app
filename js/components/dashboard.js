@@ -8,15 +8,32 @@ export class DashboardView {
     this.selectedDay = 'hoy'; // 'hoy' | 'manana'
   }
 
+  getNextDayLabel(rates) {
+    const bcvNext = rates && rates.bcv && rates.bcv.nextDay;
+    if (bcvNext && bcvNext.date) {
+      const match = bcvNext.date.match(/(Lunes|Martes|Miércoles|Miercoles|Jueves|Viernes|Sábado|Sabado|Domingo)/i);
+      if (match) {
+        const day = match[1].toLowerCase();
+        return day.charAt(0).toUpperCase() + day.slice(1);
+      }
+    }
+    const todayDay = new Date().getDay();
+    if (todayDay === 5 || todayDay === 6 || todayDay === 0) {
+      return 'Lunes';
+    }
+    return 'Mañana';
+  }
+
   render() {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
     const rateKeys = Object.keys(rates);
+    const nextDayLabel = this.getNextDayLabel(rates);
     
     // Evaluar si alguna tasa del país actual tiene la cotización de mañana publicada
     const hasPublishedNextDay = Object.values(rates).some(r => r.nextDay && r.nextDay.published);
 
-    // Encontrar tasa principal destacada para el banner según el día seleccionado (Hoy vs Mañana)
+    // Encontrar tasa principal destacada para el banner según el día seleccionado (Hoy vs Mañana/Lunes)
     const isManana = this.selectedDay === 'manana';
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
@@ -25,7 +42,7 @@ export class DashboardView {
     const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.published) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
     let bannerText = `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}`;
-    let bannerSub = isManana ? `Cotización oficial publicada para Fecha Valor del día siguiente en ${currentCountry.name}.` : `Tasas de referencia actualizadas para ${currentCountry.name}.`;
+    let bannerSub = isManana ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` : `Tasas de referencia actualizadas para ${currentCountry.name}.`;
     
     if (secondVal && mainVal && mainRate.currency === secondRate.currency) {
       const diff = Math.abs(secondVal - mainVal);
@@ -58,13 +75,13 @@ export class DashboardView {
         <!-- Banner Promocional / Alerta de Mercado -->
         <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 p-5 border border-white/10">
           <div class="relative z-10">
-            <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">Resumen del Día</span>
+            <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">${isManana ? `Pronóstico ${nextDayLabel}` : 'Resumen del Día'}</span>
             <h3 class="text-lg font-bold text-white mt-2">${bannerText}</h3>
             <p class="text-xs text-gray-300 mt-1">${bannerSub}</p>
           </div>
         </div>
 
-        <!-- Encabezado de Tasas y Selector 'Hoy' / 'Mañana' -->
+        <!-- Encabezado de Tasas y Selector 'Hoy' / 'Mañana' (o 'Lunes') -->
         <div>
           <div class="flex justify-between items-center mb-3">
             <div>
@@ -72,13 +89,13 @@ export class DashboardView {
               <span class="text-xs font-bold text-cyan-400">${currentCountry.currency.code}</span>
             </div>
 
-            <!-- Selector de Fecha 'Hoy' / 'Mañana' (Pill Toggle) -->
+            <!-- Selector de Fecha 'Hoy' / Día Siguiente ('Lunes' / 'Mañana') -->
             <div class="bg-[#131924] border border-white/10 p-1 rounded-2xl flex items-center space-x-1 shadow-inner">
               <button type="button" data-day="hoy" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
               <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : (hasPublishedNextDay ? 'text-gray-400 hover:text-white' : 'text-gray-500 opacity-90')}">
-                <span>Mañana</span>
+                <span>${nextDayLabel}</span>
                 ${hasPublishedNextDay 
                   ? '<span class="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span>' 
                   : '<i data-lucide="lock" class="w-3 h-3 text-amber-400/80"></i>'
@@ -88,7 +105,7 @@ export class DashboardView {
           </div>
 
           <!-- Contenido de Cotizaciones segun la pestaña activa -->
-          ${this.renderContentSection(rates, rateKeys, currentCountry, hasPublishedNextDay)}
+          ${this.renderContentSection(rates, rateKeys, currentCountry, hasPublishedNextDay, nextDayLabel)}
         </div>
       </div>
     `;
@@ -100,7 +117,7 @@ export class DashboardView {
     }
   }
 
-  renderContentSection(rates, rateKeys, currentCountry, hasPublishedNextDay) {
+  renderContentSection(rates, rateKeys, currentCountry, hasPublishedNextDay, nextDayLabel) {
     if (this.selectedDay === 'manana') {
       if (!hasPublishedNextDay) {
         return `
@@ -108,9 +125,9 @@ export class DashboardView {
             <div class="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
               <i data-lucide="clock" class="w-6 h-6"></i>
             </div>
-            <h3 class="font-bold text-white text-base">Cotización de Mañana No Publicada Aún</h3>
+            <h3 class="font-bold text-white text-base">Cotización de ${nextDayLabel} No Publicada Aún</h3>
             <p class="text-xs text-gray-300 max-w-xs mx-auto">
-              La información del día siguiente aún no ha sido emitida por las entidades financieras o Banco Central para ${currentCountry.name}.
+              La información para el día ${nextDayLabel} aún no ha sido emitida por las entidades financieras o Banco Central de Venezuela.
             </p>
             <div class="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-cyan-300 font-semibold">
               Horario habitual: ${currentCountry.officialSchedule || '5:00 PM'}
@@ -120,7 +137,7 @@ export class DashboardView {
       } else {
         return `
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
-            ${rateKeys.map(key => this.renderNextDayRateCard(rates[key])).join('')}
+            ${rateKeys.map(key => this.renderNextDayRateCard(rates[key], nextDayLabel)).join('')}
           </div>
         `;
       }
@@ -170,7 +187,7 @@ export class DashboardView {
     `;
   }
 
-  renderNextDayRateCard(rate) {
+  renderNextDayRateCard(rate, nextDayLabel = 'Mañana') {
     if (!rate) return '';
     const hasNextDay = rate.nextDay && rate.nextDay.published;
     const nextDay = hasNextDay ? rate.nextDay : {
@@ -212,7 +229,7 @@ export class DashboardView {
             </p>
             <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || 'Tasa Oficial BCV'}</p>
           </div>
-          <span class="text-[10px] text-cyan-400 font-bold">${hasNextDay ? 'Ref. Mañana' : 'Ref. Hoy'}</span>
+          <span class="text-[10px] text-cyan-400 font-bold">${hasNextDay ? `Ref. ${nextDayLabel}` : 'Ref. Hoy'}</span>
         </div>
       </div>
     `;
