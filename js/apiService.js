@@ -74,8 +74,8 @@ class ApiService {
         const bcvUsd = parseFloat(bcvSiteData.usd.toFixed(2));
         const isFutureFechaValor = this.isNextDayPublished(bcvSiteData.fecha);
 
-        if (isFutureFechaValor) {
-          // Es la cotización oficial del DÍA SIGUIENTE (Publicación oficial de la tarde)
+        if (isFutureFechaValor || bcvUsd > rates.bcv.value) {
+          // Es la cotización oficial del DÍA SIGUIENTE (Lunes / Fecha Valor)
           const currentUsd = rates.bcv.value || bcvUsd;
           const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
 
@@ -110,14 +110,13 @@ class ApiService {
             rates.euro.value = parseFloat((bcvUsd * 1.162).toFixed(2));
           }
 
-          // Indicar explícitamente que la cotización del día siguiente aún NO ha sido publicada
-          rates.bcv.nextDay = { published: false };
-          rates.euro.nextDay = { published: false };
+          if (rates.bcv.nextDay && rates.bcv.nextDay.value <= bcvUsd) {
+            rates.bcv.nextDay.published = false;
+          }
+          if (rates.euro.nextDay && bcvSiteData.eur && rates.euro.nextDay.value <= bcvSiteData.eur) {
+            rates.euro.nextDay.published = false;
+          }
         }
-      } else if (rates.bcv && rates.bcv.value) {
-        rates.euro.value = parseFloat((rates.bcv.value * 1.162).toFixed(2));
-        rates.bcv.nextDay = { published: false };
-        rates.euro.nextDay = { published: false };
       }
     } catch (e) {
       console.warn('Error al scrapear sitio oficial del BCV:', e);
@@ -157,9 +156,9 @@ class ApiService {
 
   async fetchBcvOfficialSite() {
     const urls = [
-      'https://www.bcv.org.ve',
       'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.bcv.org.ve'),
-      'https://corsproxy.io/?' + encodeURIComponent('https://www.bcv.org.ve')
+      'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.bcv.org.ve'),
+      'https://www.bcv.org.ve'
     ];
 
     for (const url of urls) {
@@ -170,7 +169,13 @@ class ApiService {
         clearTimeout(timeoutId);
 
         if (res.ok) {
-          const html = await res.text();
+          let html = '';
+          if (url.includes('/get?')) {
+            const json = await res.json();
+            html = json.contents || '';
+          } else {
+            html = await res.text();
+          }
           const parsed = this.parseBcvHtml(html);
           if (parsed && parsed.usd) {
             return parsed;

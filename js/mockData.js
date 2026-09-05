@@ -12,8 +12,26 @@ class MockDataEngine {
     this.currentCountryId = this.loadSelectedCountry() || this.defaultCountryId;
 
     this.listeners = [];
+    this.hydrateCacheSync();
     this.syncRealRates();
     this.startScheduleCheck();
+  }
+
+  hydrateCacheSync() {
+    try {
+      const current = this.getCurrentCountry();
+      const cacheKey = `dolarfy_rates_cache_v3_${current.id}`;
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const data = parsed.data || parsed;
+        if (data && typeof data === 'object' && data.bcv && data.bcv.value) {
+          current.rates = data;
+        }
+      }
+    } catch (e) {
+      console.warn('Error al cargar caché síncrono inicial:', e);
+    }
   }
 
   loadDefaultCountry() {

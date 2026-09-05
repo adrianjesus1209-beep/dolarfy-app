@@ -17,7 +17,7 @@ export const COUNTRIES_DATA = [
         id: 'bcv',
         name: 'Dólar Oficial (BCV)',
         code: 'USD/VES',
-        value: 804.81,
+        value: 813.74,
         change: 0.12,
         currency: 'VES',
         type: 'official',
@@ -25,7 +25,7 @@ export const COUNTRIES_DATA = [
         nextDay: {
           published: true,
           value: 813.74,
-          change: 1.11,
+          change: 0.79,
           date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
           scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
         }
@@ -44,7 +44,7 @@ export const COUNTRIES_DATA = [
         id: 'euro',
         name: 'Euro Oficial (BCV)',
         code: 'EUR/VES',
-        value: 935.46,
+        value: 945.65,
         change: 0.08,
         currency: 'VES',
         type: 'official',
@@ -52,7 +52,7 @@ export const COUNTRIES_DATA = [
         nextDay: {
           published: true,
           value: 945.65,
-          change: 1.09,
+          change: 0.80,
           date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
           scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
         }
