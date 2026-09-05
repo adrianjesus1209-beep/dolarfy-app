@@ -38,13 +38,19 @@ export class DashboardView {
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
 
-    const mainVal = (isManana && mainRate.nextDay && mainRate.nextDay.published) ? mainRate.nextDay.value : mainRate.value;
-    const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.published) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
+    // Solo usar datos de mañana si se seleccionó 'manana' Y existe cotización publicada
+    const useNextDayData = isManana && hasPublishedNextDay;
 
+    const mainVal = (useNextDayData && mainRate.nextDay && mainRate.nextDay.published) ? mainRate.nextDay.value : mainRate.value;
+    const secondVal = (secondRate && useNextDayData && secondRate.nextDay && secondRate.nextDay.published) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
+
+    let bannerTag = isManana ? (hasPublishedNextDay ? `Oficial ${nextDayLabel}` : `Pronóstico ${nextDayLabel}`) : 'Resumen del Día';
     let bannerText = `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}`;
-    let bannerSub = isManana ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` : `Tasas de referencia actualizadas para ${currentCountry.name}.`;
+    let bannerSub = useNextDayData 
+      ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` 
+      : (isManana ? `La tasa oficial del ${nextDayLabel} aún no se ha publicado.` : `Tasas de referencia actualizadas para ${currentCountry.name}.`);
     
-    if (secondVal && mainVal && mainRate.currency === secondRate.currency) {
+    if (secondVal && mainVal && mainRate.currency === secondRate.currency && (!isManana || hasPublishedNextDay)) {
       const diff = Math.abs(secondVal - mainVal);
       const gapPercent = ((diff / Math.min(mainVal, secondVal)) * 100).toFixed(1);
       bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
@@ -75,7 +81,7 @@ export class DashboardView {
         <!-- Banner Promocional / Alerta de Mercado -->
         <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 p-5 border border-white/10">
           <div class="relative z-10">
-            <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">${isManana ? `Pronóstico ${nextDayLabel}` : 'Resumen del Día'}</span>
+            <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">${bannerTag}</span>
             <h3 class="text-lg font-bold text-white mt-2">${bannerText}</h3>
             <p class="text-xs text-gray-300 mt-1">${bannerSub}</p>
           </div>
