@@ -127,11 +127,28 @@ export class DashboardView {
 
   renderContentSection(rates, rateKeys, currentCountry, hasPublishedNextDay, nextDayLabel) {
     if (this.selectedDay === 'manana') {
-      return `
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
-          ${rateKeys.map(key => this.renderNextDayRateCard(rates[key], nextDayLabel)).join('')}
-        </div>
-      `;
+      if (!hasPublishedNextDay) {
+        return `
+          <div class="glass-card rounded-2xl p-6 text-center space-y-3 border border-white/10 animate-fade-in">
+            <div class="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+              <i data-lucide="clock" class="w-6 h-6"></i>
+            </div>
+            <h3 class="font-bold text-white text-base">Cotización Oficial de ${nextDayLabel} No Publicada Aún</h3>
+            <p class="text-xs text-gray-300 max-w-xs mx-auto">
+              La Fecha Valor oficial para el día ${nextDayLabel} aún no ha sido emitida por el Banco Central de Venezuela.
+            </p>
+            <div class="inline-block px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-cyan-300 font-semibold">
+              Publicación BCV: ${currentCountry.officialSchedule || '5:00 PM VET'}
+            </div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
+            ${rateKeys.map(key => this.renderNextDayRateCard(rates[key], nextDayLabel)).join('')}
+          </div>
+        `;
+      }
     }
 
     // Modo 'hoy' por defecto
@@ -183,28 +200,16 @@ export class DashboardView {
   }
 
   renderNextDayRateCard(rate, nextDayLabel = 'Mañana') {
-    if (!rate) return '';
-    const hasNextDay = rate.nextDay && rate.nextDay.published;
-    
-    // Si el BCV no ha publicado la Fecha Valor de Lunes, generar la estimación de mercado
-    const estimatedValue = hasNextDay && rate.nextDay.value !== null 
-      ? rate.nextDay.value 
-      : (rate.value ? parseFloat((rate.value * (1 + (rate.change || 0.15) / 100)).toFixed(2)) : null);
+    if (!rate || !rate.nextDay || !rate.nextDay.published) return '';
+    const nextDay = rate.nextDay;
 
-    const isPositive = rate.change >= 0;
+    const isPositive = nextDay.change >= 0;
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
-    const badgeTag = hasNextDay 
-      ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full">Fecha Valor Oficial</span>'
-      : `<span class="text-[10px] bg-cyan-500/20 text-cyan-300 font-semibold px-2 py-0.5 rounded-full">Pronóstico ${nextDayLabel}</span>`;
 
-    const valueDisplay = estimatedValue !== null && estimatedValue !== undefined
-      ? formatCurrency(estimatedValue, rate.currency, estimatedValue < 10 ? 4 : 2)
+    const valueDisplay = nextDay.value !== null && nextDay.value !== undefined
+      ? formatCurrency(nextDay.value, rate.currency, nextDay.value < 10 ? 4 : 2)
       : `<span class="inline-block w-24 h-7 bg-white/10 rounded-lg animate-pulse"></span>`;
-
-    const dateDisplay = hasNextDay && rate.nextDay.date
-      ? rate.nextDay.date
-      : `Tendencia Estimada ${nextDayLabel}`;
 
     return `
       <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
@@ -215,12 +220,12 @@ export class DashboardView {
             </div>
             <div>
               <h4 class="font-bold text-gray-100 text-sm">${rate.name}</h4>
-              ${badgeTag}
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full">Fecha Valor Oficial</span>
             </div>
           </div>
           <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
             <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${formatPercentage(hasNextDay ? rate.nextDay.change : rate.change)}</span>
+            <span>${formatPercentage(nextDay.change)}</span>
           </span>
         </div>
 
@@ -229,9 +234,9 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${dateDisplay}</p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || 'Tasa Oficial BCV'}</p>
           </div>
-          <span class="text-[10px] text-cyan-400 font-bold">${hasNextDay ? `Ref. Oficial` : `Ref. ${nextDayLabel}`}</span>
+          <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>
       </div>
     `;
