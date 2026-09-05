@@ -74,7 +74,7 @@ class ApiService {
         const bcvUsd = parseFloat(bcvSiteData.usd.toFixed(2));
         const isFutureFechaValor = this.isNextDayPublished(bcvSiteData.fecha);
 
-        if (isFutureFechaValor || bcvUsd > rates.bcv.value) {
+        if (isFutureFechaValor) {
           // Es la cotización oficial del DÍA SIGUIENTE (Lunes / Fecha Valor)
           const currentUsd = rates.bcv.value || bcvUsd;
           const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
@@ -110,10 +110,10 @@ class ApiService {
             rates.euro.value = parseFloat((bcvUsd * 1.162).toFixed(2));
           }
 
-          if (rates.bcv.nextDay && rates.bcv.nextDay.value <= bcvUsd) {
+          if (rates.bcv.nextDay) {
             rates.bcv.nextDay.published = false;
           }
-          if (rates.euro.nextDay && bcvSiteData.eur && rates.euro.nextDay.value <= bcvSiteData.eur) {
+          if (rates.euro.nextDay) {
             rates.euro.nextDay.published = false;
           }
         }

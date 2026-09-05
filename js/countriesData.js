@@ -23,11 +23,11 @@ export const COUNTRIES_DATA = [
         type: 'official',
         icon: 'building-2',
         nextDay: {
-          published: true,
+          published: false,
           value: 813.74,
           change: 0.79,
-          date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
-          scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
+          date: 'Cotización Oficial BCV',
+          scheduleText: 'Horario habitual de publicación: 5:00 PM VET'
         }
       },
       paralelo: {
