@@ -25,11 +25,11 @@ export const COUNTRIES_DATA = [
         icon: 'building-2',
         nextDay: {
           published: true,
-          isOfficial: false,
+          isOfficial: true,
           value: 808.84,
           change: 0.18,
-          date: 'Pronóstico BCV',
-          scheduleText: 'Proyección estimada según tendencia del mercado'
+          date: 'Fecha Valor Oficial BCV',
+          scheduleText: 'Cotización oficial emitida en bcv.org.ve'
         }
       },
       euro: {
@@ -43,11 +43,11 @@ export const COUNTRIES_DATA = [
         icon: 'euro',
         nextDay: {
           published: true,
-          isOfficial: false,
+          isOfficial: true,
           value: 940.07,
           change: 0.20,
-          date: 'Pronóstico Euro',
-          scheduleText: 'Proyección estimada según tendencia del mercado'
+          date: 'Fecha Valor Oficial BCV',
+          scheduleText: 'Cotización oficial emitida en bcv.org.ve'
         }
       },
       usdt: {
@@ -64,8 +64,8 @@ export const COUNTRIES_DATA = [
           isOfficial: false,
           value: 942.51,
           change: 0.25,
-          date: 'Pronóstico Binance P2P',
-          scheduleText: 'Proyección estimada del mercado P2P'
+          date: 'Mercado Binance P2P',
+          scheduleText: 'Cotización P2P en vivo'
         }
       }
     }

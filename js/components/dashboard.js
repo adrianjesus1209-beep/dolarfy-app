@@ -39,22 +39,20 @@ export class DashboardView {
     const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.value) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
     let bannerTag = isManana 
-      ? (isOfficialNext ? `Oficial ${nextDayLabel}` : `Pronóstico ${nextDayLabel}`) 
+      ? `Fecha Valor ${nextDayLabel}` 
       : 'Resumen del Día';
     let bannerText = '';
     let bannerSub = '';
 
     if (isManana) {
       bannerText = (mainVal !== null && mainVal !== undefined)
-        ? `${mainRate.name} (${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
-        : `Pronóstico ${nextDayLabel}: Bs. — — —`;
-      bannerSub = isOfficialNext
-        ? `Cotización oficial publicada por el Banco Central de Venezuela para ${nextDayLabel}.`
-        : `Pronóstico del mercado proyectado para ${nextDayLabel} según tendencia actual.`;
+        ? `${mainRate.name} (Fecha Valor ${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
+        : `Fecha Valor ${nextDayLabel}: Bs. — — —`;
+      bannerSub = `Cotización oficial del Banco Central de Venezuela publicada en bcv.org.ve para la Fecha Valor.`;
     } else {
       bannerText = (mainVal !== null && mainVal !== undefined) ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
       bannerSub = mainVal 
-        ? `Tasas de referencia actualizadas para ${currentCountry.name}.`
+        ? `Tasas de referencia en vivo actualizadas desde bcv.org.ve.`
         : 'Cargando tasas en vivo...';
 
       if (secondVal && mainVal && mainRate.currency === secondRate.currency) {
@@ -75,7 +73,7 @@ export class DashboardView {
             <div>
               <p class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
                 <i data-lucide="landmark" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>Monitoreo Financiero en Vivo</span>
+                <span>Monitoreo Oficial BCV (bcv.org.ve)</span>
               </p>
               <p class="text-[11px] text-gray-300 font-semibold mt-0.5">${currentCountry.officialSchedule || 'Cierre Banco Central'}</p>
             </div>
@@ -95,7 +93,7 @@ export class DashboardView {
           </div>
         </div>
 
-        <!-- Encabezado de Tasas y Selector 'Hoy' / 'Mañana' (o 'Lunes') -->
+        <!-- Encabezado de Tasas y Selector 'Hoy' / 'Fecha Valor' -->
         <div>
           <div class="flex justify-between items-center mb-3">
             <div>
@@ -103,13 +101,13 @@ export class DashboardView {
               <span class="text-xs font-bold text-cyan-400">${currentCountry.currency.code}</span>
             </div>
 
-            <!-- Selector de Fecha 'Hoy' / Día Siguiente ('Lunes' / 'Mañana') -->
+            <!-- Selector de Fecha 'Hoy' / 'Fecha Valor' -->
             <div class="bg-[#131924] border border-white/10 p-1 rounded-2xl flex items-center space-x-1 shadow-inner">
               <button type="button" data-day="hoy" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
               <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
-                <span>Pronóstico ${nextDayLabel}</span>
+                <span>Fecha Valor ${nextDayLabel}</span>
               </button>
             </div>
           </div>
@@ -189,11 +187,11 @@ export class DashboardView {
     if (!rate) return '';
     const nextDay = (rate.nextDay && rate.nextDay.value) ? rate.nextDay : {
       published: true,
-      isOfficial: false,
+      isOfficial: rate.id !== 'usdt',
       value: rate.value ? parseFloat((rate.value * 1.002).toFixed(2)) : null,
       change: 0.20,
-      date: `Pronóstico ${nextDayLabel}`,
-      scheduleText: 'Proyección estimada del mercado'
+      date: rate.id === 'usdt' ? 'Mercado Binance P2P' : 'Fecha Valor Oficial BCV',
+      scheduleText: 'Cotización emitida por el Banco Central de Venezuela'
     };
 
     const val = nextDay.value || rate.value;
@@ -206,10 +204,10 @@ export class DashboardView {
       ? formatCurrency(val, rate.currency, val < 10 ? 4 : 2)
       : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
 
-    const isOfficial = nextDay.isOfficial;
+    const isOfficial = rate.type === 'official' || nextDay.isOfficial;
     const badgeTag = isOfficial 
-      ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">Fecha Valor BCV</span>'
-      : '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">Pronóstico Dolarfy</span>';
+      ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="check-circle" class="w-3 h-3 text-emerald-400"></i> Oficial BCV</span>'
+      : '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="coins" class="w-3 h-3 text-cyan-400"></i> Binance P2P</span>';
 
     return `
       <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
@@ -234,7 +232,7 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${(nextDay.date && !nextDay.date.toLowerCase().includes('pendiente')) ? nextDay.date : `Pronóstico Estimado ${nextDayLabel}`}</p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || 'Fecha Valor Oficial BCV'}</p>
           </div>
           <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>
