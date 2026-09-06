@@ -28,7 +28,6 @@ export class AnalyticsView {
       return 'USDT';
     }
     if (rateKey === 'bcv') return 'BCV';
-    if (rateKey === 'paralelo') return 'Paralelo';
     if (rateKey === 'blue') return 'Blue';
     if (rateKey === 'oficial') return 'Oficial';
     if (rateKey === 'trm') return 'TRM';
