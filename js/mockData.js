@@ -25,6 +25,12 @@ class MockDataEngine {
       if (raw) {
         const parsed = JSON.parse(raw);
         const data = parsed.data || parsed;
+        // Invalidar caché si contiene el dólar paralelo/USDT (ya eliminado del sistema)
+        if (data && data.usdt) {
+          localStorage.removeItem(cacheKey);
+          console.info('Caché antigua con dólar paralelo eliminada. Se consultará la API oficial.');
+          return;
+        }
         if (data && typeof data === 'object' && data.bcv && data.bcv.value) {
           current.rates = data;
         }

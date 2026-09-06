@@ -1,5 +1,7 @@
 /**
- * Módulo de servicio para la obtención de tasas reales desde APIs gratuitas en tiempo real
+ * Módulo de servicio para la obtención de tasas reales desde APIs oficiales
+ * Fuentes: API ve.dolarapi.com (fuente: oficial BCV) + scraping bcv.org.ve
+ * Solo tasas OFICIALES del Banco Central de Venezuela
  */
 
 class ApiService {
@@ -24,8 +26,6 @@ class ApiService {
     try {
       if (country.id === 'VE') {
         return await this.fetchVenezuelaRates(country, cacheKey);
-      } else if (country.id === 'AR') {
-        return await this.fetchArgentinaRates(country, cacheKey);
       } else {
         return await this.fetchGlobalRates(country, cacheKey);
       }
@@ -35,10 +35,11 @@ class ApiService {
     }
   }
 
-  // --- API Venezuela (DolarApi VE + Web Scraping Oficial BCV) ---
+  // --- API Venezuela: Solo fuentes oficiales BCV ---
   async fetchVenezuelaRates(country, cacheKey) {
     const rates = JSON.parse(JSON.stringify(country.rates));
 
+    // 1. Intentar ve.dolarapi.com (fuente: oficial BCV)
     try {
       const res = await fetch('https://ve.dolarapi.com/v1/dolares');
       if (res.ok) {
@@ -49,9 +50,13 @@ class ApiService {
             rates.bcv.value = parseFloat(bcvItem.promedio.toFixed(2));
           }
 
-          if (rates.bcv && rates.bcv.value) {
+          // Euro desde la misma API si viene
+          const euroItem = data.find(d => (d.fuente === 'oficial' || d.casa === 'oficial') && d.moneda === 'EUR');
+          if (euroItem && euroItem.promedio) {
+            rates.euro.value = parseFloat(euroItem.promedio.toFixed(2));
+          } else if (rates.bcv && rates.bcv.value) {
+            // Calcular euro con relación oficial aproximada si no viene en la API
             rates.euro.value = parseFloat((rates.bcv.value * 1.162).toFixed(2));
-            rates.usdt.value = parseFloat((rates.bcv.value * 1.05).toFixed(2));
           }
         }
       }
@@ -59,7 +64,7 @@ class ApiService {
       console.warn('Error al consultar DolarApi VE:', e);
     }
 
-    // Intentar buscar la cotización oficial del sitio BCV
+    // 2. Intentar scraping/API del sitio oficial BCV para fecha valor del día siguiente
     try {
       const bcvSiteData = await this.fetchBcvOfficialSite();
       if (bcvSiteData && bcvSiteData.usd) {
@@ -67,7 +72,7 @@ class ApiService {
         const isFutureFechaValor = this.isNextDayPublished(bcvSiteData.fecha);
 
         if (isFutureFechaValor) {
-          // Es la cotización oficial del DÍA SIGUIENTE (Lunes / Fecha Valor)
+          // Es la cotización oficial del DÍA SIGUIENTE (Fecha Valor)
           const currentUsd = rates.bcv.value || bcvUsd;
           const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
 
@@ -81,8 +86,7 @@ class ApiService {
 
           if (bcvSiteData.eur) {
             const officialNextEur = parseFloat(bcvSiteData.eur.toFixed(2));
-            const bcvEurRatio = bcvSiteData.eur / bcvSiteData.usd;
-            const currentEur = rates.euro.value || parseFloat((currentUsd * bcvEurRatio).toFixed(2));
+            const currentEur = rates.euro.value || parseFloat((currentUsd * 1.162).toFixed(2));
             const changeEur = currentEur > 0 ? parseFloat((((officialNextEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
 
             rates.euro.nextDay = {
@@ -94,7 +98,7 @@ class ApiService {
             };
           }
         } else {
-          // La fecha del BCV corresponde al DÍA DE HOY (Madrugada / Mañana transcurriendo)
+          // La fecha del BCV corresponde al DÍA DE HOY
           rates.bcv.value = bcvUsd;
           if (bcvSiteData.eur) {
             rates.euro.value = parseFloat(bcvSiteData.eur.toFixed(2));
@@ -147,7 +151,7 @@ class ApiService {
   }
 
   async fetchBcvOfficialSite() {
-    // 1. Intentar proveedor directo API especializado DolarVzla (Devuelve Fecha Valor oficial en JSON)
+    // 1. Intentar proveedor directo API especializado DolarVzla
     try {
       const resApi = await fetch('https://api.dolarvzla.com/bcv/current.json');
       if (resApi.ok) {
@@ -164,7 +168,7 @@ class ApiService {
       console.warn('Error al consultar api.dolarvzla.com:', e);
     }
 
-    // 2. Intentar scraping de respaldo al portal bcv.org.ve
+    // 2. Scraping de respaldo al portal bcv.org.ve vía proxies CORS
     const urls = [
       'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.bcv.org.ve'),
       'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.bcv.org.ve'),
@@ -230,50 +234,6 @@ class ApiService {
       console.warn('Error parseando HTML BCV:', e);
     }
     return null;
-  }
-
-  // --- API Argentina (DolarApi AR) ---
-  async fetchArgentinaRates(country, cacheKey) {
-    const res = await fetch('https://dolarapi.com/v1/dolares');
-    if (!res.ok) throw new Error('HTTP error ' + res.status);
-    const data = await res.json();
-
-    const rates = JSON.parse(JSON.stringify(country.rates));
-
-    if (Array.isArray(data)) {
-      const oficial = data.find(d => d.casa === 'oficial');
-      if (oficial && (oficial.venta || oficial.promedio)) {
-        const officialVal = parseFloat((oficial.venta || oficial.promedio).toFixed(2));
-        rates.oficial.value = officialVal;
-        rates.oficial.nextDay = {
-          published: true,
-          value: officialVal,
-          change: rates.oficial.change || 0,
-          date: 'Tasa BNA Oficial Publicada',
-          scheduleText: 'Valor oficial exacto del Banco de la Nación Argentina'
-        };
-      }
-
-      const blue = data.find(d => d.casa === 'blue');
-      if (blue && (blue.venta || blue.promedio)) {
-        rates.blue.value = parseFloat((blue.venta || blue.promedio).toFixed(2));
-      }
-
-      const mep = data.find(d => d.casa === 'bolsa' || d.casa === 'mep');
-      if (mep && (mep.venta || mep.promedio)) {
-        rates.mep.value = parseFloat((mep.venta || mep.promedio).toFixed(2));
-      }
-
-      const cripto = data.find(d => d.casa === 'cripto');
-      if (cripto && (cripto.venta || cripto.promedio)) {
-        rates.usdt.value = parseFloat((cripto.venta || cripto.promedio).toFixed(2));
-      } else if (rates.blue && rates.blue.value) {
-        rates.usdt.value = parseFloat((rates.blue.value * 1.008).toFixed(2));
-      }
-    }
-
-    this.setCache(cacheKey, rates);
-    return rates;
   }
 
   // --- API Global (Open ER-API) ---

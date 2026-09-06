@@ -1,5 +1,6 @@
 /**
  * Catálogo de Países y Tasas Financieras por País
+ * Solo fuentes oficiales venezolanas: BCV (USD y EUR)
  */
 
 export const COUNTRIES_DATA = [
@@ -30,7 +31,6 @@ export const COUNTRIES_DATA = [
           scheduleText: 'Cotización emitida por el Banco Central de Venezuela'
         }
       },
-
       euro: {
         id: 'euro',
         name: 'Euro Oficial (BCV)',
@@ -47,16 +47,6 @@ export const COUNTRIES_DATA = [
           date: 'Consultando BCV Oficial...',
           scheduleText: 'Cotización emitida por el Banco Central de Venezuela'
         }
-      },
-      usdt: {
-        id: 'usdt',
-        name: 'Binance USDT (P2P)',
-        code: 'USDT/VES',
-        value: null,
-        change: 0,
-        currency: 'VES',
-        type: 'crypto',
-        icon: 'coins'
       }
     }
   }

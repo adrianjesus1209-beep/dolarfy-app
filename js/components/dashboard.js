@@ -52,7 +52,7 @@ export class DashboardView {
       bannerText = `Fecha Valor ${nextDayLabel}: Pendiente por el BCV`;
       bannerSub = `El Banco Central de Venezuela aún no ha publicado la cotización oficial del dólar para el día ${nextDayLabel}.`;
     } else {
-      bannerText = mainVal ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. ---,--`;
+      bannerText = (mainVal !== null && mainVal !== undefined) ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
       bannerSub = mainVal 
         ? (useNextDayData 
             ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` 
@@ -110,11 +110,11 @@ export class DashboardView {
               <button type="button" data-day="hoy" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
-              <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : (hasPublishedNextDay ? 'text-gray-400 hover:text-white' : 'text-gray-500 opacity-90')}">
+              <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 <span>${nextDayLabel}</span>
                 ${hasPublishedNextDay 
-                  ? '<span class="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span>' 
-                  : '<i data-lucide="lock" class="w-3 h-3 text-amber-400/80"></i>'
+                  ? '<span class="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span></span>' 
+                  : ''
                 }
               </button>
             </div>
@@ -156,9 +156,10 @@ export class DashboardView {
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
-    const valueDisplay = rate.value !== null && rate.value !== undefined
+    const isLoaded = rate.value !== null && rate.value !== undefined && !isNaN(rate.value);
+    const valueDisplay = isLoaded
       ? formatCurrency(rate.value, rate.currency, rate.value < 10 ? 4 : 2)
-      : `<span class="text-white opacity-40">Bs. ---,--</span>`;
+      : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
 
     return `
       <div id="card-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300">
@@ -204,9 +205,10 @@ export class DashboardView {
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
-    const valueDisplay = hasNextDay && nextDay.value !== null && nextDay.value !== undefined
+    const isNextLoaded = hasNextDay && nextDay.value !== null && nextDay.value !== undefined && !isNaN(nextDay.value);
+    const valueDisplay = isNextLoaded
       ? formatCurrency(nextDay.value, rate.currency, nextDay.value < 10 ? 4 : 2)
-      : `<span class="text-base font-semibold text-amber-400">Por publicar BCV</span>`;
+      : `<span class="text-base font-semibold text-amber-400">Pendiente BCV</span>`;
 
     const badgeTag = hasNextDay 
       ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full">Fecha Valor Oficial</span>'
