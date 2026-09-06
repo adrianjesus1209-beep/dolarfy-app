@@ -10,7 +10,7 @@ class ApiService {
   }
 
   async fetchRatesForCountry(country) {
-    const cacheKey = `dolarfy_rates_cache_v3_${country.id}`;
+    const cacheKey = `dolarfy_rates_cache_v5_${country.id}`;
     const cachedData = this.getCache(cacheKey);
 
     if (cachedData) {

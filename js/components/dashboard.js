@@ -234,7 +234,7 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || `Proyección ${nextDayLabel}`}</p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${(nextDay.date && !nextDay.date.toLowerCase().includes('pendiente')) ? nextDay.date : `Pronóstico Estimado ${nextDayLabel}`}</p>
           </div>
           <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>

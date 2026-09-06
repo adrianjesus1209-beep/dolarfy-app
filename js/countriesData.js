@@ -18,49 +18,52 @@ export const COUNTRIES_DATA = [
         id: 'bcv',
         name: 'Dólar Oficial (BCV)',
         code: 'USD/VES',
-        value: null,
-        change: 0,
+        value: 807.39,
+        change: 0.15,
         currency: 'VES',
         type: 'official',
         icon: 'building-2',
         nextDay: {
-          published: false,
-          value: null,
-          change: 0,
-          date: 'Consultando BCV Oficial...',
-          scheduleText: 'Cotización emitida por el Banco Central de Venezuela'
+          published: true,
+          isOfficial: false,
+          value: 808.84,
+          change: 0.18,
+          date: 'Pronóstico BCV',
+          scheduleText: 'Proyección estimada según tendencia del mercado'
         }
       },
       euro: {
         id: 'euro',
         name: 'Euro Oficial (BCV)',
         code: 'EUR/VES',
-        value: null,
-        change: 0,
+        value: 938.19,
+        change: 0.12,
         currency: 'VES',
         type: 'official',
         icon: 'euro',
         nextDay: {
-          published: false,
-          value: null,
-          change: 0,
-          date: 'Consultando BCV Oficial...',
-          scheduleText: 'Cotización emitida por el Banco Central de Venezuela'
+          published: true,
+          isOfficial: false,
+          value: 940.07,
+          change: 0.20,
+          date: 'Pronóstico Euro',
+          scheduleText: 'Proyección estimada según tendencia del mercado'
         }
       },
       usdt: {
         id: 'usdt',
         name: 'Binance USDT (P2P)',
         code: 'USDT/VES',
-        value: null,
-        change: 0,
+        value: 940.16,
+        change: 0.22,
         currency: 'VES',
         type: 'crypto',
         icon: 'coins',
         nextDay: {
           published: true,
-          value: null,
-          change: 0,
+          isOfficial: false,
+          value: 942.51,
+          change: 0.25,
           date: 'Pronóstico Binance P2P',
           scheduleText: 'Proyección estimada del mercado P2P'
         }
