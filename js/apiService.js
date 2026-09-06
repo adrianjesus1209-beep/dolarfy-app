@@ -179,8 +179,9 @@ class ApiService {
   }
 
   async fetchBcvOfficialSite() {
-    // 1. Scraping directo a bcv.org.ve (funciona nativamente en APK Capacitor/Cordova y Node)
+    // Lista de proxies y endpoint directo para scraping del portal oficial bcv.org.ve
     const urls = [
+      'https://proxy.cors.sh/https://www.bcv.org.ve',
       'https://www.bcv.org.ve',
       'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.bcv.org.ve'),
       'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.bcv.org.ve')
@@ -189,8 +190,12 @@ class ApiService {
     for (const url of urls) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-        const res = await fetch(url, { signal: controller.signal });
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
+        const headers = {};
+        if (url.includes('cors.sh')) {
+          headers['x-cors-gratis-api-key'] = 'temp';
+        }
+        const res = await fetch(url, { signal: controller.signal, headers });
         clearTimeout(timeoutId);
 
         if (res.ok) {
@@ -323,6 +328,7 @@ class ApiService {
 
   getCache(key) {
     try {
+      if (typeof localStorage === 'undefined') return null;
       const raw = localStorage.getItem(key);
       if (!raw) return null;
       const { timestamp, data } = JSON.parse(raw);
@@ -337,10 +343,12 @@ class ApiService {
 
   setCache(key, data) {
     try {
-      localStorage.setItem(key, JSON.stringify({
-        timestamp: Date.now(),
-        data
-      }));
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify({
+          timestamp: Date.now(),
+          data
+        }));
+      }
     } catch (e) {
       console.warn('Error guardando en caché', e);
     }
