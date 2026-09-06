@@ -52,12 +52,12 @@ export class DashboardView {
       bannerText = `Fecha Valor ${nextDayLabel}: Pendiente por el BCV`;
       bannerSub = `El Banco Central de Venezuela aún no ha publicado la cotización oficial del dólar para el día ${nextDayLabel}.`;
     } else {
-      bannerText = mainVal ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : 'Obteniendo tasas oficiales en vivo...';
+      bannerText = mainVal ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. ---,--`;
       bannerSub = mainVal 
         ? (useNextDayData 
             ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` 
             : `Tasas de referencia actualizadas para ${currentCountry.name}.`)
-        : 'Consultando servidores del Banco Central y fuentes del mercado...';
+        : 'Cargando tasas oficiales en vivo desde el Banco Central...';
 
       if (secondVal && mainVal && mainRate.currency === secondRate.currency && (!isManana || hasPublishedNextDay)) {
         const diff = Math.abs(secondVal - mainVal);
@@ -158,7 +158,7 @@ export class DashboardView {
 
     const valueDisplay = rate.value !== null && rate.value !== undefined
       ? formatCurrency(rate.value, rate.currency, rate.value < 10 ? 4 : 2)
-      : `<span class="inline-block w-24 h-7 bg-white/10 rounded-lg animate-pulse"></span>`;
+      : `<span class="text-white opacity-40">Bs. ---,--</span>`;
 
     return `
       <div id="card-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300">
