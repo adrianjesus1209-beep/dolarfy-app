@@ -10,7 +10,7 @@ class ApiService {
   }
 
   async fetchRatesForCountry(country) {
-    const cacheKey = `dolarfy_rates_cache_v7_${country.id}`;
+    const cacheKey = `dolarfy_rates_cache_v8_${country.id}`;
     const cachedData = this.getCache(cacheKey);
 
     if (cachedData) {
@@ -72,54 +72,44 @@ class ApiService {
       console.warn('Error al consultar DolarApi VE:', e);
     }
 
-    // 2. Intentar scraping/API del sitio oficial BCV para fecha valor
-    let isFutureFechaValor = false;
+    // 2. Intentar scraping directo del portal oficial bcv.org.ve para Fecha Valor
     try {
       const bcvSiteData = await this.fetchBcvOfficialSite();
       if (bcvSiteData && bcvSiteData.usd) {
         const bcvUsd = parseFloat(bcvSiteData.usd.toFixed(2));
-        isFutureFechaValor = this.isNextDayPublished(bcvSiteData.fecha);
+        const currentUsd = rates.bcv.value || bcvUsd;
+        const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
 
-        if (isFutureFechaValor) {
-          const currentUsd = rates.bcv.value || bcvUsd;
-          const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
+        rates.bcv.nextDay = {
+          published: true,
+          isOfficial: true,
+          value: bcvUsd,
+          change: changeUsd,
+          date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Fecha Valor Oficial BCV',
+          scheduleText: 'Emitida directamente por el Banco Central de Venezuela (bcv.org.ve)'
+        };
 
-          rates.bcv.nextDay = {
+        if (bcvSiteData.eur) {
+          const officialNextEur = parseFloat(bcvSiteData.eur.toFixed(2));
+          const currentEur = rates.euro.value || parseFloat((currentUsd * 1.162).toFixed(2));
+          const changeEur = currentEur > 0 ? parseFloat((((officialNextEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
+
+          rates.euro.nextDay = {
             published: true,
             isOfficial: true,
-            value: bcvUsd,
-            change: changeUsd,
+            value: officialNextEur,
+            change: changeEur,
             date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Fecha Valor Oficial BCV',
             scheduleText: 'Emitida directamente por el Banco Central de Venezuela (bcv.org.ve)'
           };
-
-          if (bcvSiteData.eur) {
-            const officialNextEur = parseFloat(bcvSiteData.eur.toFixed(2));
-            const currentEur = rates.euro.value || parseFloat((currentUsd * 1.162).toFixed(2));
-            const changeEur = currentEur > 0 ? parseFloat((((officialNextEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
-
-            rates.euro.nextDay = {
-              published: true,
-              isOfficial: true,
-              value: officialNextEur,
-              change: changeEur,
-              date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Fecha Valor Oficial BCV',
-              scheduleText: 'Emitida directamente por el Banco Central de Venezuela (bcv.org.ve)'
-            };
-          }
-        } else {
-          rates.bcv.value = bcvUsd;
-          if (bcvSiteData.eur) {
-            rates.euro.value = parseFloat(bcvSiteData.eur.toFixed(2));
-          }
         }
       }
     } catch (e) {
       console.warn('Error al scrapear sitio oficial del BCV:', e);
     }
 
-    // 3. Asignar las tasas reales oficiales del BCV para la Fecha Valor (sin multiplicadores ficticios)
-    if (rates.bcv && rates.bcv.value) {
+    // 3. Fallback SOLO si no se obtuvieron datos de Fecha Valor desde bcv.org.ve
+    if (!rates.bcv.nextDay && rates.bcv.value) {
       const bcvVal = rates.bcv.value;
       rates.bcv.nextDay = {
         published: true,
@@ -129,18 +119,18 @@ class ApiService {
         date: 'Fecha Valor Oficial BCV',
         scheduleText: 'Cotización oficial publicada en bcv.org.ve'
       };
+    }
 
-      if (rates.euro && rates.euro.value) {
-        const euroVal = rates.euro.value;
-        rates.euro.nextDay = {
-          published: true,
-          isOfficial: true,
-          value: euroVal,
-          change: rates.euro.change || 0,
-          date: 'Fecha Valor Oficial BCV',
-          scheduleText: 'Cotización oficial publicada en bcv.org.ve'
-        };
-      }
+    if (!rates.euro.nextDay && rates.euro.value) {
+      const euroVal = rates.euro.value;
+      rates.euro.nextDay = {
+        published: true,
+        isOfficial: true,
+        value: euroVal,
+        change: rates.euro.change || 0,
+        date: 'Fecha Valor Oficial BCV',
+        scheduleText: 'Cotización oficial publicada en bcv.org.ve'
+      };
     }
 
     // Mercado USDT P2P
@@ -189,28 +179,11 @@ class ApiService {
   }
 
   async fetchBcvOfficialSite() {
-    // 1. Intentar proveedor directo API especializado DolarVzla
-    try {
-      const resApi = await fetch('https://api.dolarvzla.com/bcv/current.json');
-      if (resApi.ok) {
-        const json = await resApi.json();
-        if (json && json.usd) {
-          return {
-            usd: parseFloat(json.usd),
-            eur: json.eur ? parseFloat(json.eur) : null,
-            fecha: json.fecha_valor || json.fecha || 'Fecha Valor Oficial BCV'
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('Error al consultar api.dolarvzla.com:', e);
-    }
-
-    // 2. Scraping de respaldo al portal bcv.org.ve vía proxies CORS
+    // 1. Scraping directo a bcv.org.ve (funciona nativamente en APK Capacitor/Cordova y Node)
     const urls = [
+      'https://www.bcv.org.ve',
       'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.bcv.org.ve'),
-      'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.bcv.org.ve'),
-      'https://www.bcv.org.ve'
+      'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.bcv.org.ve')
     ];
 
     for (const url of urls) {
@@ -237,6 +210,24 @@ class ApiService {
         console.warn(`Error al consultar BCV URL ${url}:`, e);
       }
     }
+
+    // 2. Respaldo secundario: API dolarvzla
+    try {
+      const resApi = await fetch('https://api.dolarvzla.com/bcv/current.json');
+      if (resApi.ok) {
+        const json = await resApi.json();
+        if (json && json.usd) {
+          return {
+            usd: parseFloat(json.usd),
+            eur: json.eur ? parseFloat(json.eur) : null,
+            fecha: json.fecha_valor || json.fecha || 'Fecha Valor Oficial BCV'
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Error al consultar api.dolarvzla.com:', e);
+    }
+
     return null;
   }
 

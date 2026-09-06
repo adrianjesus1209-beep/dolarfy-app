@@ -26,9 +26,9 @@ export const COUNTRIES_DATA = [
         nextDay: {
           published: true,
           isOfficial: true,
-          value: 808.84,
-          change: 0.18,
-          date: 'Fecha Valor Oficial BCV',
+          value: 813.74,
+          change: 0.79,
+          date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
           scheduleText: 'Cotización oficial emitida en bcv.org.ve'
         }
       },
@@ -44,9 +44,9 @@ export const COUNTRIES_DATA = [
         nextDay: {
           published: true,
           isOfficial: true,
-          value: 940.07,
-          change: 0.20,
-          date: 'Fecha Valor Oficial BCV',
+          value: 945.65,
+          change: 0.80,
+          date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
           scheduleText: 'Cotización oficial emitida en bcv.org.ve'
         }
       },
@@ -62,8 +62,8 @@ export const COUNTRIES_DATA = [
         nextDay: {
           published: true,
           isOfficial: false,
-          value: 942.51,
-          change: 0.25,
+          value: 940.16,
+          change: 0.22,
           date: 'Mercado Binance P2P',
           scheduleText: 'Cotización P2P en vivo'
         }
