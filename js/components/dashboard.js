@@ -29,11 +29,17 @@ export class DashboardView {
     return 'Mañana';
   }
 
+  cleanText(str) {
+    if (!str || typeof str !== 'string') return str || '';
+    return str.replace(/Fecha\s+Valor\s*:?\s*/gi, '').trim();
+  }
+
   render() {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
     const rateKeys = Object.keys(rates);
-    const nextDayLabel = this.getNextDayLabel(rates);
+    const rawNextDayLabel = this.getNextDayLabel(rates);
+    const nextDayLabel = this.cleanText(rawNextDayLabel);
     
     const isManana = this.selectedDay === 'manana';
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
@@ -51,11 +57,11 @@ export class DashboardView {
 
     if (isManana) {
       bannerText = (mainVal !== null && mainVal !== undefined)
-        ? `${mainRate.name} (${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
+        ? `${this.cleanText(mainRate.name)} (${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
         : `${nextDayLabel}: Bs. — — —`;
       bannerSub = `Cotización oficial del Banco Central de Venezuela publicada en bcv.org.ve para ${nextDayLabel}.`;
     } else {
-      bannerText = (mainVal !== null && mainVal !== undefined) ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
+      bannerText = (mainVal !== null && mainVal !== undefined) ? `${this.cleanText(mainRate.name)}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
       bannerSub = mainVal 
         ? `Tasas de referencia en vivo actualizadas desde bcv.org.ve.`
         : 'Cargando tasas en vivo...';
@@ -237,7 +243,7 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date ? nextDay.date.replace(/^Fecha\s+Valor\s*:?\s*/i, '') : 'Oficial BCV'}</p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${this.cleanText(nextDay.date) || 'Oficial BCV'}</p>
           </div>
           <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>

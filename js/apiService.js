@@ -10,7 +10,7 @@ class ApiService {
   }
 
   async fetchRatesForCountry(country) {
-    const cacheKey = `dolarfy_rates_cache_v8_${country.id}`;
+    const cacheKey = `dolarfy_rates_cache_v10_${country.id}`;
     const cachedData = this.getCache(cacheKey);
 
     if (cachedData) {
@@ -337,6 +337,10 @@ class ApiService {
       if (!raw) return null;
       const { timestamp, data } = JSON.parse(raw);
       if (Date.now() - timestamp < this.CACHE_TTL_MS) {
+        if (data && data.bcv && (data.bcv.value < 810 || (data.bcv.nextDay && data.bcv.nextDay.date && data.bcv.nextDay.date.includes('Fecha Valor')))) {
+          localStorage.removeItem(key);
+          return null;
+        }
         return data;
       }
     } catch (e) {

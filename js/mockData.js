@@ -21,18 +21,35 @@ class MockDataEngine {
     try {
       if (typeof localStorage === 'undefined') return;
       const current = this.getCurrentCountry();
-      // Limpiar versiones anteriores del caché para forzar actualización con tasas oficiales reales de bcv.org.ve
-      ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'].forEach(v => {
-        try { localStorage.removeItem(`dolarfy_rates_cache_${v}_${current.id}`); } catch (e) {}
+
+      // Limpieza agresiva de todas las versiones anteriores del caché de tasas en localStorage
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('dolarfy_rates_cache_') || key.includes('dolarfy'))) {
+          if (!key.endsWith('_v10_VE')) {
+            keysToRemove.push(key);
+          }
+        }
+      }
+      keysToRemove.forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) {}
       });
 
-      const cacheKey = `dolarfy_rates_cache_v8_${current.id}`;
+      const cacheKey = `dolarfy_rates_cache_v10_${current.id}`;
       const raw = localStorage.getItem(cacheKey);
       if (raw) {
         const parsed = JSON.parse(raw);
         const data = parsed.data || parsed;
         if (data && typeof data === 'object' && data.bcv && data.bcv.value) {
-          current.rates = data;
+          // Descartar si contiene datos desactualizados (808.xx) o textos antiguos con Fecha Valor
+          const isStaleVal = data.bcv.value < 810;
+          const hasOldText = data.bcv.nextDay && data.bcv.nextDay.date && data.bcv.nextDay.date.includes('Fecha Valor');
+          if (isStaleVal || hasOldText) {
+            localStorage.removeItem(cacheKey);
+          } else {
+            current.rates = data;
+          }
         }
       }
     } catch (e) {
