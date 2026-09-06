@@ -19,6 +19,7 @@ class MockDataEngine {
 
   hydrateCacheSync() {
     try {
+      if (typeof localStorage === 'undefined') return;
       const current = this.getCurrentCountry();
       // Limpiar versiones anteriores del caché para forzar actualización con tasas oficiales reales de bcv.org.ve
       ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'].forEach(v => {

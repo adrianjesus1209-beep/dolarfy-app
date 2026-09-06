@@ -80,12 +80,16 @@ class ApiService {
         const currentUsd = rates.bcv.value || bcvUsd;
         const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
 
+        const cleanDate = bcvSiteData.fecha 
+          ? bcvSiteData.fecha.replace(/^Fecha\s+Valor\s*:?\s*/i, '').trim()
+          : 'Oficial BCV';
+
         rates.bcv.nextDay = {
           published: true,
           isOfficial: true,
           value: bcvUsd,
           change: changeUsd,
-          date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Fecha Valor Oficial BCV',
+          date: cleanDate,
           scheduleText: 'Emitida directamente por el Banco Central de Venezuela (bcv.org.ve)'
         };
 
@@ -99,7 +103,7 @@ class ApiService {
             isOfficial: true,
             value: officialNextEur,
             change: changeEur,
-            date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Fecha Valor Oficial BCV',
+            date: cleanDate,
             scheduleText: 'Emitida directamente por el Banco Central de Venezuela (bcv.org.ve)'
           };
         }
@@ -116,7 +120,7 @@ class ApiService {
         isOfficial: true,
         value: bcvVal,
         change: rates.bcv.change || 0,
-        date: 'Fecha Valor Oficial BCV',
+        date: 'Oficial BCV',
         scheduleText: 'Cotización oficial publicada en bcv.org.ve'
       };
     }
@@ -128,7 +132,7 @@ class ApiService {
         isOfficial: true,
         value: euroVal,
         change: rates.euro.change || 0,
-        date: 'Fecha Valor Oficial BCV',
+        date: 'Oficial BCV',
         scheduleText: 'Cotización oficial publicada en bcv.org.ve'
       };
     }
@@ -258,7 +262,7 @@ class ApiService {
       }
 
       if (fechaMatch && fechaMatch[1]) {
-        fecha = fechaMatch[1].trim().replace(/\s+/g, ' ');
+        fecha = fechaMatch[1].trim().replace(/\s+/g, ' ').replace(/^Fecha\s+Valor\s*:?\s*/i, '');
       }
 
       if (usd && !isNaN(usd)) {

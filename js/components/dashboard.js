@@ -9,17 +9,22 @@ export class DashboardView {
   }
 
   getNextDayLabel(rates) {
+    const todayDay = new Date().getDay();
+    // En fin de semana (Viernes tarde, Sábado, Domingo), la siguiente publicación bancaria oficial es siempre el Lunes
+    if (todayDay === 5 || todayDay === 6 || todayDay === 0) {
+      return 'Lunes';
+    }
+
     const bcvNext = rates && rates.bcv && rates.bcv.nextDay;
     if (bcvNext && bcvNext.date) {
       const match = bcvNext.date.match(/(Lunes|Martes|Miércoles|Miercoles|Jueves|Viernes|Sábado|Sabado|Domingo)/i);
       if (match) {
-        const day = match[1].toLowerCase();
+        let day = match[1].toLowerCase();
+        if (day === 'sábado' || day === 'sabado' || day === 'domingo') {
+          return 'Lunes';
+        }
         return day.charAt(0).toUpperCase() + day.slice(1);
       }
-    }
-    const todayDay = new Date().getDay();
-    if (todayDay === 5 || todayDay === 6 || todayDay === 0) {
-      return 'Lunes';
     }
     return 'Mañana';
   }
@@ -39,16 +44,16 @@ export class DashboardView {
     const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.value) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
     let bannerTag = isManana 
-      ? `Fecha Valor ${nextDayLabel}` 
+      ? `${nextDayLabel}` 
       : 'Resumen del Día';
     let bannerText = '';
     let bannerSub = '';
 
     if (isManana) {
       bannerText = (mainVal !== null && mainVal !== undefined)
-        ? `${mainRate.name} (Fecha Valor ${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
-        : `Fecha Valor ${nextDayLabel}: Bs. — — —`;
-      bannerSub = `Cotización oficial del Banco Central de Venezuela publicada en bcv.org.ve para la Fecha Valor.`;
+        ? `${mainRate.name} (${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
+        : `${nextDayLabel}: Bs. — — —`;
+      bannerSub = `Cotización oficial del Banco Central de Venezuela publicada en bcv.org.ve para ${nextDayLabel}.`;
     } else {
       bannerText = (mainVal !== null && mainVal !== undefined) ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
       bannerSub = mainVal 
@@ -93,7 +98,7 @@ export class DashboardView {
           </div>
         </div>
 
-        <!-- Encabezado de Tasas y Selector 'Hoy' / 'Fecha Valor' -->
+        <!-- Encabezado de Tasas y Selector 'Hoy' / Día Siguiente -->
         <div>
           <div class="flex justify-between items-center mb-3">
             <div>
@@ -101,13 +106,13 @@ export class DashboardView {
               <span class="text-xs font-bold text-cyan-400">${currentCountry.currency.code}</span>
             </div>
 
-            <!-- Selector de Fecha 'Hoy' / 'Fecha Valor' -->
+            <!-- Selector de Fecha 'Hoy' / Día Siguiente ('Lunes' / 'Mañana') -->
             <div class="bg-[#131924] border border-white/10 p-1 rounded-2xl flex items-center space-x-1 shadow-inner">
               <button type="button" data-day="hoy" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
               <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
-                <span>Fecha Valor ${nextDayLabel}</span>
+                <span>${nextDayLabel}</span>
               </button>
             </div>
           </div>
@@ -232,7 +237,7 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || 'Fecha Valor Oficial BCV'}</p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date ? nextDay.date.replace(/^Fecha\s+Valor\s*:?\s*/i, '') : 'Oficial BCV'}</p>
           </div>
           <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>

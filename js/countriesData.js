@@ -28,16 +28,26 @@ export const COUNTRIES_DATA = [
           isOfficial: true,
           value: 813.74,
           change: 0.79,
-          date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
-          scheduleText: 'Cotización oficial emitida en bcv.org.ve'
+          date: 'Lunes, 07 Septiembre 2026',
+          scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
         }
+      },
+      paralelo: {
+        id: 'paralelo',
+        name: 'Dólar Paralelo',
+        code: 'USD/VES',
+        value: 948.04,
+        change: 0.75,
+        currency: 'VES',
+        type: 'parallel',
+        icon: 'trending-up'
       },
       euro: {
         id: 'euro',
         name: 'Euro Oficial (BCV)',
         code: 'EUR/VES',
-        value: 938.19,
-        change: 0.12,
+        value: 945.65,
+        change: 0.08,
         currency: 'VES',
         type: 'official',
         icon: 'euro',
@@ -46,8 +56,8 @@ export const COUNTRIES_DATA = [
           isOfficial: true,
           value: 945.65,
           change: 0.80,
-          date: 'Fecha Valor: Lunes, 07 Septiembre 2026',
-          scheduleText: 'Cotización oficial emitida en bcv.org.ve'
+          date: 'Lunes, 07 Septiembre 2026',
+          scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
         }
       },
       usdt: {
