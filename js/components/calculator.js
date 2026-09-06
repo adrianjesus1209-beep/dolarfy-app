@@ -98,8 +98,8 @@ export class CalculatorView {
         
         <!-- 1. Barra Superior de Píldoras (Tasas del país) -->
         <div class="w-full text-xs">
-          <!-- Píldoras de Tasas del País (Distribución perfecta en grid a todo el ancho) -->
-          <div class="grid grid-cols-4 gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="rate-pills-group">
+          <!-- Píldoras de Tasas del País (Distribución en grid) -->
+          <div class="grid grid-cols-${Math.min(rateKeys.length, 4)} gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="rate-pills-group">
             ${rateKeys.map(key => {
               const r = rates[key];
               const isSelected = this.selectedRateId === key;

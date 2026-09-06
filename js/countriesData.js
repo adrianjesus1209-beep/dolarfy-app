@@ -47,6 +47,23 @@ export const COUNTRIES_DATA = [
           date: 'Consultando BCV Oficial...',
           scheduleText: 'Cotización emitida por el Banco Central de Venezuela'
         }
+      },
+      usdt: {
+        id: 'usdt',
+        name: 'Binance USDT (P2P)',
+        code: 'USDT/VES',
+        value: null,
+        change: 0,
+        currency: 'VES',
+        type: 'crypto',
+        icon: 'coins',
+        nextDay: {
+          published: true,
+          value: null,
+          change: 0,
+          date: 'Pronóstico Binance P2P',
+          scheduleText: 'Proyección estimada del mercado P2P'
+        }
       }
     }
   }

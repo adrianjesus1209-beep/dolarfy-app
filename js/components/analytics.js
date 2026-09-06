@@ -27,6 +27,7 @@ export class AnalyticsView {
     if (!rateObj) return rateKey || '';
     if (rateKey === 'bcv') return 'BCV';
     if (rateKey === 'euro') return 'Euro';
+    if (rateKey === 'usdt' || rateObj.id === 'usdt') return 'USDT';
     return rateObj.name.split(' ')[0];
   }
 
@@ -47,7 +48,7 @@ export class AnalyticsView {
   /**
    * Fetch de datos históricos reales desde ve.dolarapi.com
    * Endpoint: https://ve.dolarapi.com/v1/dolares/historico/{fuente}/{inicio}/{fin}
-   * fuente: oficial | euro
+   * fuente: oficial | euro | paralelo
    */
   async fetchHistoricalData(rateKey, days) {
     const cacheKey = `hist_${rateKey}_${days}`;
@@ -65,7 +66,8 @@ export class AnalyticsView {
     // Mapear el rateKey a la fuente de ve.dolarapi.com
     const fuenteMap = {
       bcv: 'oficial',
-      euro: 'euro'
+      euro: 'euro',
+      usdt: 'paralelo'
     };
     const fuente = fuenteMap[rateKey] || 'oficial';
 
@@ -221,7 +223,7 @@ export class AnalyticsView {
               </span>
             </div>
 
-            <div class="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="analytics-rate-filter">
+            <div class="grid grid-cols-${Math.min(rateKeys.length + 1, 4)} gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="analytics-rate-filter">
               <button data-rate="all" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${this.selectedRateFilter === 'all' ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                 Todas
               </button>

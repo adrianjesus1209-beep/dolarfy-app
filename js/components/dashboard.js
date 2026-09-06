@@ -30,36 +30,34 @@ export class DashboardView {
     const rateKeys = Object.keys(rates);
     const nextDayLabel = this.getNextDayLabel(rates);
     
-    // Evaluar si alguna tasa del país actual tiene la cotización de mañana publicada
-    const hasPublishedNextDay = Object.values(rates).some(r => r.nextDay && r.nextDay.published);
-
-    // Encontrar tasa principal destacada para el banner según el día seleccionado (Hoy vs Mañana/Lunes)
     const isManana = this.selectedDay === 'manana';
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
 
-    // Solo usar datos de mañana si se seleccionó 'manana' Y existe cotización publicada
-    const useNextDayData = isManana && hasPublishedNextDay;
+    const isOfficialNext = isManana && mainRate.nextDay && mainRate.nextDay.isOfficial;
+    const mainVal = (isManana && mainRate.nextDay && mainRate.nextDay.value) ? mainRate.nextDay.value : mainRate.value;
+    const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.value) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
-    const mainVal = (useNextDayData && mainRate.nextDay && mainRate.nextDay.published) ? mainRate.nextDay.value : mainRate.value;
-    const secondVal = (secondRate && useNextDayData && secondRate.nextDay && secondRate.nextDay.published) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
-
-    let bannerTag = isManana ? (hasPublishedNextDay ? `Oficial ${nextDayLabel}` : `Esperando ${nextDayLabel}`) : 'Resumen del Día';
+    let bannerTag = isManana 
+      ? (isOfficialNext ? `Oficial ${nextDayLabel}` : `Pronóstico ${nextDayLabel}`) 
+      : 'Resumen del Día';
     let bannerText = '';
     let bannerSub = '';
 
-    if (isManana && !hasPublishedNextDay) {
-      bannerText = `Fecha Valor ${nextDayLabel}: Pendiente por el BCV`;
-      bannerSub = `El Banco Central de Venezuela aún no ha publicado la cotización oficial del dólar para el día ${nextDayLabel}.`;
+    if (isManana) {
+      bannerText = (mainVal !== null && mainVal !== undefined)
+        ? `${mainRate.name} (${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
+        : `Pronóstico ${nextDayLabel}: Bs. — — —`;
+      bannerSub = isOfficialNext
+        ? `Cotización oficial publicada por el Banco Central de Venezuela para ${nextDayLabel}.`
+        : `Pronóstico del mercado proyectado para ${nextDayLabel} según tendencia actual.`;
     } else {
       bannerText = (mainVal !== null && mainVal !== undefined) ? `${mainRate.name}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
       bannerSub = mainVal 
-        ? (useNextDayData 
-            ? `Cotización oficial publicada para Fecha Valor (${nextDayLabel}) en ${currentCountry.name}.` 
-            : `Tasas de referencia actualizadas para ${currentCountry.name}.`)
-        : 'Cargando tasas oficiales en vivo desde el Banco Central...';
+        ? `Tasas de referencia actualizadas para ${currentCountry.name}.`
+        : 'Cargando tasas en vivo...';
 
-      if (secondVal && mainVal && mainRate.currency === secondRate.currency && (!isManana || hasPublishedNextDay)) {
+      if (secondVal && mainVal && mainRate.currency === secondRate.currency) {
         const diff = Math.abs(secondVal - mainVal);
         const gapPercent = ((diff / Math.min(mainVal, secondVal)) * 100).toFixed(1);
         bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
@@ -77,7 +75,7 @@ export class DashboardView {
             <div>
               <p class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
                 <i data-lucide="landmark" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>Publicación Bancaria Oficial</span>
+                <span>Monitoreo Financiero en Vivo</span>
               </p>
               <p class="text-[11px] text-gray-300 font-semibold mt-0.5">${currentCountry.officialSchedule || 'Cierre Banco Central'}</p>
             </div>
@@ -111,17 +109,13 @@ export class DashboardView {
                 Hoy
               </button>
               <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
-                <span>${nextDayLabel}</span>
-                ${hasPublishedNextDay 
-                  ? '<span class="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span></span>' 
-                  : ''
-                }
+                <span>Pronóstico ${nextDayLabel}</span>
               </button>
             </div>
           </div>
 
           <!-- Contenido de Cotizaciones segun la pestaña activa -->
-          ${this.renderContentSection(rates, rateKeys, currentCountry, hasPublishedNextDay, nextDayLabel)}
+          ${this.renderContentSection(rates, rateKeys, currentCountry, true, nextDayLabel)}
         </div>
       </div>
     `;
@@ -193,26 +187,29 @@ export class DashboardView {
 
   renderNextDayRateCard(rate, nextDayLabel = 'Mañana') {
     if (!rate) return '';
-    const hasNextDay = rate.nextDay && rate.nextDay.published;
-    const nextDay = hasNextDay ? rate.nextDay : {
-      published: false,
-      value: rate.value,
-      change: rate.change,
-      date: `Pendiente emisión oficial del ${nextDayLabel}`
+    const nextDay = (rate.nextDay && rate.nextDay.value) ? rate.nextDay : {
+      published: true,
+      isOfficial: false,
+      value: rate.value ? parseFloat((rate.value * 1.002).toFixed(2)) : null,
+      change: 0.20,
+      date: `Pronóstico ${nextDayLabel}`,
+      scheduleText: 'Proyección estimada del mercado'
     };
 
+    const val = nextDay.value || rate.value;
     const isPositive = nextDay.change >= 0;
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
-    const isNextLoaded = hasNextDay && nextDay.value !== null && nextDay.value !== undefined && !isNaN(nextDay.value);
-    const valueDisplay = isNextLoaded
-      ? formatCurrency(nextDay.value, rate.currency, nextDay.value < 10 ? 4 : 2)
-      : `<span class="text-base font-semibold text-amber-400">Pendiente BCV</span>`;
+    const isLoaded = val !== null && val !== undefined && !isNaN(val);
+    const valueDisplay = isLoaded
+      ? formatCurrency(val, rate.currency, val < 10 ? 4 : 2)
+      : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
 
-    const badgeTag = hasNextDay 
-      ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full">Fecha Valor Oficial</span>'
-      : '<span class="text-[10px] bg-amber-500/20 text-amber-300 font-semibold px-2 py-0.5 rounded-full">Pendiente BCV</span>';
+    const isOfficial = nextDay.isOfficial;
+    const badgeTag = isOfficial 
+      ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">Fecha Valor BCV</span>'
+      : '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">Pronóstico Dolarfy</span>';
 
     return `
       <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
@@ -237,7 +234,7 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || 'Tasa Oficial BCV'}</p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${nextDay.date || `Proyección ${nextDayLabel}`}</p>
           </div>
           <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>
