@@ -10,7 +10,7 @@ class ApiService {
   }
 
   async fetchRatesForCountry(country) {
-    const cacheKey = `dolarfy_rates_cache_v6_${country.id}`;
+    const cacheKey = `dolarfy_rates_cache_v7_${country.id}`;
     const cachedData = this.getCache(cacheKey);
 
     if (cachedData) {
@@ -72,7 +72,7 @@ class ApiService {
       console.warn('Error al consultar DolarApi VE:', e);
     }
 
-    // 2. Intentar scraping/API del sitio oficial BCV para fecha valor del día siguiente
+    // 2. Intentar scraping/API del sitio oficial BCV para fecha valor
     let isFutureFechaValor = false;
     try {
       const bcvSiteData = await this.fetchBcvOfficialSite();
@@ -81,7 +81,6 @@ class ApiService {
         isFutureFechaValor = this.isNextDayPublished(bcvSiteData.fecha);
 
         if (isFutureFechaValor) {
-          // Cotización oficial del DÍA SIGUIENTE emitida por el BCV
           const currentUsd = rates.bcv.value || bcvUsd;
           const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
 
@@ -90,8 +89,8 @@ class ApiService {
             isOfficial: true,
             value: bcvUsd,
             change: changeUsd,
-            date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Tasa Oficial BCV',
-            scheduleText: 'Emitida directamente por el Banco Central de Venezuela'
+            date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Fecha Valor Oficial BCV',
+            scheduleText: 'Emitida directamente por el Banco Central de Venezuela (bcv.org.ve)'
           };
 
           if (bcvSiteData.eur) {
@@ -104,16 +103,14 @@ class ApiService {
               isOfficial: true,
               value: officialNextEur,
               change: changeEur,
-              date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Euro Oficial BCV',
-              scheduleText: 'Emitida directamente por el Banco Central de Venezuela'
+              date: bcvSiteData.fecha ? `Fecha Valor: ${bcvSiteData.fecha}` : 'Fecha Valor Oficial BCV',
+              scheduleText: 'Emitida directamente por el Banco Central de Venezuela (bcv.org.ve)'
             };
           }
         } else {
           rates.bcv.value = bcvUsd;
           if (bcvSiteData.eur) {
             rates.euro.value = parseFloat(bcvSiteData.eur.toFixed(2));
-          } else {
-            rates.euro.value = parseFloat((bcvUsd * 1.162).toFixed(2));
           }
         }
       }
@@ -121,27 +118,25 @@ class ApiService {
       console.warn('Error al scrapear sitio oficial del BCV:', e);
     }
 
-    // 3. Garantizar Fecha Valor Oficial BCV para el Día Siguiente
-    if (!isFutureFechaValor && rates.bcv && rates.bcv.value) {
+    // 3. Asignar las tasas reales oficiales del BCV para la Fecha Valor (sin multiplicadores ficticios)
+    if (rates.bcv && rates.bcv.value) {
       const bcvVal = rates.bcv.value;
-      const projectedBcv = parseFloat((bcvVal * 1.0018).toFixed(2));
       rates.bcv.nextDay = {
         published: true,
         isOfficial: true,
-        value: projectedBcv,
-        change: 0.18,
+        value: bcvVal,
+        change: rates.bcv.change || 0,
         date: 'Fecha Valor Oficial BCV',
         scheduleText: 'Cotización oficial publicada en bcv.org.ve'
       };
 
       if (rates.euro && rates.euro.value) {
         const euroVal = rates.euro.value;
-        const projectedEur = parseFloat((euroVal * 1.0020).toFixed(2));
         rates.euro.nextDay = {
           published: true,
           isOfficial: true,
-          value: projectedEur,
-          change: 0.20,
+          value: euroVal,
+          change: rates.euro.change || 0,
           date: 'Fecha Valor Oficial BCV',
           scheduleText: 'Cotización oficial publicada en bcv.org.ve'
         };
@@ -151,12 +146,11 @@ class ApiService {
     // Mercado USDT P2P
     if (rates.usdt && rates.usdt.value) {
       const usdtVal = rates.usdt.value;
-      const projectedUsdt = parseFloat((usdtVal * 1.0025).toFixed(2));
       rates.usdt.nextDay = {
         published: true,
         isOfficial: false,
-        value: projectedUsdt,
-        change: 0.25,
+        value: usdtVal,
+        change: rates.usdt.change || 0,
         date: 'Mercado Binance P2P',
         scheduleText: 'Cotización P2P en vivo'
       };

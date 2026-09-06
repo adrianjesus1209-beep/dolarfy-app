@@ -20,12 +20,12 @@ class MockDataEngine {
   hydrateCacheSync() {
     try {
       const current = this.getCurrentCountry();
-      // Limpiar versiones anteriores del caché para forzar actualización con Fecha Valor BCV
-      ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(v => {
+      // Limpiar versiones anteriores del caché para forzar actualización con tasas oficiales reales de bcv.org.ve
+      ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'].forEach(v => {
         try { localStorage.removeItem(`dolarfy_rates_cache_${v}_${current.id}`); } catch (e) {}
       });
 
-      const cacheKey = `dolarfy_rates_cache_v6_${current.id}`;
+      const cacheKey = `dolarfy_rates_cache_v7_${current.id}`;
       const raw = localStorage.getItem(cacheKey);
       if (raw) {
         const parsed = JSON.parse(raw);
