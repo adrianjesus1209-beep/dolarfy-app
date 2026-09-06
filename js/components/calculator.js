@@ -19,7 +19,34 @@ export class CalculatorView {
     this.selectedRateId = this.currentCountry.defaultRateId && rates[this.currentCountry.defaultRateId] 
       ? this.currentCountry.defaultRateId 
       : rateKeys[0];
+
+    // Selector de día: 'hoy' o 'prediccion'
+    this.selectedDay = 'hoy';
     this.unsubscribe = null;
+  }
+
+  getNextDayLabel(rates) {
+    const todayDay = new Date().getDay();
+    // Viernes=5, Sábado=6, Domingo=0 → siguiente publicación es Lunes
+    if (todayDay === 5 || todayDay === 6 || todayDay === 0) return 'Lunes';
+
+    const bcvNext = rates && rates.bcv && rates.bcv.nextDay;
+    if (bcvNext && bcvNext.date) {
+      const match = bcvNext.date.match(/(Lunes|Martes|Mi[eé]rcoles|Jueves|Viernes|S[aá]bado|Domingo)/i);
+      if (match) {
+        let day = match[1].toLowerCase();
+        if (day === 'sábado' || day === 'sabado' || day === 'domingo') return 'Lunes';
+        return day.charAt(0).toUpperCase() + day.slice(1);
+      }
+    }
+    return 'Mañana';
+  }
+
+  hasNextDayRate(rates) {
+    // Comprueba si hay algún nextDay publicado con valor
+    return Object.values(rates).some(
+      r => r && r.nextDay && r.nextDay.value && r.nextDay.published
+    );
   }
 
   getPillLabel(rateKey, rateObj) {
@@ -61,7 +88,13 @@ export class CalculatorView {
 
   getEffectiveRate(rateObj) {
     if (!rateObj) return 1;
-    if (rateObj.nextDay && rateObj.nextDay.published && rateObj.nextDay.value) {
+    // Usar tasa del día siguiente solo si el usuario la seleccionó y está publicada
+    if (
+      this.selectedDay === 'prediccion' &&
+      rateObj.nextDay &&
+      rateObj.nextDay.published &&
+      rateObj.nextDay.value
+    ) {
       return rateObj.nextDay.value;
     }
     return rateObj.value || 1;
@@ -105,12 +138,15 @@ export class CalculatorView {
     const fromSym = this.getCurrencySymbol(this.fromCurrency);
     const toSym = this.getCurrencySymbol(this.toCurrency);
 
+    const showDayToggle = this.hasNextDayRate(rates);
+    const nextDayLabel = this.getNextDayLabel(rates);
+
     this.container.innerHTML = `
       <div class="space-y-3 pb-24 animate-fade-in max-w-md mx-auto">
         
-        <!-- 1. Barra Superior de Píldoras (Tasas del país) -->
-        <div class="w-full text-xs">
-          <!-- Píldoras de Tasas del País (Distribución en grid) -->
+        <!-- 1. Barra Superior: Tasas + Selector Hoy/Predicción -->
+        <div class="w-full text-xs space-y-2">
+          <!-- Píldoras de Tasas del País -->
           <div class="grid grid-cols-${Math.min(rateKeys.length, 4)} gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="rate-pills-group">
             ${rateKeys.map(key => {
               const r = rates[key];
@@ -123,6 +159,22 @@ export class CalculatorView {
               `;
             }).join('')}
           </div>
+
+          <!-- Selector Hoy / Predicción (solo si hay nextDay publicado) -->
+          ${showDayToggle ? `
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Calcular con tasa de:</span>
+            <div class="bg-[#131924] border border-white/10 p-0.5 rounded-xl flex items-center space-x-0.5 shadow-inner" id="calc-day-toggle">
+              <button type="button" data-calcday="hoy" class="calc-day-btn px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
+                Hoy
+              </button>
+              <button type="button" data-calcday="prediccion" class="calc-day-btn px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'prediccion' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
+                <i data-lucide="calendar-check" class="w-3 h-3"></i>
+                ${nextDayLabel}
+              </button>
+            </div>
+          </div>
+          ` : ''}
         </div>
 
         <!-- 2. Pantalla Digital de Conversión Integrada -->
@@ -130,8 +182,12 @@ export class CalculatorView {
           
           <!-- Top info bar inside card -->
           <div class="flex items-center justify-between">
-            <span id="rate-badge-pill" class="bg-black/50 border border-cyan-500/30 text-cyan-300 text-[11px] font-bold px-2.5 py-1 rounded-full">
-              Tasa: ${activeRate.toFixed(activeRate < 10 ? 4 : 2)}
+            <span id="rate-badge-pill" class="bg-black/50 border border-cyan-500/30 text-cyan-300 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5">
+              ${this.selectedDay === 'prediccion' && showDayToggle
+                ? `<i data-lucide="calendar-check" class="w-3 h-3 text-amber-400"></i><span class="text-amber-300">${nextDayLabel}:</span>`
+                : `<i data-lucide="sun" class="w-3 h-3 text-emerald-400"></i>`
+              }
+              ${activeRate.toFixed(activeRate < 10 ? 4 : 2)}
             </span>
             <div class="flex items-center space-x-3 text-cyan-400">
               <button id="calc-shift-btn" type="button" title="Shift / Swap" class="hover:text-white transition-all cursor-pointer"><i data-lucide="code-2" class="w-4 h-4"></i></button>
@@ -211,6 +267,18 @@ export class CalculatorView {
     const copyBtn = document.getElementById('copy-result-btn');
     const historyBtn = document.getElementById('calc-history-btn');
     const keypadKeys = document.querySelectorAll('#calc-keypad button');
+
+    // Selector Hoy / Predicción
+    const dayBtns = document.querySelectorAll('.calc-day-btn');
+    dayBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const day = btn.getAttribute('data-calcday');
+        if (day && day !== this.selectedDay) {
+          this.selectedDay = day;
+          this.render();
+        }
+      });
+    });
 
     ratePills.forEach(btn => {
       btn.addEventListener('click', () => {
