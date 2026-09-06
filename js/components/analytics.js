@@ -28,6 +28,7 @@ export class AnalyticsView {
     if (rateKey === 'bcv') return 'BCV';
     if (rateKey === 'euro') return 'Euro';
     if (rateKey === 'usdt' || rateObj.id === 'usdt') return 'USDT';
+    if (rateKey === 'paralelo' || rateObj.id === 'paralelo') return 'Paralelo';
     return rateObj.name.split(' ')[0];
   }
 

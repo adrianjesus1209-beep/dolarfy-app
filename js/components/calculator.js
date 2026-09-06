@@ -19,6 +19,7 @@ export class CalculatorView {
     this.selectedRateId = this.currentCountry.defaultRateId && rates[this.currentCountry.defaultRateId] 
       ? this.currentCountry.defaultRateId 
       : rateKeys[0];
+    this.unsubscribe = null;
   }
 
   getPillLabel(rateKey, rateObj) {
@@ -31,6 +32,9 @@ export class CalculatorView {
       return 'USDT';
     }
     if (rateKey === 'bcv') return 'BCV';
+    if (rateKey === 'paralelo' || rateObj.id === 'paralelo' || nameLower.includes('paralelo')) {
+      return 'Paralelo';
+    }
     if (rateKey === 'blue') return 'Blue';
     if (rateKey === 'oficial') return 'Oficial';
     if (rateKey === 'trm') return 'TRM';
@@ -55,6 +59,14 @@ export class CalculatorView {
     return rateObj.name.split(' ')[0];
   }
 
+  getEffectiveRate(rateObj) {
+    if (!rateObj) return 1;
+    if (rateObj.nextDay && rateObj.nextDay.published && rateObj.nextDay.value) {
+      return rateObj.nextDay.value;
+    }
+    return rateObj.value || 1;
+  }
+
   getCurrencySymbol(code) {
     const symbols = {
       USD: '$', VES: 'Bs.', COP: '$', ARS: '$', MXN: '$', CLP: '$',
@@ -75,7 +87,7 @@ export class CalculatorView {
     }
 
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
-    const activeRate = activeRateObj ? activeRateObj.value : 1;
+    const activeRate = this.getEffectiveRate(activeRateObj);
     const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
     const ratePair = [baseCode, targetCode];
 
@@ -187,6 +199,7 @@ export class CalculatorView {
     `;
 
     this.attachEvents();
+    this.subscribeToUpdates();
     this.calculate();
     if (window.lucide) window.lucide.createIcons();
   }
@@ -442,7 +455,7 @@ export class CalculatorView {
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
     if (!activeRateObj) return;
 
-    const activeRate = activeRateObj.value || 1;
+    const activeRate = this.getEffectiveRate(activeRateObj);
     const [baseCode, targetCode] = activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
 
     let numericAmount = 0;
@@ -484,5 +497,19 @@ export class CalculatorView {
     }
   }
 
-  destroy() {}
+  subscribeToUpdates() {
+    if (this.unsubscribe) this.unsubscribe();
+    this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
+      if (action === 'rates_refreshed' || action === 'country_change') {
+        this.render();
+      }
+    });
+  }
+
+  destroy() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+  }
 }
