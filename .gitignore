@@ -10,6 +10,7 @@ Thumbs.db
 
 # Capacitor / Native build artifacts
 android/
+!android/app/build.gradle
 ios/
 www/
 dist/
