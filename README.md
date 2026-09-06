@@ -6,12 +6,13 @@ Dolarfy es una aplicacion movil y web para consultar cotizaciones del dolar en t
 
 ## Descargas y Releases
 
-La ultima version disponible de la aplicacion en formato APK para Android se encuentra lista para instalacion directa.
+La ultima version disponible de la aplicacion en formato APK para Android se encuentra lista para instalacion directa en la seccion de Releases oficiales de GitHub.
 
 ### Ultima Version
 
 * **Version**: v1.0.3 (Latest)
-* **Archivo**: [dolarfy-v1.0.3.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.3.apk)
+* **Descarga Directa**: [dolarfy-v1.0.3.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.3/dolarfy-v1.0.3.apk)
+* **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
@@ -20,12 +21,12 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 ### v1.0.3 (Latest)
 
 #### Novedades
-* Implementado selector de fecha en la calculadora (Hoy vs Prediccion de siguiente dia habil).
+* Selector de fecha en la calculadora (Hoy vs Prediccion de siguiente dia habil).
 * Sincronizacion limpia de assets nativos compilados con Capacitor.
 * Limpieza automatica de cache al actualizar o instalar la app.
 
 #### Assets
-* [dolarfy-v1.0.3.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.3.apk)
+* [dolarfy-v1.0.3.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.3/dolarfy-v1.0.3.apk)
 
 ---
 
@@ -36,7 +37,7 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 * Reactividad ante eventos de actualizacion en mockEngine.
 
 #### Assets
-* [dolarfy-v1.0.2.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.2.apk)
+* [dolarfy-v1.0.2.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.2/dolarfy-v1.0.2.apk)
 
 ---
 
@@ -48,7 +49,7 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 * Mejora en el soporte de proxies CORS para peticiones bancarias.
 
 #### Assets
-* [dolarfy-v1.0.1.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.1.apk)
+* [dolarfy-v1.0.1.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.1/dolarfy-v1.0.1.apk)
 
 ---
 
@@ -58,13 +59,13 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 * Primera version de Dolarfy compilada para Android mediante Capacitor.
 
 #### Assets
-* [dolarfy-v1.0.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.apk)
+* [dolarfy-v1.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.0/dolarfy-v1.0.apk)
 
 ---
 
 ## Instrucciones de Instalacion
 
-1. Descarga el archivo `.apk` correspondiente a la version deseada.
+1. Descarga el archivo `.apk` correspondiente a la version deseada desde la seccion Releases.
 2. Abre el archivo descargado en tu dispositivo Android.
 3. Si el sistema lo requiere, habilita la opcion "Instalar aplicaciones de fuentes desconocidas".
 4. Presiona "Instalar" para completar el proceso.
