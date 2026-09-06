@@ -1,81 +1,114 @@
-# Dolarfy 📱💵
+# Dolarfy
 
-**Dolarfy** es una aplicación móvil y web moderna diseñada para consultar cotizaciones del dólar en tiempo real en Venezuela, convertir divisas y calcular operaciones financieras de forma rápida, sencilla y precisa.
-
----
-
-## 📲 Descargar la App (Android)
-
-¡Ya puedes instalar Dolarfy en tu dispositivo Android! Descarga la última versión o consulta el historial completo de versiones:
-
-🔥 **[Descargar Última Versión: Dolarfy APK v1.0.3 (Descarga Directa)](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.3.apk)**
+Dolarfy es una aplicacion movil y web para consultar cotizaciones del dolar en tiempo real en Venezuela, convertir divisas y calcular operaciones financieras.
 
 ---
 
-## 📦 Historial de Versiones y Descargas APK
+## Descargas y Releases
 
-| Versión | Estado | Novedades y Cambios Principales | Enlace de Descarga Directa |
-| :--- | :---: | :--- | :---: |
-| **v1.0.3** | 🟢 **Última** | Selector de tasa en calculadora (**Hoy** vs **Predicción de siguiente día hábil**), sincronización limpia de assets nativos y depuración de caché. | [📥 Descargar v1.0.3](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.3.apk) |
-| **v1.0.2** | ⚪ Estable | Corrección de tasa activa y pill Paralelo en Calculadora, reactividad a eventos en `mockEngine`. | [📥 Descargar v1.0.2](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.2.apk) |
-| **v1.0.1** | ⚪ Estable | Depuración agresiva de caché local, tasa inicial BCV ajustada y mejor soporte de proxies CORS. | [📥 Descargar v1.0.1](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.1.apk) |
-| **v1.0.0** | ⚪ Lanzamiento | Versión inicial de la aplicación empaquetada con Capacitor para Android. | [📥 Descargar v1.0.0](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.apk) |
+La ultima version disponible de la aplicacion en formato APK para Android se encuentra lista para instalacion directa.
 
----
+### Ultima Version
 
-### 📋 Pasos para instalar el APK en tu celular Android:
-1. Haz clic en el enlace de la versión deseada para descargar el archivo `.apk` en tu celular.
-2. Abre el archivo `.apk` descargado desde el panel de notificaciones o tu carpeta de *Descargas*.
-3. Si Android te lo solicita, activa la casilla de **"Permitir instalar aplicaciones de fuentes desconocidas"** en la configuración de tu teléfono.
-4. Presiona **Instalar** y abre la app. ¡Disfruta de Dolarfy!
+* **Version**: v1.0.3 (Latest)
+* **Archivo**: [dolarfy-v1.0.3.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.3.apk)
 
 ---
 
-## ✨ Características Principales
+## Historial de Versiones (Changelog)
 
-- **📊 Cotizaciones en Tiempo Real**: BCV Oficial, Dólar Paralelo, Euros y más.
-- **📅 Tasa de Predicción del Próximo Día Hábil**: Consulta y calcula con la tasa oficial publicada por el BCV para el siguiente día laboral.
-- **🧮 Calculadora y Conversor de Divisas**: Realiza conversiones entre distintas monedas locales e internacionales con selector dinámico de fecha/tasa.
-- **📜 Historial de Operaciones**: Guarda y consulta tus operaciones recientes.
-- **📈 Análisis y Tendencias**: Visualiza variaciones históricas de precios.
-- **🌙 Modo Oscuro y Claro**: Interfaz visual adaptada para cualquier momento del día.
+### v1.0.3 (Latest)
 
----
+#### Novedades
+* Implementado selector de fecha en la calculadora (Hoy vs Prediccion de siguiente dia habil).
+* Sincronizacion limpia de assets nativos compilados con Capacitor.
+* Limpieza automatica de cache al actualizar o instalar la app.
 
-## 🛠️ Tecnologías Utilizadas
-
-- **HTML5 & Vanilla CSS**: Diseño responsivo y moderno.
-- **JavaScript (ES6+)**: Lógica dinámica y arquitectura de componentes.
-- **Capacitor**: Adaptador nativo para empaquetado en Android.
+#### Assets
+* [dolarfy-v1.0.3.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.3.apk)
 
 ---
 
-## 💻 Desarrollo Local
+### v1.0.2
 
-Si deseas probar la aplicación web localmente en tu equipo:
+#### Correcciones
+* Corregida la seleccion de tasa activa y pill Paralelo en la Calculadora.
+* Reactividad ante eventos de actualizacion en mockEngine.
 
-1. Clona este repositorio:
+#### Assets
+* [dolarfy-v1.0.2.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.2.apk)
+
+---
+
+### v1.0.1
+
+#### Mejoras
+* Depuracion agresiva de cache local en almacenamiento.
+* Ajuste de tasa inicial por defecto BCV a 813.74.
+* Mejora en el soporte de proxies CORS para peticiones bancarias.
+
+#### Assets
+* [dolarfy-v1.0.1.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.1.apk)
+
+---
+
+### v1.0.0
+
+#### Lanzamiento Inicial
+* Primera version de Dolarfy compilada para Android mediante Capacitor.
+
+#### Assets
+* [dolarfy-v1.0.apk](https://raw.githubusercontent.com/adrianjesus1209-beep/dolarfy-app/main/releases/dolarfy-v1.0.apk)
+
+---
+
+## Instrucciones de Instalacion
+
+1. Descarga el archivo `.apk` correspondiente a la version deseada.
+2. Abre el archivo descargado en tu dispositivo Android.
+3. Si el sistema lo requiere, habilita la opcion "Instalar aplicaciones de fuentes desconocidas".
+4. Presiona "Instalar" para completar el proceso.
+
+---
+
+## Caracteristicas Principales
+
+* **Cotizaciones en Tiempo Real**: BCV Oficial, Dolar Paralelo, Euros y otras divisas.
+* **Tasa de Prediccion**: Consulta y realiza calculos con la tasa oficial publicada para el proximo dia habil.
+* **Calculadora y Conversor**: Conversiones entre distintas monedas locales e internacionales.
+* **Historial de Operaciones**: Guardado y consulta de calculos recientes.
+* **Analisis y Tendencias**: Graficos e historico de variaciones.
+* **Modo Oscuro y Claro**: Interfaz adaptable.
+
+---
+
+## Tecnologias Utilizadas
+
+* HTML5 & Vanilla CSS
+* JavaScript (ES6+)
+* Capacitor (Android)
+
+---
+
+## Desarrollo Local
+
+1. Clonar el repositorio:
    ```bash
    git clone https://github.com/adrianjesus1209-beep/dolarfy-app.git
    ```
-2. Abre el archivo `index.html` en tu navegador web de preferencia o utilízalo a través de un servidor local (XAMPP, Live Server, etc.).
+2. Abrir `index.html` en el navegador o mediante un servidor local.
 
-### Sincronización con Capacitor (Android)
-Si realizas cambios en el código web y deseas sincronizarlo y compilarlo para Android:
+### Sincronizacion con Capacitor (Android)
+
 ```powershell
-# 1. Copiar archivos web a www
 Copy-Item -Path index.html, manifest.json, package.json, js, assets -Destination www -Recurse -Force
-
-# 2. Sincronizar Capacitor
 npx cap sync android
-
-# 3. Compilar APK
 cd android
 .\gradlew.bat assembleDebug
 ```
 
 ---
 
-## 📄 Licencia
+## Licencia
 
-Este proyecto está creado y mantenido por Adrian Bello.
+Proyecto creado por Adrian Bello.
