@@ -34,18 +34,44 @@ export class DashboardView {
     return str.replace(/Fecha\s+Valor\s*:?\s*/gi, '').trim();
   }
 
+  formatSourceTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
+  }
+
+  getSourceLabel(rates) {
+    const meta = (rates && rates._meta) || {};
+    const src = meta.source || 'live';
+    const time = this.formatSourceTime(meta.fetchedAt || meta.cachedAt);
+
+    switch (src) {
+      case 'stale':
+        return `<span class="text-[10px] text-amber-400 font-semibold" title="Dato almacenado">Última: ${time}</span>`;
+      case 'cache':
+        return `<span class="text-[10px] text-gray-400 font-medium" title="Dato almacenado">Caché ${time}</span>`;
+      case 'offline':
+        return `<span class="text-[10px] text-red-400 font-semibold" title="Sin conexión activa">Sin conexión${time ? ` · ${time}` : ''}</span>`;
+      default:
+        return `<span class="text-[10px] text-emerald-400 font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block mr-1"></span>En Vivo</span>`;
+    }
+  }
+
   render() {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
     const rateKeys = Object.keys(rates);
     const rawNextDayLabel = this.getNextDayLabel(rates);
     const nextDayLabel = this.cleanText(rawNextDayLabel);
-    
-    const isManana = this.selectedDay === 'manana';
+
+    // Solo mostrar la vista "día siguiente" si existe una publicación real del BCV
+    const hasNextDayRate = Object.values(rates).some(
+      r => r && r.nextDay && r.nextDay.value && r.nextDay.published
+    );
+    const isManana = this.selectedDay === 'manana' && hasNextDayRate;
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
 
-    const isOfficialNext = isManana && mainRate.nextDay && mainRate.nextDay.isOfficial;
     const mainVal = (isManana && mainRate.nextDay && mainRate.nextDay.value) ? mainRate.nextDay.value : mainRate.value;
     const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.value) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
@@ -117,9 +143,11 @@ export class DashboardView {
               <button type="button" data-day="hoy" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
+              ${hasNextDayRate ? `
               <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 <span>${nextDayLabel}</span>
               </button>
+              ` : ''}
             </div>
           </div>
 
@@ -148,12 +176,12 @@ export class DashboardView {
     // Modo 'hoy' por defecto
     return `
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
-        ${rateKeys.map(key => this.renderRateCard(rates[key])).join('')}
+        ${rateKeys.map(key => this.renderRateCard(rates[key], rates)).join('')}
       </div>
     `;
   }
 
-  renderRateCard(rate) {
+  renderRateCard(rate, rates) {
     if (!rate) return '';
     const isPositive = rate.change >= 0;
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
@@ -188,7 +216,7 @@ export class DashboardView {
               ${valueDisplay}
             </p>
           </div>
-          <span class="text-[10px] text-gray-500 font-medium">Ref. En Vivo</span>
+          <span class="text-[10px] text-gray-500 font-medium">${this.getSourceLabel(rates)}</span>
         </div>
       </div>
     `;
@@ -196,14 +224,9 @@ export class DashboardView {
 
   renderNextDayRateCard(rate, nextDayLabel = 'Mañana') {
     if (!rate) return '';
-    const nextDay = (rate.nextDay && rate.nextDay.value) ? rate.nextDay : {
-      published: true,
-      isOfficial: rate.id !== 'usdt',
-      value: rate.value ? parseFloat((rate.value * 1.002).toFixed(2)) : null,
-      change: 0.20,
-      date: rate.id === 'usdt' ? 'Mercado Binance P2P' : 'Fecha Valor Oficial BCV',
-      scheduleText: 'Cotización emitida por el Banco Central de Venezuela'
-    };
+    // Solo renderizar si existe una publicación real (bcv.org.ve / fallback oficial)
+    const nextDay = (rate.nextDay && rate.nextDay.value) ? rate.nextDay : null;
+    if (!nextDay) return '';
 
     const val = nextDay.value || rate.value;
     const isPositive = nextDay.change >= 0;
@@ -268,7 +291,7 @@ export class DashboardView {
     if (this.unsubscribe) this.unsubscribe();
 
     this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
-      if (action === 'rates_refreshed' || action === 'country_change') {
+      if (action === 'rates_refreshed') {
         this.render();
         return;
       }

@@ -2,7 +2,6 @@ import { DashboardView } from './components/dashboard.js';
 import { CalculatorView } from './components/calculator.js';
 import { AnalyticsView } from './components/analytics.js';
 import { SettingsView } from './components/settings.js';
-import { CountryModal } from './components/countryModal.js';
 import { NotificationModal } from './components/notificationModal.js';
 import { notificationService } from './notificationService.js';
 import { mockEngine } from './mockData.js';
@@ -12,7 +11,6 @@ class App {
   constructor() {
     this.currentView = null;
     this.activeTab = 'dashboard'; // 'dashboard', 'calculator', 'analytics', 'settings'
-    this.countryModal = new CountryModal(() => this.onCountryChanged());
     this.notificationModal = new NotificationModal();
     this.init();
   }
@@ -20,19 +18,17 @@ class App {
   init() {
     themeService.init();
     this.bindNavigation();
-    this.bindCountrySelector();
     this.bindNotificationBell();
-    this.updateHeaderCountryUI();
     this.updateHeaderBellUI();
     this.navigateTo(this.activeTab);
 
+    // Programar recordatorio diario de la tasa BCV (17:00 VET) si las alertas están activas
+    notificationService.scheduleDailyReminder();
+
     // Suscribir a cambios globales en mockEngine
     mockEngine.subscribe((rates, updatedRateId, action) => {
-      const currentCountry = mockEngine.getCurrentCountry();
-
-      if (action === 'rates_refreshed' || action === 'country_change') {
-        notificationService.checkDailyUpdate(currentCountry, rates);
-        this.updateHeaderCountryUI();
+      if (action === 'rates_refreshed') {
+        notificationService.checkDailyUpdate(mockEngine.getCurrentCountry(), rates);
         this.navigateTo(this.activeTab, true); // re-render view con tasas reales
       }
     });
@@ -50,17 +46,6 @@ class App {
     });
   }
 
-  bindCountrySelector() {
-    document.addEventListener('click', (e) => {
-      const trigger = e.target.closest('#header-country-btn, .country-selector-trigger, #dash-country-badge');
-      if (trigger) {
-        e.preventDefault();
-        e.stopPropagation();
-        this.countryModal.open();
-      }
-    });
-  }
-
   bindNotificationBell() {
     document.addEventListener('click', (e) => {
       const bellBtn = e.target.closest('#header-bell-btn');
@@ -72,29 +57,12 @@ class App {
     });
   }
 
-  updateHeaderCountryUI() {
-    const current = mockEngine.getCurrentCountry();
-    const flagImgEl = document.getElementById('header-country-flag-img');
-    const codeEl = document.getElementById('header-country-code');
-
-    if (flagImgEl && current.flagUrl) {
-      flagImgEl.src = current.flagUrl;
-      flagImgEl.alt = current.name;
-    }
-    if (codeEl) codeEl.textContent = current.id;
-  }
-
   updateHeaderBellUI() {
     const isEnabled = notificationService.isEnabled();
     const dotEl = document.getElementById('header-bell-dot');
     if (dotEl) {
       dotEl.style.display = isEnabled ? 'block' : 'none';
     }
-  }
-
-  onCountryChanged() {
-    this.updateHeaderCountryUI();
-    this.navigateTo(this.activeTab, true);
   }
 
   bindNavigation() {
@@ -163,6 +131,11 @@ class App {
 
 // Inicializar la aplicación de forma segura si el DOM ya está listo
 const startApp = () => {
+  // Registrar Service Worker (solo en contextos seguros / Capacitor)
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
   if (!window.dolarfyApp) {
     window.dolarfyApp = new App();
   }

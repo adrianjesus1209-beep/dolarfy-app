@@ -10,15 +10,28 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 
 ### Ultima Version
 
-* **Version**: v1.0.3 (Latest)
-* **Descarga Directa**: [dolarfy-v1.0.3.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.3/dolarfy-v1.0.3.apk)
+* **Version**: v1.1.0 (Latest)
+* **Descarga Directa**: [dolarfy-v1.1.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.1.0/dolarfy-v1.1.0.apk)
 * **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
 ## Historial de Versiones (Changelog)
 
-### v1.0.3 (Latest)
+### v1.1.0 (Latest)
+
+#### Novedades
+* Notificaciones locales reales de la tasa BCV (recordatorio diario 5:05 p.m. y alerta al publicar la tasa).
+* Offline y funcionamiento sin conexion: assets locales (Tailwind, Lucide, ApexCharts, fuentes) y Service Worker.
+* Fuentes de tasas corregidas: BCV directo, DolarApi oficial/paralelo, Euro BCV y USDT P2P, con etiquetas de origen (en vivo / cache / sin conexion).
+* Cache de tasas regenerado (v11) y limpieza automatica de cache obsoleta.
+
+#### Assets
+* [dolarfy-v1.1.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.1.0/dolarfy-v1.1.0.apk)
+
+---
+
+### v1.0.3
 
 #### Novedades
 * Selector de fecha en la calculadora (Hoy vs Prediccion de siguiente dia habil).
@@ -102,7 +115,7 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 ### Sincronizacion con Capacitor (Android)
 
 ```powershell
-Copy-Item -Path index.html, manifest.json, package.json, js, assets -Destination www -Recurse -Force
+Copy-Item -Path index.html, manifest.json, sw.js, package.json, js, assets -Destination www -Recurse -Force
 npx cap sync android
 cd android
 .\gradlew.bat assembleDebug

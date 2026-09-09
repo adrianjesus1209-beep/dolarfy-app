@@ -8,8 +8,10 @@
 
   <link rel="manifest" href="manifest.json">
 
-  <!-- Tailwind CSS via CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind CSS (local, fallback CDN) -->
+  <link rel="preload" href="assets/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
+  <script src="assets/vendor/tailwind.js" onerror="this.onerror=null;this.src='https://cdn.tailwindcss.com/3.4.10';"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -27,10 +29,10 @@
     }
   </script>
 
-  <!-- Lucide Icons CDN -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- ApexCharts CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <!-- Lucide Icons (local, fallback CDN) -->
+  <script src="assets/vendor/lucide.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/lucide@latest';"></script>
+  <!-- ApexCharts (local, fallback CDN) -->
+  <script src="assets/vendor/apexcharts.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/apexcharts';"></script>
 
   <!-- Custom CSS -->
   <link rel="stylesheet" href="assets/css/styles.css">
@@ -48,12 +50,11 @@
     </div>
 
     <div class="flex items-center space-x-2">
-      <!-- Selector de País Principal -->
-      <button id="header-country-btn" type="button" aria-label="Seleccionar País" class="country-selector-trigger flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 transition-all active:scale-95 text-xs font-bold cursor-pointer">
-        <img id="header-country-flag-img" src="https://flagcdn.com/w40/ve.png" alt="Bandera" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">
-        <span id="header-country-code" class="text-xs font-extrabold text-cyan-300 uppercase">VE</span>
-        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-cyan-400"></i>
-      </button>
+      <!-- Badge de País (fijo: Venezuela) -->
+      <span aria-label="Venezuela" class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold">
+        <img src="https://flagcdn.com/w40/ve.png" alt="Bandera Venezuela" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">
+        <span class="text-xs font-extrabold text-cyan-300 uppercase">VE</span>
+      </span>
 
       <button id="header-bell-btn" type="button" aria-label="Notificaciones" class="relative p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-all active:scale-95 cursor-pointer">
         <i data-lucide="bell" class="w-4 h-4 text-cyan-400"></i>

@@ -1,6 +1,8 @@
 /**
  * Catálogo de Países y Tasas Financieras por País
  * Solo fuentes oficiales venezolanas: BCV (USD y EUR)
+ * Los valores aquí son un snapshot de referencia; se sobreescriben en runtime
+ * con las cotizaciones reales de ve.dolarapi.com y bcv.org.ve.
  */
 
 export const COUNTRIES_DATA = [
@@ -9,7 +11,6 @@ export const COUNTRIES_DATA = [
     name: 'Venezuela',
     flag: '🇻🇪',
     flagUrl: 'https://flagcdn.com/w40/ve.png',
-    region: 'latam',
     officialSchedule: '5:00 PM VET (Cierre BCV Oficial)',
     currency: { code: 'VES', symbol: 'Bs', name: 'Bolívar Digital' },
     defaultRateId: 'bcv',
@@ -18,26 +19,18 @@ export const COUNTRIES_DATA = [
         id: 'bcv',
         name: 'Dólar Oficial (BCV)',
         code: 'USD/VES',
-        value: 807.39,
-        change: 0.15,
+        value: 814.69,
+        change: 0.90,
         currency: 'VES',
         type: 'official',
-        icon: 'building-2',
-        nextDay: {
-          published: true,
-          isOfficial: true,
-          value: 813.74,
-          change: 0.79,
-          date: 'Lunes, 07 Septiembre 2026',
-          scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
-        }
+        icon: 'building-2'
       },
       paralelo: {
         id: 'paralelo',
         name: 'Dólar Paralelo',
         code: 'USD/VES',
-        value: 948.04,
-        change: 0.75,
+        value: 951.80,
+        change: 0.40,
         currency: 'VES',
         type: 'parallel',
         icon: 'trending-up'
@@ -46,37 +39,21 @@ export const COUNTRIES_DATA = [
         id: 'euro',
         name: 'Euro Oficial (BCV)',
         code: 'EUR/VES',
-        value: 945.65,
-        change: 0.08,
+        value: 946.67,
+        change: 0.11,
         currency: 'VES',
         type: 'official',
-        icon: 'euro',
-        nextDay: {
-          published: true,
-          isOfficial: true,
-          value: 945.65,
-          change: 0.80,
-          date: 'Lunes, 07 Septiembre 2026',
-          scheduleText: 'Publicada oficialmente por el Banco Central de Venezuela'
-        }
+        icon: 'euro'
       },
       usdt: {
         id: 'usdt',
         name: 'Binance USDT (P2P)',
         code: 'USDT/VES',
-        value: 940.16,
-        change: 0.22,
+        value: 951.80,
+        change: 0.40,
         currency: 'VES',
         type: 'crypto',
-        icon: 'coins',
-        nextDay: {
-          published: true,
-          isOfficial: false,
-          value: 940.16,
-          change: 0.22,
-          date: 'Mercado Binance P2P',
-          scheduleText: 'Cotización P2P en vivo'
-        }
+        icon: 'coins'
       }
     }
   }

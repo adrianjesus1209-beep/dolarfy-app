@@ -1,6 +1,7 @@
 import { mockEngine } from '../mockData.js';
 import { formatCurrency } from '../utils/formatters.js';
 import { calcHistoryService } from '../calcHistoryService.js';
+import { evaluateMath } from '../utils/mathEval.js';
 
 export class CalculatorView {
   constructor(containerId) {
@@ -51,35 +52,12 @@ export class CalculatorView {
 
   getPillLabel(rateKey, rateObj) {
     if (!rateObj) return rateKey || '';
-    const nameLower = rateObj.name.toLowerCase();
-    if (rateKey === 'usdc' || rateObj.id === 'usdc' || nameLower.includes('usdc')) {
-      return 'USDC';
-    }
-    if (rateKey === 'usdt' || rateObj.id === 'usdt' || nameLower.includes('binance') || nameLower.includes('usdt')) {
-      return 'USDT';
-    }
     if (rateKey === 'bcv') return 'BCV';
-    if (rateKey === 'paralelo' || rateObj.id === 'paralelo' || nameLower.includes('paralelo')) {
-      return 'Paralelo';
-    }
-    if (rateKey === 'blue') return 'Blue';
-    if (rateKey === 'oficial') return 'Oficial';
-    if (rateKey === 'trm') return 'TRM';
-    if (rateKey === 'callejero') return 'Callejero';
-    if (rateKey === 'banxico') return 'Banxico';
-    if (rateKey === 'ventanilla') return 'Ventanilla';
-    if (rateKey === 'observado') return 'Observado';
-    if (rateKey === 'informal') return 'Informal';
-    if (rateKey === 'sunat') return 'SUNAT';
-    if (rateKey === 'ocona') return 'Ocoña';
-    if (rateKey === 'comercial') return 'Comercial';
-    if (rateKey === 'turismo') return 'Turismo';
-    if (rateKey === 'bancentral') return 'BCRD';
-    if (rateKey === 'mercado') return 'Mercado';
-    if (rateKey === 'mep') return 'MEP';
+    if (rateKey === 'paralelo' || rateObj.id === 'paralelo') return 'Paralelo';
+    if (rateKey === 'usdc' || rateObj.id === 'usdc') return 'USDC';
+    if (rateKey === 'usdt' || rateObj.id === 'usdt') return 'USDT';
     if (rateKey === 'euro') return 'Euro';
     if (rateKey === 'eurusd') return 'EUR';
-    if (rateKey === 'gbpusd' || rateKey === 'gbpeur') return 'GBP';
     if (rateKey === 'usdeur') return 'USD';
     if (rateKey === 'base') return rateObj.currency === 'USD' ? 'Dólar' : 'Euro';
 
@@ -106,6 +84,27 @@ export class CalculatorView {
       PEN: 'S/', BRL: 'R$', DOP: 'RD$', EUR: '€', USDT: '₮', USDC: '₮', GBP: '£'
     };
     return symbols[code] || '$';
+  }
+
+  getSourceLabel(rates) {
+    const meta = (rates && rates._meta) || {};
+    const src = meta.source || 'live';
+    const ts = meta.fetchedAt || meta.cachedAt;
+    let time = '';
+    if (ts) {
+      time = new Date(ts).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+
+    switch (src) {
+      case 'stale':
+        return `<span class="text-[9px] text-amber-400 font-bold">Última: ${time}</span>`;
+      case 'cache':
+        return `<span class="text-[9px] text-gray-400 font-bold">Caché ${time}</span>`;
+      case 'offline':
+        return `<span class="text-[9px] text-red-400 font-bold">Sin conexión</span>`;
+      default:
+        return `<span class="text-[9px] text-emerald-400 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>En Vivo</span>`;
+    }
   }
 
   render() {
@@ -163,7 +162,7 @@ export class CalculatorView {
           <!-- Selector Hoy / Predicción (solo si hay nextDay publicado) -->
           ${showDayToggle ? `
           <div class="flex items-center justify-between">
-            <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Calcular con tasa de:</span>
+            <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-1.5">Calcular con tasa de: ${this.getSourceLabel(rates)}</span>
             <div class="bg-[#131924] border border-white/10 p-0.5 rounded-xl flex items-center space-x-0.5 shadow-inner" id="calc-day-toggle">
               <button type="button" data-calcday="hoy" class="calc-day-btn px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
@@ -395,9 +394,7 @@ export class CalculatorView {
 
   evaluateExpression() {
     try {
-      const mathExpr = this.expression.replace(/,/g, '.');
-      const fn = new Function(`return ${mathExpr}`);
-      const evalResult = fn();
+      const evalResult = evaluateMath(this.expression);
       if (!isNaN(evalResult) && isFinite(evalResult)) {
         this.expression = evalResult.toString().replace(/\./g, ',');
       }
@@ -528,9 +525,7 @@ export class CalculatorView {
 
     let numericAmount = 0;
     try {
-      const mathExpr = this.expression.replace(/,/g, '.');
-      const fn = new Function(`return ${mathExpr}`);
-      const res = fn();
+      const res = evaluateMath(this.expression);
       if (!isNaN(res) && isFinite(res)) {
         numericAmount = res;
       }
@@ -568,7 +563,7 @@ export class CalculatorView {
   subscribeToUpdates() {
     if (this.unsubscribe) this.unsubscribe();
     this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
-      if (action === 'rates_refreshed' || action === 'country_change') {
+      if (action === 'rates_refreshed') {
         this.render();
       }
     });

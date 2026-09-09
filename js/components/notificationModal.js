@@ -129,8 +129,8 @@ export class NotificationModal {
     closeBtn?.addEventListener('click', () => this.close());
 
     const toggleSwitch = document.getElementById('toggle-notif-switch');
-    toggleSwitch?.addEventListener('click', () => {
-      notificationService.toggleNotifications();
+    toggleSwitch?.addEventListener('click', async () => {
+      await notificationService.toggleNotifications();
       this.render();
       if (window.lucide) window.lucide.createIcons();
 

@@ -1,4 +1,3 @@
-import { mockEngine } from '../mockData.js';
 import { notificationService } from '../notificationService.js';
 import { calcHistoryService } from '../calcHistoryService.js';
 import { themeService } from '../themeService.js';
@@ -9,8 +8,6 @@ export class SettingsView {
   }
 
   render() {
-    const countries = mockEngine.getCountries();
-    const defaultCountryId = mockEngine.getDefaultCountryId();
     const isNotifEnabled = notificationService.isEnabled();
     const currentTheme = themeService.getTheme();
 
@@ -104,7 +101,7 @@ export class SettingsView {
           <div class="glass-card rounded-2xl p-4 space-y-3 border border-white/10">
             <div class="flex items-center justify-between border-b border-white/5 pb-2.5">
               <span class="text-xs font-semibold text-gray-300">Versión</span>
-              <span class="text-xs font-extrabold text-cyan-400">1.0.3</span>
+              <span class="text-xs font-extrabold text-cyan-400">1.1.0</span>
             </div>
 
             <div class="flex items-center justify-between border-b border-white/5 pb-2.5">
@@ -129,7 +126,6 @@ export class SettingsView {
   }
 
   attachEvents() {
-    const countrySelect = document.getElementById('settings-default-country-select');
     const notifToggle = document.getElementById('settings-notif-toggle');
     const clearHistoryBtn = document.getElementById('settings-clear-history-btn');
     const themeSelector = document.getElementById('settings-theme-selector');
@@ -145,12 +141,8 @@ export class SettingsView {
       }
     });
 
-    countrySelect?.addEventListener('change', (e) => {
-      mockEngine.setDefaultCountry(e.target.value);
-    });
-
-    notifToggle?.addEventListener('click', () => {
-      notificationService.toggleNotifications();
+    notifToggle?.addEventListener('click', async () => {
+      await notificationService.toggleNotifications();
       this.render();
       document.dispatchEvent(new CustomEvent('dolarfy:notification_toggled'));
     });

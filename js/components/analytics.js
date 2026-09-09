@@ -146,27 +146,20 @@ export class AnalyticsView {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = currentCountry.rates;
     const rateKeys = Object.keys(rates);
-    const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
-    const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : mainRate;
 
-    // Cálculo de Brecha Cambiaria (BCV USD vs BCV EUR en términos de USD)
+    // Brecha cambiaria real del mercado venezolano: Dólar Paralelo vs BCV Oficial
+    const bcvRate = rates.bcv;
+    const paraleloRate = rates.paralelo;
     let gapPercent = 0;
-    if (mainRate.value && secondRate.value && mainRate.value !== secondRate.value) {
-      const diff = Math.abs(secondRate.value - mainRate.value);
-      const minVal = Math.min(mainRate.value, secondRate.value);
-      gapPercent = ((diff / minVal) * 100).toFixed(2);
+    if (
+      bcvRate && paraleloRate &&
+      typeof bcvRate.value === 'number' && typeof paraleloRate.value === 'number' &&
+      bcvRate.value > 0 && paraleloRate.value > 0
+    ) {
+      gapPercent = ((paraleloRate.value / bcvRate.value) - 1) * 100;
     }
 
-    const filteredKeys = (this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]) 
-      ? [this.selectedRateFilter] 
-      : rateKeys;
-    const targetValues = filteredKeys.map(k => rates[k].value).filter(v => typeof v === 'number' && !isNaN(v));
-    const minVal = targetValues.length > 0 ? Math.min(...targetValues) * 0.98 : 1;
-    const maxVal = targetValues.length > 0 ? Math.max(...targetValues) * 1.02 : 1;
     const periodDetails = this.getPeriodDetails(this.selectedPeriod);
-
-    const mainLabel = this.getPillLabel(mainRate.id, mainRate);
-    const secondLabel = this.getPillLabel(secondRate.id, secondRate);
 
     this.container.innerHTML = `
       <div class="space-y-4 pb-24 animate-fade-in max-w-md mx-auto">
@@ -186,24 +179,24 @@ export class AnalyticsView {
 
         <!-- Tarjetas de Métricas Principales (Brecha, Mín, Máx) -->
         <div class="grid grid-cols-3 gap-2">
-          <!-- Brecha BCV USD vs EUR -->
+          <!-- Brecha BCV vs Paralelo -->
           <button data-stat="brecha" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'brecha' ? 'border-cyan-500/60 glow-cyan bg-cyan-500/15' : 'border-white/10 hover:border-cyan-500/30'}">
-            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Diferencial</span>
-            <p class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent}%` : '0.0%'}</p>
-            <span class="text-[9px] text-gray-400 font-semibold block truncate">${mainLabel} vs ${secondLabel}</span>
+            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha BCV → Paralelo</span>
+            <p class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent.toFixed(2)}%` : '0.00%'}</p>
+            <span class="text-[9px] text-gray-400 font-semibold block truncate">Mercado paralelo vs oficial</span>
           </button>
 
-          <!-- Mínimo del Período -->
+          <!-- Mínimo del Período (histórico real) -->
           <button data-stat="min" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'min' ? 'border-emerald-500/60 glow-green bg-emerald-500/15' : 'border-white/10 hover:border-emerald-500/30'}">
             <span id="min-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Mínimo (${periodDetails.short})</span>
-            <p class="text-sm font-black text-emerald-400 mt-1">${targetValues.length > 0 ? formatCurrency(minVal, currentCountry.currency.code, 2) : '— — —'}</p>
+            <p id="stat-min-value" class="text-sm font-black text-emerald-400 mt-1">— — —</p>
             <span class="text-[9px] text-gray-500 font-medium block">Piso oficial</span>
           </button>
 
-          <!-- Máximo del Período -->
+          <!-- Máximo del Período (histórico real) -->
           <button data-stat="max" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'max' ? 'border-amber-500/60 bg-amber-500/15 shadow-lg shadow-amber-500/20' : 'border-white/10 hover:border-amber-500/30'}">
             <span id="max-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Máximo (${periodDetails.short})</span>
-            <p class="text-sm font-black text-amber-400 mt-1">${targetValues.length > 0 ? formatCurrency(maxVal, currentCountry.currency.code, 2) : '— — —'}</p>
+            <p id="stat-max-value" class="text-sm font-black text-amber-400 mt-1">— — —</p>
             <span class="text-[9px] text-gray-500 font-medium block">Techo oficial</span>
           </button>
         </div>
@@ -331,6 +324,11 @@ export class AnalyticsView {
     let categories = [];
     let hasRealData = false;
 
+    // Rango real del período a partir de la serie histórica
+    let realMin = Infinity;
+    let realMax = -Infinity;
+    let hasRangeData = false;
+
     // Intentar cargar datos históricos reales para cada tasa activa
     for (let index = 0; index < activeKeys.length; index++) {
       const key = activeKeys[index];
@@ -342,6 +340,13 @@ export class AnalyticsView {
       if (historicalRaw && historicalRaw.length > 0) {
         chartData = this.processHistoricalForChart(historicalRaw, this.selectedPeriod);
         hasRealData = true;
+        for (const point of historicalRaw) {
+          if (typeof point.value === 'number' && !isNaN(point.value)) {
+            if (point.value < realMin) realMin = point.value;
+            if (point.value > realMax) realMax = point.value;
+            hasRangeData = true;
+          }
+        }
       }
 
       if (chartData) {
@@ -378,6 +383,19 @@ export class AnalyticsView {
       `;
       if (window.lucide) window.lucide.createIcons();
       return;
+    }
+
+    // Actualizar tarjetas de Mínimo/Máximo con el rango real del período
+    const minStatEl = document.getElementById('stat-min-value');
+    const maxStatEl = document.getElementById('stat-max-value');
+    if (minStatEl && maxStatEl) {
+      if (hasRangeData && realMin !== Infinity && realMax !== -Infinity) {
+        minStatEl.textContent = formatCurrency(realMin, currentCountry.currency.code, 2);
+        maxStatEl.textContent = formatCurrency(realMax, currentCountry.currency.code, 2);
+      } else {
+        minStatEl.textContent = '— — —';
+        maxStatEl.textContent = '— — —';
+      }
     }
 
     const options = {

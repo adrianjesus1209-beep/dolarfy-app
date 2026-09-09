@@ -4,13 +4,8 @@ import { apiService } from './apiService.js';
 class MockDataEngine {
   constructor() {
     this.countries = COUNTRIES_DATA;
-    this.STORAGE_KEY_DEFAULT = 'dolarfy_default_country';
-    this.STORAGE_KEY_SELECTED = 'dolarfy_selected_country';
 
-    // Inicializar país predeterminado y seleccionado
-    this.defaultCountryId = this.loadDefaultCountry();
-    this.currentCountryId = this.loadSelectedCountry() || this.defaultCountryId;
-
+    // Dolarfy es una app 100% Venezuela
     this.listeners = [];
     this.hydrateCacheSync();
     this.syncRealRates();
@@ -22,30 +17,31 @@ class MockDataEngine {
       if (typeof localStorage === 'undefined') return;
       const current = this.getCurrentCountry();
 
-      // Limpieza agresiva de todas las versiones anteriores del caché de tasas en localStorage
+      // Limpieza de versiones anteriores del caché de tasas en localStorage
+      const cacheKey = `dolarfy_rates_cache_v12_${current.id}`;
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith('dolarfy_rates_cache_') || key.includes('dolarfy'))) {
-          if (!key.endsWith('_v10_VE')) {
-            keysToRemove.push(key);
-          }
+        if (key && key.startsWith('dolarfy_rates_cache_') && key !== cacheKey) {
+          keysToRemove.push(key);
         }
       }
       keysToRemove.forEach(k => {
         try { localStorage.removeItem(k); } catch (e) {}
       });
 
-      const cacheKey = `dolarfy_rates_cache_v10_${current.id}`;
       const raw = localStorage.getItem(cacheKey);
       if (raw) {
         const parsed = JSON.parse(raw);
         const data = parsed.data || parsed;
-        if (data && typeof data === 'object' && data.bcv && data.bcv.value) {
-          // Descartar si contiene datos desactualizados (808.xx) o textos antiguos con Fecha Valor
-          const isStaleVal = data.bcv.value < 810;
-          const hasOldText = data.bcv.nextDay && data.bcv.nextDay.date && data.bcv.nextDay.date.includes('Fecha Valor');
-          if (isStaleVal || hasOldText) {
+        const hasValidRates = data && typeof data === 'object' &&
+          Object.values(data).some(r => r && typeof r === 'object' &&
+            typeof r.value === 'number' && !isNaN(r.value));
+        if (hasValidRates) {
+          // Descartar caché demasiado antigua (> 7 días) para no mostrar datos sin vigencia
+          const cachedAt = typeof parsed.timestamp === 'number' ? parsed.timestamp : 0;
+          const isTooOld = cachedAt > 0 && (Date.now() - cachedAt) > 7 * 24 * 60 * 60 * 1000;
+          if (isTooOld) {
             localStorage.removeItem(cacheKey);
           } else {
             current.rates = data;
@@ -55,14 +51,6 @@ class MockDataEngine {
     } catch (e) {
       console.warn('Error al cargar caché síncrono inicial:', e);
     }
-  }
-
-  loadDefaultCountry() {
-    return 'VE'; // Exclusivo Venezuela
-  }
-
-  loadSelectedCountry() {
-    return 'VE';
   }
 
   async syncRealRates() {
@@ -78,56 +66,13 @@ class MockDataEngine {
     }
   }
 
-  getCountries() {
-    return this.countries;
-  }
-
   getCurrentCountry() {
-    return this.countries.find(c => c.id === this.currentCountryId) || this.countries[0];
-  }
-
-  getDefaultCountryId() {
-    return this.defaultCountryId;
-  }
-
-  setSelectedCountry(countryId) {
-    if (!this.countries.some(c => c.id === countryId)) return;
-
-    this.currentCountryId = countryId;
-    try {
-      localStorage.setItem(this.STORAGE_KEY_SELECTED, countryId);
-    } catch (e) {
-      console.warn('LocalStorage no disponible', e);
-    }
-
-    this.notifyListeners(null, 'country_change');
-    this.syncRealRates();
-  }
-
-  setDefaultCountry(countryId) {
-    if (!this.countries.some(c => c.id === countryId)) return;
-
-    this.defaultCountryId = countryId;
-    try {
-      localStorage.setItem(this.STORAGE_KEY_DEFAULT, countryId);
-    } catch (e) {
-      console.warn('LocalStorage no disponible', e);
-    }
-
-    this.notifyListeners(null, 'default_country_change');
+    return this.countries[0];
   }
 
   getRates() {
     const current = this.getCurrentCountry();
     return { ...current.rates };
-  }
-
-  getRate(id) {
-    const current = this.getCurrentCountry();
-    if (current.rates[id]) return current.rates[id];
-
-    const firstKey = Object.keys(current.rates)[0];
-    return current.rates[firstKey];
   }
 
   subscribe(listener) {
