@@ -120,7 +120,7 @@ export class SettingsView {
           <div class="glass-card rounded-2xl p-4 space-y-3 border border-white/10">
             <div class="flex items-center justify-between border-b border-white/5 pb-2.5">
               <span class="text-xs font-semibold text-gray-300">Versión</span>
-              <span class="text-xs font-extrabold text-cyan-400">1.1.0</span>
+              <span class="text-xs font-extrabold text-cyan-400">1.2.0</span>
             </div>
 
             <div class="flex items-center justify-between border-b border-white/5 pb-2.5">

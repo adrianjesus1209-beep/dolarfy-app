@@ -5,7 +5,7 @@
  */
 
 const DEFAULT_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Dolarfy/1.1.0',
+  'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Dolarfy/1.2.0',
   'Accept': 'application/json, text/html, */*'
 };
 

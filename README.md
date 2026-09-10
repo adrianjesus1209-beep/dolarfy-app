@@ -10,15 +10,38 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 
 ### Ultima Version
 
-* **Version**: v1.1.0 (Latest)
-* **Descarga Directa**: [dolarfy-v1.1.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.1.0/dolarfy-v1.1.0.apk)
+* **Version**: v1.2.0 (Latest)
+* **Descarga Directa**: [dolarfy-v1.2.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.0/dolarfy-v1.2.0.apk)
 * **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
 ## Historial de Versiones (Changelog)
 
-### v1.1.0 (Latest)
+### v1.2.0 (Latest)
+
+#### Correcciones Criticas
+
+* Tasas 100% reales desde ve.dolarapi.com: Dolar Paralelo deja de ser un valor estatico y ahora se actualiza en vivo, y el Euro usa el endpoint oficial (se elimina el calculo aproximado USD x 1.162).
+* Variacion diaria (cambio %) recalculada con el valor anterior real de cada tasa, no valores fijos.
+* Historico real del mercado con grafico de tendencias: datos de ve.dolarapi.com con filtro por fuente y serie; rango minimo/maximo calculado sobre el peridoo y la tasa seleccionada.
+* Eliminada la tarjeta de USDT P2P (dato no oficial no verificable).
+* Sin conexion: cuando no hay red y no hay cache, la app muestra valores de referencia claramente marcados como "Sin conexion" en lugar de mostrarlos como "En Vivo".
+* Ajustes: estado de conexion real de las tasas (en vivo / cache / sin conexion) y detalle de logs de notificaciones.
+
+#### Mejoras
+
+* Periodo "1D" oculto en el historico (minimo 1W) por falta de datos diarios.
+* Cache de tasas regenerado (v13) y Service Worker v1.2.0 para invalidar la instalacion anterior.
+* Correcciones de contraste en el modo claro (banner y modales).
+
+#### Assets
+
+* [dolarfy-v1.2.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.0/dolarfy-v1.2.0.apk)
+
+---
+
+### v1.1.0
 
 #### Novedades
 * Notificaciones locales reales de la tasa BCV (recordatorio diario 5:05 p.m. y alerta al publicar la tasa).
