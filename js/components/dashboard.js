@@ -43,13 +43,15 @@ export class DashboardView {
   getSourceLabel(rates) {
     const meta = (rates && rates._meta) || {};
     const src = meta.source || 'live';
-    const time = this.formatSourceTime(meta.fetchedAt || meta.cachedAt);
+    const time = this.formatSourceTime(meta.cachedAt || meta.fetchedAt);
 
     switch (src) {
       case 'stale':
         return `<span class="text-[10px] text-amber-400 font-semibold" title="Dato almacenado">Última: ${time}</span>`;
       case 'cache':
         return `<span class="text-[10px] text-gray-400 font-medium" title="Dato almacenado">Caché ${time}</span>`;
+      case 'placeholder':
+        return `<span class="text-[10px] text-gray-500 font-medium" title="Datos de referencia">Sin conexión · Referencia</span>`;
       case 'offline':
         return `<span class="text-[10px] text-red-400 font-semibold" title="Sin conexión activa">Sin conexión${time ? ` · ${time}` : ''}</span>`;
       default:
@@ -152,7 +154,7 @@ export class DashboardView {
           </div>
 
           <!-- Contenido de Cotizaciones segun la pestaña activa -->
-          ${this.renderContentSection(rates, rateKeys, currentCountry, true, nextDayLabel)}
+          ${this.renderContentSection(rates, rateKeys, currentCountry, isManana, nextDayLabel)}
         </div>
       </div>
     `;
@@ -164,8 +166,8 @@ export class DashboardView {
     }
   }
 
-  renderContentSection(rates, rateKeys, currentCountry, hasPublishedNextDay, nextDayLabel) {
-    if (this.selectedDay === 'manana') {
+  renderContentSection(rates, rateKeys, currentCountry, isManana, nextDayLabel) {
+    if (isManana) {
       return `
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
           ${rateKeys.map(key => this.renderNextDayRateCard(rates[key], nextDayLabel)).join('')}

@@ -6,15 +6,13 @@ export class AnalyticsView {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
     this.chart = null;
-    this.selectedPeriod = '1M'; // 1D, 1W, 1M, 3M, 1Y
+    this.selectedPeriod = '1M'; // 1W, 1M, 3M, 1Y
     this.selectedRateFilter = 'all'; // 'all' o ID de tasa específica
-    this.activeStatCard = null;
     this.historicalCache = {}; // Cache de datos históricos reales
   }
 
   getPeriodDetails(period) {
     const map = {
-      '1D': { short: 'Hoy', text: 'Últimas 24 horas' },
       '1W': { short: '7 Días', text: 'Últimos 7 días' },
       '1M': { short: '30 Días', text: 'Últimos 30 días' },
       '3M': { short: '90 Días', text: 'Últimos 90 días' },
@@ -27,7 +25,6 @@ export class AnalyticsView {
     if (!rateObj) return rateKey || '';
     if (rateKey === 'bcv') return 'BCV';
     if (rateKey === 'euro') return 'Euro';
-    if (rateKey === 'usdt' || rateObj.id === 'usdt') return 'USDT';
     if (rateKey === 'paralelo' || rateObj.id === 'paralelo') return 'Paralelo';
     return rateObj.name.split(' ')[0];
   }
@@ -37,9 +34,7 @@ export class AnalyticsView {
    */
   getDaysForPeriod(period) {
     switch (period) {
-      case '1D': return 1;
       case '1W': return 7;
-      case '1M': return 30;
       case '3M': return 90;
       case '1Y': return 365;
       default: return 30;
@@ -47,57 +42,62 @@ export class AnalyticsView {
   }
 
   /**
-   * Fetch de datos históricos reales desde ve.dolarapi.com
-   * Endpoint: https://ve.dolarapi.com/v1/dolares/historico/{fuente}/{inicio}/{fin}
-   * fuente: oficial | euro | paralelo
+   * Fetch de datos históricos reales desde ve.dolarapi.com (1 punto/día hábil)
+   * Endpoints: /v1/historicos/dolares/oficial | /v1/historicos/dolares/paralelo | /v1/historicos/euros
+   * Respuesta: [{ fuente, promedio, fecha }]
    */
   async fetchHistoricalData(rateKey, days) {
-    const cacheKey = `hist_${rateKey}_${days}`;
-    if (this.historicalCache[cacheKey]) {
-      return this.historicalCache[cacheKey];
+    const endpointMap = {
+      bcv: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial',
+      paralelo: 'https://ve.dolarapi.com/v1/historicos/dolares/paralelo',
+      euro: 'https://ve.dolarapi.com/v1/historicos/euros'
+    };
+    // /v1/historicos/euros devuelve series oficial Y paralelo juntas: filtrar por fuente
+    const fuenteMap = { bcv: 'oficial', paralelo: 'paralelo', euro: 'oficial' };
+    const url = endpointMap[rateKey];
+    const fuente = fuenteMap[rateKey];
+    if (!url || !fuente) return null;
+
+    if (this.historicalCache[rateKey]) {
+      return this._filterHistorical(this.historicalCache[rateKey], days);
     }
 
-    const today = new Date();
-    const from = new Date();
-    from.setDate(today.getDate() - days);
-
-    const toStr = today.toISOString().split('T')[0];
-    const fromStr = from.toISOString().split('T')[0];
-
-    // Mapear el rateKey a la fuente de ve.dolarapi.com
-    const fuenteMap = {
-      bcv: 'oficial',
-      euro: 'euro',
-      usdt: 'paralelo'
-    };
-    const fuente = fuenteMap[rateKey] || 'oficial';
-
     try {
-      const url = `https://ve.dolarapi.com/v1/dolares/historico/${fuente}/${fromStr}/${toStr}`;
       const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          // ve.dolarapi devuelve: [{fechaActualizacion, promedio, ...}]
-          const parsed = data
-            .filter(d => d.promedio && d.fechaActualizacion)
-            .map(d => ({
-              date: d.fechaActualizacion.split('T')[0],
-              value: parseFloat(parseFloat(d.promedio).toFixed(2))
-            }))
-            .sort((a, b) => a.date.localeCompare(b.date));
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return null;
 
-          if (parsed.length > 0) {
-            this.historicalCache[cacheKey] = parsed;
-            return parsed;
-          }
-        }
-      }
+      const parsed = data
+        .filter(d => d && d.fuente === fuente && d.promedio && d.fecha)
+        .map(d => ({
+          date: String(d.fecha).split('T')[0],
+          value: parseFloat(parseFloat(d.promedio).toFixed(2))
+        }))
+        .filter(d => d.date && typeof d.value === 'number' && !isNaN(d.value))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      if (parsed.length === 0) return null;
+
+      this.historicalCache[rateKey] = parsed;
+      return this._filterHistorical(parsed, days);
     } catch (e) {
       console.warn(`Error fetching historical data for ${rateKey}:`, e);
     }
 
     return null; // Retorna null si falla, el gráfico mostrará un aviso
+  }
+
+  /**
+   * Filtra la serie completa (cacheada) al período solicitado, en cliente.
+   */
+  _filterHistorical(series, days) {
+    const today = new Date();
+    const from = new Date();
+    from.setDate(today.getDate() - days);
+    const fromStr = from.toISOString().split('T')[0];
+    const toStr = today.toISOString().split('T')[0];
+    return series.filter(d => d.date >= fromStr && d.date <= toStr);
   }
 
   /**
@@ -110,7 +110,7 @@ export class AnalyticsView {
     let data = [...historicalData];
 
     // Reducir puntos para mejor visualización según el período
-    const maxPoints = { '1D': 1, '1W': 7, '1M': 30, '3M': 30, '1Y': 24 };
+    const maxPoints = { '1W': 7, '1M': 30, '3M': 30, '1Y': 24 };
     const targetPoints = maxPoints[period] || 30;
 
     if (data.length > targetPoints) {
@@ -180,25 +180,25 @@ export class AnalyticsView {
         <!-- Tarjetas de Métricas Principales (Brecha, Mín, Máx) -->
         <div class="grid grid-cols-3 gap-2">
           <!-- Brecha BCV vs Paralelo -->
-          <button data-stat="brecha" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'brecha' ? 'border-cyan-500/60 glow-cyan bg-cyan-500/15' : 'border-white/10 hover:border-cyan-500/30'}">
+          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha BCV → Paralelo</span>
             <p class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent.toFixed(2)}%` : '0.00%'}</p>
             <span class="text-[9px] text-gray-400 font-semibold block truncate">Mercado paralelo vs oficial</span>
-          </button>
+          </div>
 
           <!-- Mínimo del Período (histórico real) -->
-          <button data-stat="min" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'min' ? 'border-emerald-500/60 glow-green bg-emerald-500/15' : 'border-white/10 hover:border-emerald-500/30'}">
+          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
             <span id="min-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Mínimo (${periodDetails.short})</span>
             <p id="stat-min-value" class="text-sm font-black text-emerald-400 mt-1">— — —</p>
             <span class="text-[9px] text-gray-500 font-medium block">Piso oficial</span>
-          </button>
+          </div>
 
           <!-- Máximo del Período (histórico real) -->
-          <button data-stat="max" type="button" class="stat-card-btn glass-card-interactive rounded-2xl p-3 text-center border transition-all duration-300 cursor-pointer ${this.activeStatCard === 'max' ? 'border-amber-500/60 bg-amber-500/15 shadow-lg shadow-amber-500/20' : 'border-white/10 hover:border-amber-500/30'}">
+          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
             <span id="max-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Máximo (${periodDetails.short})</span>
             <p id="stat-max-value" class="text-sm font-black text-amber-400 mt-1">— — —</p>
             <span class="text-[9px] text-gray-500 font-medium block">Techo oficial</span>
-          </button>
+          </div>
         </div>
 
         <!-- Tarjeta del Gráfico ApexCharts -->
@@ -209,11 +209,11 @@ export class AnalyticsView {
             <!-- Píldoras de Tasas para filtrar -->
             <div class="flex items-center justify-between">
               <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <i data-lucide="line-chart" class="w-3.5 h-3.5 text-cyan-400"></i> Histórico Oficial BCV
+                <i data-lucide="line-chart" class="w-3.5 h-3.5 text-cyan-400"></i> Histórico de Mercado
               </span>
               <span class="text-[9px] text-emerald-400 font-bold flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-                Fuente: bcv.org.ve
+                Fuente: ve.dolarapi.com
               </span>
             </div>
 
@@ -237,7 +237,6 @@ export class AnalyticsView {
             <div class="space-y-1.5 pt-1">
               <div class="flex bg-black/40 p-1 rounded-xl border border-white/10 justify-between" id="period-selector">
                 ${[
-                  { code: '1D', name: '1D (Hoy)' },
                   { code: '1W', name: '1W (Semana)' },
                   { code: '1M', name: '1M (Mes)' },
                   { code: '3M', name: '3M (Trimestre)' },
@@ -324,7 +323,11 @@ export class AnalyticsView {
     let categories = [];
     let hasRealData = false;
 
-    // Rango real del período a partir de la serie histórica
+    // Rango real del período sobre la tasa activa (BCV por defecto con "Todas"):
+    // las tarjetas dicen "Piso/Techo oficial", así que nunca mezclan series.
+    const rangeKey = this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]
+      ? this.selectedRateFilter
+      : 'bcv';
     let realMin = Infinity;
     let realMax = -Infinity;
     let hasRangeData = false;
@@ -340,11 +343,13 @@ export class AnalyticsView {
       if (historicalRaw && historicalRaw.length > 0) {
         chartData = this.processHistoricalForChart(historicalRaw, this.selectedPeriod);
         hasRealData = true;
-        for (const point of historicalRaw) {
-          if (typeof point.value === 'number' && !isNaN(point.value)) {
-            if (point.value < realMin) realMin = point.value;
-            if (point.value > realMax) realMax = point.value;
-            hasRangeData = true;
+        if (key === rangeKey) {
+          for (const point of historicalRaw) {
+            if (typeof point.value === 'number' && !isNaN(point.value)) {
+              if (point.value < realMin) realMin = point.value;
+              if (point.value > realMax) realMax = point.value;
+              hasRangeData = true;
+            }
           }
         }
       }
@@ -493,15 +498,6 @@ export class AnalyticsView {
           b.className = `px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
         });
         this.initChart();
-      });
-    });
-
-    const statBtns = document.querySelectorAll('.stat-card-btn');
-    statBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const type = btn.getAttribute('data-stat');
-        this.activeStatCard = this.activeStatCard === type ? null : type;
-        this.render();
       });
     });
   }

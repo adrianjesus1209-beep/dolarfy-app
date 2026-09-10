@@ -18,7 +18,7 @@ class MockDataEngine {
       const current = this.getCurrentCountry();
 
       // Limpieza de versiones anteriores del caché de tasas en localStorage
-      const cacheKey = `dolarfy_rates_cache_v12_${current.id}`;
+      const cacheKey = `dolarfy_rates_cache_v13_${current.id}`;
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -50,6 +50,16 @@ class MockDataEngine {
       }
     } catch (e) {
       console.warn('Error al cargar caché síncrono inicial:', e);
+    }
+
+    // Sin caché/snapshot en memoria: marcar como PLACEHOLDER (referencia),
+    // nunca como "En Vivo", hasta que la API real responda.
+    if (!current.rates._meta) {
+      current.rates._meta = {
+        source: 'placeholder',
+        placeholder: true,
+        fetchedAt: 0
+      };
     }
   }
 

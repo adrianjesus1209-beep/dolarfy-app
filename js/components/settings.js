@@ -1,15 +1,34 @@
 import { notificationService } from '../notificationService.js';
 import { calcHistoryService } from '../calcHistoryService.js';
 import { themeService } from '../themeService.js';
+import { mockEngine } from '../mockData.js';
 
 export class SettingsView {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
+    this.unsubscribe = null;
+  }
+
+  getConnectionStatus(rates) {
+    const meta = (rates && rates._meta) || {};
+    const src = meta.source || 'live';
+    switch (src) {
+      case 'stale':
+        return { label: 'Conectado · Último dato', cls: 'text-amber-400', dot: 'bg-amber-400' };
+      case 'cache':
+        return { label: 'Conectado · Caché', cls: 'text-gray-400', dot: 'bg-gray-400' };
+      case 'placeholder':
+      case 'offline':
+        return { label: 'Sin conexión', cls: 'text-red-400', dot: 'bg-red-400' };
+      default:
+        return { label: 'Conectado', cls: 'text-emerald-400', dot: 'bg-emerald-400' };
+    }
   }
 
   render() {
     const isNotifEnabled = notificationService.isEnabled();
     const currentTheme = themeService.getTheme();
+    const status = this.getConnectionStatus(mockEngine.getRates());
 
     this.container.innerHTML = `
       <div class="space-y-4 pb-24 animate-fade-in max-w-md mx-auto">
@@ -106,8 +125,8 @@ export class SettingsView {
 
             <div class="flex items-center justify-between border-b border-white/5 pb-2.5">
               <span class="text-xs font-semibold text-gray-300">Estado de APIs Bancarias</span>
-              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Conectado
+              <span class="text-xs font-bold ${status.cls} flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full ${status.dot} animate-pulse"></span> ${status.label}
               </span>
             </div>
 
@@ -122,7 +141,17 @@ export class SettingsView {
     `;
 
     this.attachEvents();
+    this.subscribeToUpdates();
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  subscribeToUpdates() {
+    if (this.unsubscribe) this.unsubscribe();
+    this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
+      if (action === 'rates_refreshed') {
+        this.render();
+      }
+    });
   }
 
   attachEvents() {
@@ -158,5 +187,10 @@ export class SettingsView {
     });
   }
 
-  destroy() {}
+  destroy() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+  }
 }

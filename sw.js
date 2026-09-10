@@ -1,5 +1,5 @@
 /* Service Worker Dolarfy - Cache en runtime (network-first) */
-const VERSION = 'dolarfy-sw-v1.1.0';
+const VERSION = 'dolarfy-sw-v1.2.0';
 const CACHE_NAME = VERSION;
 const APP_SHELL = [
   './',

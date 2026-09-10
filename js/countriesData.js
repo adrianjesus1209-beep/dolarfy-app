@@ -1,8 +1,8 @@
 /**
  * Catálogo de Países y Tasas Financieras por País
  * Solo fuentes oficiales venezolanas: BCV (USD y EUR)
- * Los valores aquí son un snapshot de referencia; se sobreescriben en runtime
- * con las cotizaciones reales de ve.dolarapi.com y bcv.org.ve.
+ * Los valores aquí son un snapshot de referencia (PLACEHOLDER); se sobreescriben
+ * en runtime con las tasas reales de ve.dolarapi.com y bcv.org.ve.
  */
 
 export const COUNTRIES_DATA = [
@@ -19,8 +19,8 @@ export const COUNTRIES_DATA = [
         id: 'bcv',
         name: 'Dólar Oficial (BCV)',
         code: 'USD/VES',
-        value: 814.69,
-        change: 0.90,
+        value: 820.10,
+        change: 0,
         currency: 'VES',
         type: 'official',
         icon: 'building-2'
@@ -29,8 +29,8 @@ export const COUNTRIES_DATA = [
         id: 'paralelo',
         name: 'Dólar Paralelo',
         code: 'USD/VES',
-        value: 951.80,
-        change: 0.40,
+        value: 945.98,
+        change: 0,
         currency: 'VES',
         type: 'parallel',
         icon: 'trending-up'
@@ -39,21 +39,11 @@ export const COUNTRIES_DATA = [
         id: 'euro',
         name: 'Euro Oficial (BCV)',
         code: 'EUR/VES',
-        value: 946.67,
-        change: 0.11,
+        value: 954.02,
+        change: 0,
         currency: 'VES',
         type: 'official',
         icon: 'euro'
-      },
-      usdt: {
-        id: 'usdt',
-        name: 'Binance USDT (P2P)',
-        code: 'USDT/VES',
-        value: 951.80,
-        change: 0.40,
-        currency: 'VES',
-        type: 'crypto',
-        icon: 'coins'
       }
     }
   }
