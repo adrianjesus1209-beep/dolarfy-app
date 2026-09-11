@@ -1,5 +1,5 @@
 /* Service Worker Dolarfy - Cache en runtime (network-first) */
-const VERSION = 'dolarfy-sw-v1.2.0';
+const VERSION = 'dolarfy-sw-v1.2.1';
 const CACHE_NAME = VERSION;
 const APP_SHELL = [
   './',
@@ -14,6 +14,10 @@ const APP_SHELL = [
   './assets/vendor/tailwind.js',
   './assets/vendor/lucide.min.js',
   './assets/vendor/apexcharts.min.js',
+  './assets/vendor/capacitor/core/dist/index.js',
+  './assets/vendor/capacitor/local-notifications/esm/index.js',
+  './assets/vendor/capacitor/local-notifications/esm/web.js',
+  './assets/vendor/capacitor/local-notifications/esm/definitions.js',
   './js/app.js',
   './js/mockData.js',
   './js/apiService.js',

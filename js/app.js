@@ -17,6 +17,7 @@ class App {
 
   init() {
     themeService.init();
+    if (window.lucide) window.lucide.createIcons();
     this.bindNavigation();
     this.bindNotificationBell();
     this.updateHeaderBellUI();
