@@ -14,6 +14,11 @@ if (-not $pkg.version) { throw 'No se pudo leer la versión desde package.json' 
 $version = $pkg.version
 Write-Host "==> Compilando Dolarfy v$version`n"
 
+# 1.5. Generar bundle JavaScript único para compatibilidad total con WebView
+Write-Host '==> Bundling JavaScript (app.bundle.js)...'
+node scripts/bundle.js
+if ($LASTEXITCODE -ne 0) { throw 'node scripts/bundle.js falló' }
+
 # 2. Sincronizar assets web -> Capacitor (www)
 Write-Host '==> Copiando assets a www/...'
 $items = @('index.html', 'manifest.json', 'sw.js', 'package.json', 'js', 'assets')
