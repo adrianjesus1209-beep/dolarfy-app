@@ -10,27 +10,29 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 
 ### Ultima Version
 
-* **Version**: v1.2.3 (Latest)
-* **Descarga Directa**: [Dolarfy-v1.2.3.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.3/Dolarfy-v1.2.3.apk)
+* **Version**: v1.2.4 (Latest)
+* **Descarga Directa**: [Dolarfy-v1.2.4.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.4/Dolarfy-v1.2.4.apk)
 * **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
 ## Historial de Versiones (Changelog)
 
-### v1.2.3 (Latest)
+### v1.2.4 (Latest)
 
-#### Correcciones Criticas de Inicialización y Renderizado
+#### Correcciones de Conexión en Vivo y Fecha Valor Dinámica
 
-* Corregido bug crítico de scope de variable en `mockData.js` (`ReferenceError: current is not defined` en `hydrateCacheSync`) que impedía la inicialización del motor de tasas y dejaba la pantalla de inicio en negro sin componentes ni iconos en la APK.
-* Regenerado y empaquetado el bundle JavaScript standalone en el APK (`Dolarfy-v1.2.3.apk`) asegurando la carga de cotizaciones e iconos en WebView nativo de Android.
-* Actualizada versión global de la aplicación a v1.2.3 (package.json, constants.js y build.gradle versionCode 9).
+* Eliminada la cabecera prohibida `User-Agent` de `fetch()` en la app web/WebView que bloqueaba las peticiones a `ve.dolarapi.com` y provocaba que se mostraran datos "Sin conexión · Referencia" de 820,10 Bs.
+* Actualizado el snapshot base de tasas de referencia a valores actuales reales (`832.49` BCV / `947.30` Paralelo / `968.07` Euro).
+* Garantizado el selector de días de la banca (Fecha Valor: Lunes, Martes, Miércoles, Jueves, Viernes) de forma dinámica e ininterrumpida según el día de la semana.
 
 #### Assets
 
-* [Dolarfy-v1.2.3.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.3/Dolarfy-v1.2.3.apk)
+* [Dolarfy-v1.2.4.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.4/Dolarfy-v1.2.4.apk)
 
 ---
+
+### v1.2.3
 
 ### v1.2.1
 
