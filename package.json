@@ -1,6 +1,6 @@
 {
   "name": "dolarfy-app",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Calculadora y conversor de divisas con cotizaciones del dólar en tiempo real",
   "main": "index.html",
   "scripts": {

@@ -10,30 +10,29 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 
 ### Ultima Version
 
-* **Version**: v1.2.1 (Latest)
-* **Descarga Directa**: [Dolarfy-v1.2.1.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.1/Dolarfy-v1.2.1.apk)
+* **Version**: v1.2.3 (Latest)
+* **Descarga Directa**: [Dolarfy-v1.2.3.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.3/Dolarfy-v1.2.3.apk)
 * **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
 ## Historial de Versiones (Changelog)
 
-### v1.2.1 (Latest)
+### v1.2.3 (Latest)
 
-#### Correcciones y Mantenimiento
+#### Correcciones Criticas de Inicialización y Renderizado
 
-* Nombres de APK estandarizados con el nombre oficial y la version: `Dolarfy-vX.Y.Z.apk`, generados automaticamente con el nuevo script `npm run build:apk` (compila, sincroniza Capacitor y publica el APK en `releases/`).
-* Unificada la version 1.2.1 en toda la app: Ajustes, package.json, build.gradle (versionCode 7) y Service Worker. Version en Ajustes ya no esta hardcodeada (constante central `js/constants.js`).
-* Corregido el doble render al refrescar tasas: cada vista ahora maneja su propio refresco preservando el estado (expresion de la calculadora y selector Hoy/Lunes ya no se reinician al actualizar).
-* Tendencias ahora se auto-actualiza con las tasas y usa el mismo fetch seguro (timeout + User-Agent) del servicio de APIs.
-* Seguridad: texto scrapeado del sitio del BCV se escapa antes de inyectarse en el DOM; acceso a localStorage protegido en Notification y Theme services.
-* Anadido el icono de estado de notificaciones `ic_stat_dollar` que faltaba (las notificaciones nativas podian no mostrarse).
+* Corregido bug crítico de scope de variable en `mockData.js` (`ReferenceError: current is not defined` en `hydrateCacheSync`) que impedía la inicialización del motor de tasas y dejaba la pantalla de inicio en negro sin componentes ni iconos en la APK.
+* Regenerado y empaquetado el bundle JavaScript standalone en el APK (`Dolarfy-v1.2.3.apk`) asegurando la carga de cotizaciones e iconos en WebView nativo de Android.
+* Actualizada versión global de la aplicación a v1.2.3 (package.json, constants.js y build.gradle versionCode 9).
 
 #### Assets
 
-* [Dolarfy-v1.2.1.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.1/Dolarfy-v1.2.1.apk)
+* [Dolarfy-v1.2.3.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.3/Dolarfy-v1.2.3.apk)
 
 ---
+
+### v1.2.1
 
 ### v1.2.0
 
