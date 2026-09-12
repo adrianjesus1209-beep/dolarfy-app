@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core';
+import { registerPlugin } from '../../core/dist/index.js';
 const LocalNotifications = registerPlugin('LocalNotifications', {
     web: () => import('./web').then(m => new m.LocalNotificationsWeb()),
 });

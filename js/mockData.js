@@ -1,5 +1,6 @@
 import { COUNTRIES_DATA } from './countriesData.js';
 import { apiService } from './apiService.js';
+import { RATES_CACHE_KEY_PREFIX } from './constants.js';
 
 class MockDataEngine {
   constructor() {
@@ -18,7 +19,7 @@ class MockDataEngine {
       const current = this.getCurrentCountry();
 
       // Limpieza de versiones anteriores del caché de tasas en localStorage
-      const cacheKey = `dolarfy_rates_cache_v13_${current.id}`;
+      const cacheKey = `${RATES_CACHE_KEY_PREFIX}_${current.id}`;
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -44,7 +45,7 @@ class MockDataEngine {
           if (isTooOld) {
             localStorage.removeItem(cacheKey);
           } else {
-            current.rates = data;
+            current.rates = { ...this.countries[0].rates, ...data };
           }
         }
       }

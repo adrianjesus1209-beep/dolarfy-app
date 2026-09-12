@@ -30,7 +30,8 @@ class App {
     mockEngine.subscribe((rates, updatedRateId, action) => {
       if (action === 'rates_refreshed') {
         notificationService.checkDailyUpdate(mockEngine.getCurrentCountry(), rates);
-        this.navigateTo(this.activeTab, true); // re-render view con tasas reales
+        // El refresco visual lo maneja cada vista activa vía su propio subscribe,
+        // lo que preserva su estado (expresión, día seleccionado, etc.).
       }
     });
 

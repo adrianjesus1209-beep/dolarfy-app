@@ -4,8 +4,8 @@
  * - Respaldado por toast/log in-app cuando se ejecuta en navegador (no-nativo)
  */
 
-import { Capacitor } from '@capacitor/core';
-import { LocalNotifications } from '@capacitor/local-notifications';
+import { Capacitor } from '../assets/vendor/capacitor/core/dist/index.js';
+import { LocalNotifications } from '../assets/vendor/capacitor/local-notifications/esm/index.js';
 import { formatCurrency } from './utils/formatters.js';
 
 class NotificationService {
@@ -20,7 +20,7 @@ class NotificationService {
     this.isNative = typeof Capacitor !== 'undefined' && !!Capacitor.isNativePlatform();
 
     this.enabled = this.loadEnabledState();
-    this.lastNotifiedDate = localStorage.getItem(this.STORAGE_LAST_DATE) || '';
+    this.lastNotifiedDate = this._storageGet(this.STORAGE_LAST_DATE) || '';
     this.logs = this.loadLogs();
 
     if (this.isNative) {
@@ -28,8 +28,27 @@ class NotificationService {
     }
   }
 
+  _storageGet(key) {
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      return localStorage.getItem(key);
+    } catch (e) {
+      console.warn('Error leyendo almacenamiento', e);
+      return null;
+    }
+  }
+
+  _storageSet(key, value) {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn('Error escribiendo almacenamiento', e);
+    }
+  }
+
   loadEnabledState() {
-    const saved = localStorage.getItem(this.STORAGE_ENABLED);
+    const saved = this._storageGet(this.STORAGE_ENABLED);
     return saved !== null ? saved === 'true' : true; // Por defecto activadas
   }
 
@@ -79,7 +98,7 @@ class NotificationService {
           visibility: 1,
           sound: 'default'
         });
-        localStorage.setItem(this.STORAGE_CHANNEL, 'created');
+        this._storageSet(this.STORAGE_CHANNEL, 'created');
       }
     } catch (e) {
       console.warn('Error creando canal de notificaciones:', e);
@@ -111,9 +130,11 @@ class NotificationService {
   /**
    * Hora local a la que 17:00 VET (hora de cierre BCV, UTC-4) ocurre en el
    * dispositivo. VET no usa horario de verano, por lo que es fijo = 21:00 UTC.
+   * getTimezoneOffset() devuelve UTC - local (positivo al Oeste), p. ej.
+   * +240 en Venezuela (UTC-4), -120 en España (UTC+2).
    */
   getLocalHourForVETClose() {
-    const localOffsetHours = -new Date().getTimezoneOffset() / 60; // (+1 en Venezuela)
+    const localOffsetHours = -new Date().getTimezoneOffset() / 60;
     const hour = (21 + localOffsetHours) % 24;
     return Math.floor(hour);
   }
@@ -192,7 +213,7 @@ class NotificationService {
 
   async toggleNotifications(forceState = null) {
     this.enabled = forceState !== null ? forceState : !this.enabled;
-    localStorage.setItem(this.STORAGE_ENABLED, this.enabled.toString());
+    this._storageSet(this.STORAGE_ENABLED, this.enabled.toString());
 
     if (this.enabled) {
       await this.scheduleDailyReminder();
@@ -227,7 +248,7 @@ class NotificationService {
     if (this.lastNotifiedDate === lastKey) return;
 
     this.lastNotifiedDate = lastKey;
-    localStorage.setItem(this.STORAGE_LAST_DATE, lastKey);
+    this._storageSet(this.STORAGE_LAST_DATE, lastKey);
 
     const logEntry = {
       id: Date.now(),

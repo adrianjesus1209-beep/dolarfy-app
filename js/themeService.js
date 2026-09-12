@@ -1,7 +1,14 @@
 class ThemeService {
   constructor() {
     this.STORAGE_KEY = 'dolarfy_theme';
-    this.currentTheme = localStorage.getItem(this.STORAGE_KEY) || 'dark';
+    this.currentTheme = 'dark';
+    try {
+      if (typeof localStorage !== 'undefined') {
+        this.currentTheme = localStorage.getItem(this.STORAGE_KEY) || 'dark';
+      }
+    } catch (e) {
+      console.warn('Error leyendo tema guardado:', e);
+    }
   }
 
   init() {
@@ -15,7 +22,13 @@ class ThemeService {
   setTheme(theme) {
     if (theme !== 'dark' && theme !== 'light') return;
     this.currentTheme = theme;
-    localStorage.setItem(this.STORAGE_KEY, theme);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(this.STORAGE_KEY, theme);
+      }
+    } catch (e) {
+      console.warn('Error guardando tema:', e);
+    }
     this.applyTheme(theme);
     
     document.dispatchEvent(new CustomEvent('dolarfy:theme_changed', {

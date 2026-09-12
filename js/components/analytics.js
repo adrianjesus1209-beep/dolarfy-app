@@ -1,6 +1,7 @@
 import { mockEngine } from '../mockData.js';
 import { formatCurrency, formatPercentage } from '../utils/formatters.js';
 import { themeService } from '../themeService.js';
+import { fetchWithTimeout } from '../apiService.js';
 
 export class AnalyticsView {
   constructor(containerId) {
@@ -9,6 +10,7 @@ export class AnalyticsView {
     this.selectedPeriod = '1M'; // 1W, 1M, 3M, 1Y
     this.selectedRateFilter = 'all'; // 'all' o ID de tasa específica
     this.historicalCache = {}; // Cache de datos históricos reales
+    this.unsubscribe = null;
   }
 
   getPeriodDetails(period) {
@@ -63,7 +65,7 @@ export class AnalyticsView {
     }
 
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url);
       if (!res.ok) return null;
       const data = await res.json();
       if (!Array.isArray(data) || data.length === 0) return null;
@@ -145,7 +147,7 @@ export class AnalyticsView {
   render() {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = currentCountry.rates;
-    const rateKeys = Object.keys(rates);
+    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
 
     // Brecha cambiaria real del mercado venezolano: Dólar Paralelo vs BCV Oficial
     const bcvRate = rates.bcv;
@@ -301,6 +303,7 @@ export class AnalyticsView {
 
     this.initChart();
     this.attachEvents();
+    this.subscribeToUpdates();
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -310,7 +313,7 @@ export class AnalyticsView {
 
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = currentCountry.rates;
-    const rateKeys = Object.keys(rates);
+    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
 
     let activeKeys = rateKeys;
     if (this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]) {
@@ -502,7 +505,20 @@ export class AnalyticsView {
     });
   }
 
+  subscribeToUpdates() {
+    if (this.unsubscribe) this.unsubscribe();
+    this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
+      if (action === 'rates_refreshed') {
+        this.render();
+      }
+    });
+  }
+
   destroy() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
     if (this.chart) {
       this.chart.destroy();
       this.chart = null;

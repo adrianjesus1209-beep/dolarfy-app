@@ -1,5 +1,5 @@
 import { mockEngine } from '../mockData.js';
-import { formatCurrency, formatPercentage, formatTime } from '../utils/formatters.js';
+import { formatCurrency, formatPercentage, formatTime, escapeHtml } from '../utils/formatters.js';
 
 export class DashboardView {
   constructor(containerId) {
@@ -62,19 +62,19 @@ export class DashboardView {
   render() {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
-    const rateKeys = Object.keys(rates);
+    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
     const rawNextDayLabel = this.getNextDayLabel(rates);
-    const nextDayLabel = this.cleanText(rawNextDayLabel);
+    const nextDayLabel = escapeHtml(this.cleanText(rawNextDayLabel));
 
     // Solo mostrar la vista "día siguiente" si existe una publicación real del BCV
     const hasNextDayRate = Object.values(rates).some(
       r => r && r.nextDay && r.nextDay.value && r.nextDay.published
     );
     const isManana = this.selectedDay === 'manana' && hasNextDayRate;
-    const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]];
+    const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]] || { name: 'Dólar Oficial (BCV)', currency: 'VES', value: 0 };
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
 
-    const mainVal = (isManana && mainRate.nextDay && mainRate.nextDay.value) ? mainRate.nextDay.value : mainRate.value;
+    const mainVal = (isManana && mainRate && mainRate.nextDay && mainRate.nextDay.value) ? mainRate.nextDay.value : (mainRate ? mainRate.value : null);
     const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.value) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
     let bannerTag = isManana 
@@ -268,7 +268,7 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${this.cleanText(nextDay.date) || 'Oficial BCV'}</p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${escapeHtml(this.cleanText(nextDay.date)) || 'Oficial BCV'}</p>
           </div>
           <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>

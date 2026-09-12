@@ -4,32 +4,41 @@
  * Solo tasas OFICIALES del Banco Central de Venezuela
  */
 
+import { RATES_CACHE_KEY_PREFIX } from './constants.js';
+
 const DEFAULT_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Dolarfy/1.2.0',
+  'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Dolarfy/1.2.1',
   'Accept': 'application/json, text/html, */*'
 };
+
+const REQUEST_TIMEOUT_MS = 10000;
+
+/**
+ * Wrapper de fetch seguro con User-Agent y timeout (compartido).
+ */
+export async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const headers = { ...DEFAULT_HEADERS, ...(options.headers || {}) };
+
+  try {
+    return await fetch(url, { ...options, headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 class ApiService {
   constructor() {
     this.CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutos para actualización rápida en tiempo real
     this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // Caché "último dato conocido" válido hasta 7 días
-    this.REQUEST_TIMEOUT_MS = 10000;
   }
 
   /**
    * Wrapper de fetch seguro con User-Agent y timeout.
    */
-  async _fetch(url, options = {}) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT_MS);
-    const headers = { ...DEFAULT_HEADERS, ...(options.headers || {}) };
-
-    try {
-      const res = await fetch(url, { ...options, headers, signal: controller.signal });
-      return res;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+  _fetch(url, options = {}) {
+    return fetchWithTimeout(url, options);
   }
 
   /**
@@ -45,7 +54,7 @@ class ApiService {
   }
 
   async fetchRatesForCountry(country) {
-    const cacheKey = `dolarfy_rates_cache_v13_${country.id}`;
+    const cacheKey = `${RATES_CACHE_KEY_PREFIX}_${country.id}`;
     const cachedData = this.getCache(cacheKey);
 
     if (cachedData) {

@@ -10,15 +10,32 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 
 ### Ultima Version
 
-* **Version**: v1.2.0 (Latest)
-* **Descarga Directa**: [dolarfy-v1.2.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.0/dolarfy-v1.2.0.apk)
+* **Version**: v1.2.1 (Latest)
+* **Descarga Directa**: [Dolarfy-v1.2.1.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.1/Dolarfy-v1.2.1.apk)
 * **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
 ## Historial de Versiones (Changelog)
 
-### v1.2.0 (Latest)
+### v1.2.1 (Latest)
+
+#### Correcciones y Mantenimiento
+
+* Nombres de APK estandarizados con el nombre oficial y la version: `Dolarfy-vX.Y.Z.apk`, generados automaticamente con el nuevo script `npm run build:apk` (compila, sincroniza Capacitor y publica el APK en `releases/`).
+* Unificada la version 1.2.1 en toda la app: Ajustes, package.json, build.gradle (versionCode 7) y Service Worker. Version en Ajustes ya no esta hardcodeada (constante central `js/constants.js`).
+* Corregido el doble render al refrescar tasas: cada vista ahora maneja su propio refresco preservando el estado (expresion de la calculadora y selector Hoy/Lunes ya no se reinician al actualizar).
+* Tendencias ahora se auto-actualiza con las tasas y usa el mismo fetch seguro (timeout + User-Agent) del servicio de APIs.
+* Seguridad: texto scrapeado del sitio del BCV se escapa antes de inyectarse en el DOM; acceso a localStorage protegido en Notification y Theme services.
+* Anadido el icono de estado de notificaciones `ic_stat_dollar` que faltaba (las notificaciones nativas podian no mostrarse).
+
+#### Assets
+
+* [Dolarfy-v1.2.1.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.1/Dolarfy-v1.2.1.apk)
+
+---
+
+### v1.2.0
 
 #### Correcciones Criticas
 
@@ -136,6 +153,14 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 2. Abrir `index.html` en el navegador o mediante un servidor local.
 
 ### Sincronizacion con Capacitor (Android)
+
+Compilacion completa (assets + sync + APK con nombre oficial `Dolarfy-vX.Y.Z.apk`):
+
+```powershell
+npm run build:apk
+```
+
+O paso a paso:
 
 ```powershell
 Copy-Item -Path index.html, manifest.json, sw.js, package.json, js, assets -Destination www -Recurse -Force

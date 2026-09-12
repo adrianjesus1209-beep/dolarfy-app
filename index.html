@@ -41,6 +41,11 @@
 
   <!-- Lucide Icons (local, fallback CDN) -->
   <script src="assets/vendor/lucide.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/lucide@latest';"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.lucide) window.lucide.createIcons();
+    });
+  </script>
   <!-- ApexCharts (local, fallback CDN) -->
   <script src="assets/vendor/apexcharts.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/apexcharts';"></script>
 

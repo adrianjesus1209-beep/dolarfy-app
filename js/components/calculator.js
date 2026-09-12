@@ -110,7 +110,7 @@ export class CalculatorView {
   render() {
     this.currentCountry = mockEngine.getCurrentCountry();
     const rates = this.currentCountry.rates;
-    const rateKeys = Object.keys(rates);
+    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
 
     if (!rates[this.selectedRateId]) {
       this.selectedRateId = this.currentCountry.defaultRateId && rates[this.selectedRateId]
