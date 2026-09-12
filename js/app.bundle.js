@@ -8,7 +8,7 @@
  * Fuente única de verdad para la versión y las claves de almacenamiento.
  */
 
-const APP_VERSION = '1.2.4';
+const APP_VERSION = '1.2.5';
 
 // Prefijo de la clave de caché de tasas en localStorage.
 // Bump al cambiar el esquema del objeto de tasas (p. ej. v14).
@@ -428,12 +428,12 @@ async function fetchWithTimeout(url, options = {}) {
 
 class ApiService {
   constructor() {
-    this.CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutos para actualización rápida en tiempo real
-    this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // Caché "último dato conocido" válido hasta 7 días
+    this.CACHE_TTL_MS = 15 * 1000; // 15 segundos para actualización ultrarrápida en vivo
+    this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
   }
 
   /**
-   * Wrapper de fetch seguro con User-Agent y timeout.
+   * Wrapper de fetch seguro sin User-Agent prohibido y con timeout.
    */
   _fetch(url, options = {}) {
     return fetchWithTimeout(url, options);
@@ -451,23 +451,24 @@ class ApiService {
     return rates;
   }
 
-  async fetchRatesForCountry(country) {
+  async fetchRatesForCountry(country, force = false) {
     const cacheKey = `${RATES_CACHE_KEY_PREFIX}_${country.id}`;
-    const cachedData = this.getCache(cacheKey);
 
-    if (cachedData) {
-      // Caché fresca (< 2 min): devolver y actualizar de fondo
-      this.fetchFreshRates(country, cacheKey)
-        .catch(e => console.warn('Update bg error:', e));
-      return cachedData;
-    }
+    if (!force) {
+      const cachedData = this.getCache(cacheKey);
+      if (cachedData) {
+        // Actualizar de fondo sin bloquear
+        this.fetchFreshRates(country, cacheKey)
+          .catch(e => console.warn('Update bg error:', e));
+        return cachedData;
+      }
 
-    // Caché expirada pero válida ("último dato conocido"): útil offline
-    const staleData = this.getCacheStale(cacheKey);
-    if (staleData) {
-      this.fetchFreshRates(country, cacheKey)
-        .catch(e => console.warn('Update bg stale error:', e));
-      return staleData;
+      const staleData = this.getCacheStale(cacheKey);
+      if (staleData) {
+        this.fetchFreshRates(country, cacheKey)
+          .catch(e => console.warn('Update bg stale error:', e));
+        return staleData;
+      }
     }
 
     return await this.fetchFreshRates(country, cacheKey);
@@ -1194,10 +1195,10 @@ class MockDataEngine {
     }
   }
 
-  async syncRealRates() {
+  async syncRealRates(force = false) {
     const current = this.getCurrentCountry();
     try {
-      const realRates = await apiService.fetchRatesForCountry(current);
+      const realRates = await apiService.fetchRatesForCountry(current, force);
       if (realRates) {
         current.rates = realRates;
         this.notifyListeners(null, 'rates_refreshed');
@@ -1228,10 +1229,19 @@ class MockDataEngine {
   }
 
   startScheduleCheck() {
-    // Comprobar la API oficial cada 30 minutos para ahorrar batería y tráfico de red
+    // Polling en tiempo real constante cada 15 segundos para capturar cualquier cambio de tasa de inmediato
     setInterval(() => {
-      this.syncRealRates();
-    }, 30 * 60 * 1000);
+      this.syncRealRates(true);
+    }, 15 * 1000);
+
+    // Refrescar inmediatamente cuando el usuario reactiva la pantalla / vuelve a la app
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.syncRealRates(true);
+        }
+      });
+    }
   }
 }
 
@@ -3049,6 +3059,7 @@ class App {
     if (window.lucide) window.lucide.createIcons();
     this.bindNavigation();
     this.bindNotificationBell();
+    this.bindRefreshButton();
     this.updateHeaderBellUI();
     this.navigateTo(this.activeTab);
 
@@ -3084,6 +3095,27 @@ class App {
         e.preventDefault();
         e.stopPropagation();
         this.notificationModal.open();
+      }
+    });
+  }
+
+  bindRefreshButton() {
+    document.addEventListener('click', async (e) => {
+      const refreshBtn = e.target.closest('#header-refresh-btn');
+      if (refreshBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const icon = refreshBtn.querySelector('i, svg');
+        if (icon) icon.classList.add('animate-spin');
+
+        try {
+          await mockEngine.syncRealRates(true);
+        } finally {
+          setTimeout(() => {
+            if (icon) icon.classList.remove('animate-spin');
+          }, 600);
+        }
       }
     });
   }

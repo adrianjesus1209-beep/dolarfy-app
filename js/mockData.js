@@ -67,10 +67,10 @@ class MockDataEngine {
     }
   }
 
-  async syncRealRates() {
+  async syncRealRates(force = false) {
     const current = this.getCurrentCountry();
     try {
-      const realRates = await apiService.fetchRatesForCountry(current);
+      const realRates = await apiService.fetchRatesForCountry(current, force);
       if (realRates) {
         current.rates = realRates;
         this.notifyListeners(null, 'rates_refreshed');
@@ -101,10 +101,19 @@ class MockDataEngine {
   }
 
   startScheduleCheck() {
-    // Comprobar la API oficial cada 30 minutos para ahorrar batería y tráfico de red
+    // Polling en tiempo real constante cada 15 segundos para capturar cualquier cambio de tasa de inmediato
     setInterval(() => {
-      this.syncRealRates();
-    }, 30 * 60 * 1000);
+      this.syncRealRates(true);
+    }, 15 * 1000);
+
+    // Refrescar inmediatamente cuando el usuario reactiva la pantalla / vuelve a la app
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.syncRealRates(true);
+        }
+      });
+    }
   }
 }
 

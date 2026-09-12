@@ -29,12 +29,12 @@ export async function fetchWithTimeout(url, options = {}) {
 
 class ApiService {
   constructor() {
-    this.CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutos para actualización rápida en tiempo real
-    this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // Caché "último dato conocido" válido hasta 7 días
+    this.CACHE_TTL_MS = 15 * 1000; // 15 segundos para actualización ultrarrápida en vivo
+    this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
   }
 
   /**
-   * Wrapper de fetch seguro con User-Agent y timeout.
+   * Wrapper de fetch seguro sin User-Agent prohibido y con timeout.
    */
   _fetch(url, options = {}) {
     return fetchWithTimeout(url, options);
@@ -52,23 +52,24 @@ class ApiService {
     return rates;
   }
 
-  async fetchRatesForCountry(country) {
+  async fetchRatesForCountry(country, force = false) {
     const cacheKey = `${RATES_CACHE_KEY_PREFIX}_${country.id}`;
-    const cachedData = this.getCache(cacheKey);
 
-    if (cachedData) {
-      // Caché fresca (< 2 min): devolver y actualizar de fondo
-      this.fetchFreshRates(country, cacheKey)
-        .catch(e => console.warn('Update bg error:', e));
-      return cachedData;
-    }
+    if (!force) {
+      const cachedData = this.getCache(cacheKey);
+      if (cachedData) {
+        // Actualizar de fondo sin bloquear
+        this.fetchFreshRates(country, cacheKey)
+          .catch(e => console.warn('Update bg error:', e));
+        return cachedData;
+      }
 
-    // Caché expirada pero válida ("último dato conocido"): útil offline
-    const staleData = this.getCacheStale(cacheKey);
-    if (staleData) {
-      this.fetchFreshRates(country, cacheKey)
-        .catch(e => console.warn('Update bg stale error:', e));
-      return staleData;
+      const staleData = this.getCacheStale(cacheKey);
+      if (staleData) {
+        this.fetchFreshRates(country, cacheKey)
+          .catch(e => console.warn('Update bg stale error:', e));
+        return staleData;
+      }
     }
 
     return await this.fetchFreshRates(country, cacheKey);

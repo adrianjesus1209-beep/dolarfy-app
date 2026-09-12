@@ -10,27 +10,29 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 
 ### Ultima Version
 
-* **Version**: v1.2.4 (Latest)
-* **Descarga Directa**: [Dolarfy-v1.2.4.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.4/Dolarfy-v1.2.4.apk)
+* **Version**: v1.2.5 (Latest)
+* **Descarga Directa**: [Dolarfy-v1.2.5.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.5/Dolarfy-v1.2.5.apk)
 * **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
 ## Historial de Versiones (Changelog)
 
-### v1.2.4 (Latest)
+### v1.2.5 (Latest)
 
-#### Correcciones de Conexión en Vivo y Fecha Valor Dinámica
+#### Polling Constante en Vivo (15s) + Botón de Refresco Manual
 
-* Eliminada la cabecera prohibida `User-Agent` de `fetch()` en la app web/WebView que bloqueaba las peticiones a `ve.dolarapi.com` y provocaba que se mostraran datos "Sin conexión · Referencia" de 820,10 Bs.
-* Actualizado el snapshot base de tasas de referencia a valores actuales reales (`832.49` BCV / `947.30` Paralelo / `968.07` Euro).
-* Garantizado el selector de días de la banca (Fecha Valor: Lunes, Martes, Miércoles, Jueves, Viernes) de forma dinámica e ininterrumpida según el día de la semana.
+* Reducido el intervalo de polling automático en segundo plano de 30 minutos a **15 segundos** (`15s`) para capturar al instante cualquier cambio de cotización publicado en las APIs.
+* Reducido el TTL de caché a 15 segundos y añadido refresco automático inmediato al reactivar/abrir la aplicación (`visibilitychange`).
+* Añadido botón de **Refresco Manual** en tiempo real (`#header-refresh-btn`) en la barra superior con animación de giro para forzar la actualización instantánea de las tasas.
 
 #### Assets
 
-* [Dolarfy-v1.2.4.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.4/Dolarfy-v1.2.4.apk)
+* [Dolarfy-v1.2.5.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.5/Dolarfy-v1.2.5.apk)
 
 ---
+
+### v1.2.4
 
 ### v1.2.3
 

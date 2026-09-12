@@ -20,6 +20,7 @@ class App {
     if (window.lucide) window.lucide.createIcons();
     this.bindNavigation();
     this.bindNotificationBell();
+    this.bindRefreshButton();
     this.updateHeaderBellUI();
     this.navigateTo(this.activeTab);
 
@@ -55,6 +56,27 @@ class App {
         e.preventDefault();
         e.stopPropagation();
         this.notificationModal.open();
+      }
+    });
+  }
+
+  bindRefreshButton() {
+    document.addEventListener('click', async (e) => {
+      const refreshBtn = e.target.closest('#header-refresh-btn');
+      if (refreshBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const icon = refreshBtn.querySelector('i, svg');
+        if (icon) icon.classList.add('animate-spin');
+
+        try {
+          await mockEngine.syncRealRates(true);
+        } finally {
+          setTimeout(() => {
+            if (icon) icon.classList.remove('animate-spin');
+          }, 600);
+        }
       }
     });
   }
