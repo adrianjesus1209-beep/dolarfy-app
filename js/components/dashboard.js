@@ -9,8 +9,13 @@ export class DashboardView {
   }
 
   getNextDayLabel(rates) {
-    const todayDay = new Date().getDay();
-    // En fin de semana (Viernes tarde, Sábado, Domingo), la siguiente publicación bancaria oficial es siempre el Lunes
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const vetDate = new Date(utcMs + vetOffsetMs);
+    const todayDay = vetDate.getDay(); // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mié, 4 = Jue, 5 = Vie, 6 = Sáb
+
+    // En Viernes, Sábado y Domingo, la próxima fecha valor del BCV es siempre el Lunes
     if (todayDay === 5 || todayDay === 6 || todayDay === 0) {
       return 'Lunes';
     }
@@ -26,7 +31,9 @@ export class DashboardView {
         return day.charAt(0).toUpperCase() + day.slice(1);
       }
     }
-    return 'Mañana';
+
+    const dayNames = { 1: 'Martes', 2: 'Miércoles', 3: 'Jueves', 4: 'Viernes' };
+    return dayNames[todayDay] || 'Mañana';
   }
 
   cleanText(str) {

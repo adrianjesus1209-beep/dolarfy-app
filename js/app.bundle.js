@@ -544,31 +544,11 @@ class ApiService {
       }
     }
 
-    // 3. Pronóstico oficial BCV (nextDay) — solo si bcv.org.ve responde
+    // 3. Pronóstico oficial BCV (nextDay) — procesado según la Fecha Valor oficial
     try {
       const bcvData = await this.fetchBcvOfficialSite();
       if (bcvData?.usd) {
-        const bcvUsd = parseFloat(bcvData.usd.toFixed(2));
-        const currentUsd = rates.bcv.value || bcvUsd;
-        const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
-        const cleanDate = bcvData.fecha
-          ? bcvData.fecha.replace(/^Fecha\s+Valor\s*:?\s*/i, '').trim()
-          : 'Oficial BCV';
-
-        rates.bcv.nextDay = {
-          published: true, isOfficial: true, value: bcvUsd, change: changeUsd,
-          date: cleanDate, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
-        };
-
-        if (bcvData.eur) {
-          const bcvEur = parseFloat(bcvData.eur.toFixed(2));
-          const currentEur = rates.euro.value || bcvEur;
-          const changeEur = currentEur > 0 ? parseFloat((((bcvEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
-          rates.euro.nextDay = {
-            published: true, isOfficial: true, value: bcvEur, change: changeEur,
-            date: cleanDate, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
-          };
-        }
+        this.processBcvRates(rates, bcvData);
         fetched.bcvSite = true;
       }
     } catch (e) {
@@ -590,6 +570,82 @@ class ApiService {
     if (hasLiveData) this.setCache(cacheKey, rates);
 
     return this._decorate(rates, hasLiveData ? 'live' : 'offline', { sources: fetched });
+  }
+
+  processBcvRates(rates, bcvData) {
+    if (!bcvData || typeof bcvData.usd !== 'number') return;
+
+    const now = new Date();
+    // Zona horaria VET: UTC-4
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const vetDate = new Date(utcMs + vetOffsetMs);
+    const dayOfWeek = vetDate.getDay(); // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mié, 4 = Jue, 5 = Vie, 6 = Sáb
+
+    const rawFecha = (bcvData.fecha || '').toLowerCase();
+
+    // Identificar el día mencionado en Fecha Valor
+    let targetDay = null;
+    if (rawFecha.includes('lunes')) targetDay = 'lunes';
+    else if (rawFecha.includes('martes')) targetDay = 'martes';
+    else if (rawFecha.includes('miércoles') || rawFecha.includes('miercoles')) targetDay = 'miércoles';
+    else if (rawFecha.includes('jueves')) targetDay = 'jueves';
+    else if (rawFecha.includes('viernes')) targetDay = 'viernes';
+
+    const bcvUsd = parseFloat(bcvData.usd.toFixed(2));
+    const bcvEur = bcvData.eur ? parseFloat(bcvData.eur.toFixed(2)) : null;
+    const cleanDate = bcvData.fecha
+      ? bcvData.fecha.replace(/^Fecha\s+Valor\s*:?\s*/i, '').trim()
+      : 'Oficial BCV';
+
+    // Determinar si la tasa publicada por el BCV le corresponde a 'Hoy' o es el 'Pronóstico' para el siguiente día hábil
+    const isWeekend = (dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0);
+
+    let isNextDay = false;
+    if (isWeekend) {
+      // En Viernes, Sábado o Domingo, si la Fecha Valor es Lunes, es el PRONÓSTICO (nextDay)
+      if (targetDay === 'lunes') {
+        isNextDay = true;
+      } else if (targetDay === 'viernes') {
+        isNextDay = false;
+      }
+    } else {
+      const dayMap = { 1: 'lunes', 2: 'martes', 3: 'miércoles', 4: 'jueves', 5: 'viernes' };
+      const todayName = dayMap[dayOfWeek];
+      const nextDayMap = { 1: 'martes', 2: 'miércoles', 3: 'jueves', 4: 'viernes' };
+      const expectedNextName = nextDayMap[dayOfWeek];
+
+      if (targetDay === expectedNextName) {
+        isNextDay = true;
+      } else if (targetDay === todayName) {
+        isNextDay = false;
+      }
+    }
+
+    if (isNextDay) {
+      // Asignar al botón de Pronóstico (Día Siguiente / Lunes)
+      const currentUsd = rates.bcv.value || bcvUsd;
+      const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
+      rates.bcv.nextDay = {
+        published: true, isOfficial: true, value: bcvUsd, change: changeUsd,
+        date: cleanDate, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
+      };
+
+      if (bcvEur && rates.euro) {
+        const currentEur = rates.euro.value || bcvEur;
+        const changeEur = currentEur > 0 ? parseFloat((((bcvEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
+        rates.euro.nextDay = {
+          published: true, isOfficial: true, value: bcvEur, change: changeEur,
+          date: cleanDate, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
+        };
+      }
+    } else {
+      // Asignar como Tasa Oficial de Hoy
+      rates.bcv.value = bcvUsd;
+      if (bcvEur && rates.euro) {
+        rates.euro.value = bcvEur;
+      }
+    }
   }
 
   async fetchBcvOfficialSite() {
@@ -1311,8 +1367,13 @@ class DashboardView {
   }
 
   getNextDayLabel(rates) {
-    const todayDay = new Date().getDay();
-    // En fin de semana (Viernes tarde, Sábado, Domingo), la siguiente publicación bancaria oficial es siempre el Lunes
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const vetDate = new Date(utcMs + vetOffsetMs);
+    const todayDay = vetDate.getDay(); // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mié, 4 = Jue, 5 = Vie, 6 = Sáb
+
+    // En Viernes, Sábado y Domingo, la próxima fecha valor del BCV es siempre el Lunes
     if (todayDay === 5 || todayDay === 6 || todayDay === 0) {
       return 'Lunes';
     }
@@ -1328,7 +1389,9 @@ class DashboardView {
         return day.charAt(0).toUpperCase() + day.slice(1);
       }
     }
-    return 'Mañana';
+
+    const dayNames = { 1: 'Martes', 2: 'Miércoles', 3: 'Jueves', 4: 'Viernes' };
+    return dayNames[todayDay] || 'Mañana';
   }
 
   cleanText(str) {
