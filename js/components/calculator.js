@@ -167,8 +167,7 @@ export class CalculatorView {
               <button type="button" data-calcday="hoy" class="calc-day-btn px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
-              <button type="button" data-calcday="prediccion" class="calc-day-btn px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${this.selectedDay === 'prediccion' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
-                <i data-lucide="calendar-check" class="w-3 h-3"></i>
+              <button type="button" data-calcday="prediccion" class="calc-day-btn px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'prediccion' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 ${nextDayLabel}
               </button>
             </div>
