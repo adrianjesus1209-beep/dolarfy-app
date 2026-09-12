@@ -78,8 +78,31 @@ class ApiService {
       }
     });
 
-    // 1. FUENTE OFICIAL DE HOY Y PARALELO: ve.dolarapi.com
-    //    Proporciona la tasa oficial vigente para el día de HOY y el dólar paralelo en tiempo real.
+    // 1. FUENTE USDT/VES EN TIEMPO REAL: Binance P2P C2C Directo
+    try {
+      const resBinance = await this._fetch('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fiat: 'VES', page: 1, rows: 5, tradeType: 'BUY', asset: 'USDT', countries: [], payTypes: []
+        })
+      });
+      if (resBinance.ok) {
+        const data = await resBinance.json();
+        if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+          const prices = data.data.map(i => parseFloat(i.adv.price)).filter(p => !isNaN(p) && p > 0);
+          if (prices.length > 0) {
+            rates.paralelo.value = parseFloat((prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2));
+            fetched.binanceP2p = true;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error al consultar Binance P2P API:', e);
+    }
+
+    // 2. FUENTE OFICIAL DE HOY Y PARALELO (FALLBACK): ve.dolarapi.com
+    //    Proporciona la tasa oficial vigente para el día de HOY y el respaldo para USDT/VES.
     try {
       const resUsd = await this._fetch('https://ve.dolarapi.com/v1/dolares');
       if (resUsd.ok) {
@@ -89,9 +112,11 @@ class ApiService {
           if (bcvItem?.promedio) {
             rates.bcv.value = parseFloat(bcvItem.promedio.toFixed(2));
           }
-          const paraleloItem = data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
-          if (paraleloItem?.promedio) {
-            rates.paralelo.value = parseFloat(paraleloItem.promedio.toFixed(2));
+          if (!fetched.binanceP2p) {
+            const paraleloItem = data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
+            if (paraleloItem?.promedio) {
+              rates.paralelo.value = parseFloat(paraleloItem.promedio.toFixed(2));
+            }
           }
           fetched.dolarapi = true;
         }

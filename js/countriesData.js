@@ -26,13 +26,13 @@ export const COUNTRIES_DATA = [
       },
       paralelo: {
         id: 'paralelo',
-        name: 'Dólar Paralelo',
-        code: 'USD/VES',
+        name: 'USDT (Binance P2P)',
+        code: 'USDT/VES',
         value: null,
         change: 0,
         currency: 'VES',
-        type: 'parallel',
-        icon: 'trending-up',
+        type: 'crypto',
+        icon: 'coins',
         nextDay: null
       },
       euro: {

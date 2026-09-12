@@ -228,6 +228,47 @@ export class DashboardView {
 
   renderNextDayRateCard(rate, nextDayLabel = 'Mañana') {
     if (!rate) return '';
+
+    // Manejo especial para USDT / Crypto (Mercado 24/7 en tiempo real)
+    if (rate.id === 'paralelo' || rate.type === 'crypto') {
+      const liveVal = rate.value;
+      const valueDisplay = liveVal !== null && liveVal !== undefined && !isNaN(liveVal)
+        ? formatCurrency(liveVal, rate.currency, 2)
+        : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
+
+      return `
+        <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-yellow-500/30">
+          <div class="flex justify-between items-start">
+            <div class="flex items-center space-x-3">
+              <div class="p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
+                <i data-lucide="${rate.icon || 'coins'}" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-gray-100 text-sm">${rate.name}</h4>
+                <span class="text-[10px] bg-yellow-500/20 text-yellow-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <i data-lucide="zap" class="w-3 h-3 text-yellow-400"></i> Binance P2P
+                </span>
+              </div>
+            </div>
+            <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+              <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+              <span>En Vivo</span>
+            </span>
+          </div>
+
+          <div class="mt-4 flex justify-between items-end">
+            <div>
+              <p class="text-2xl font-extrabold text-amber-400 tracking-tight">
+                ${valueDisplay}
+              </p>
+              <p class="text-[11px] text-gray-300 font-medium mt-0.5">Mercado 24/7 en Tiempo Real</p>
+            </div>
+            <span class="text-[10px] text-yellow-400 font-bold">Sin Cierre</span>
+          </div>
+        </div>
+      `;
+    }
+
     const hasOfficialNextDay = rate.nextDay && rate.nextDay.value && rate.nextDay.published;
     const nextDay = hasOfficialNextDay ? rate.nextDay : null;
 
