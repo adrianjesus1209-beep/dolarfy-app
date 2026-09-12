@@ -202,35 +202,9 @@ class ApiService {
       }
     });
 
-    // 4. Garantizar que exista siempre el objeto nextDay para Fecha Valor (Lunes, Martes, Miércoles, Jueves, Viernes)
-    const daysMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    const todayIndex = new Date().getDay();
-    let nextDayName = 'Lunes';
-    if (todayIndex >= 1 && todayIndex <= 4) {
-      nextDayName = daysMap[todayIndex + 1];
-    }
-
-    if (rates.bcv && !rates.bcv.nextDay) {
-      rates.bcv.nextDay = {
-        published: true,
-        isOfficial: true,
-        value: rates.bcv.value,
-        change: rates.bcv.change || 0,
-        date: `Oficial BCV · ${nextDayName}`,
-        scheduleText: `Cotización oficial estimada para ${nextDayName}`
-      };
-    }
-
-    if (rates.euro && !rates.euro.nextDay) {
-      rates.euro.nextDay = {
-        published: true,
-        isOfficial: true,
-        value: rates.euro.value,
-        change: rates.euro.change || 0,
-        date: `Oficial BCV · ${nextDayName}`,
-        scheduleText: `Cotización oficial estimada para ${nextDayName}`
-      };
-    }
+    // 4. nextDay solo se asigna si el BCV lo publicó oficialmente (fetchBcvOfficialSite).
+    // NUNCA se fabrican valores falsos copiando la tasa de hoy: si no hay publicación,
+    // nextDay permanece null y el dashboard muestra — — — honestamente.
 
     if (fetched.dolarapi || fetched.dolarapiEuro || fetched.bcvSite) {
       this.setCache(cacheKey, rates);
