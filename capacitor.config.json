@@ -3,7 +3,8 @@
   "appName": "Dolarfy",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "allowNavigation": ["*"]
   },
   "plugins": {
     "SplashScreen": {

@@ -3,7 +3,7 @@
  * Fuente única de verdad para la versión y las claves de almacenamiento.
  */
 
-export const APP_VERSION = '1.2.6';
+export const APP_VERSION = '1.2.7';
 
 // Prefijo de la clave de caché de tasas en localStorage.
 // Bump al cambiar el esquema del objeto de tasas (p. ej. v14).

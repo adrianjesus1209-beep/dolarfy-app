@@ -19,47 +19,34 @@ export const COUNTRIES_DATA = [
         id: 'bcv',
         name: 'Dólar Oficial (BCV)',
         code: 'USD/VES',
-        value: 832.49,
+        value: null,
         change: 0,
         currency: 'VES',
         type: 'official',
         icon: 'building-2',
-        nextDay: {
-          published: true,
-          isOfficial: true,
-          value: 832.49,
-          change: 0,
-          date: 'Oficial BCV',
-          scheduleText: 'Pronóstico Oficial BCV'
-        }
+        nextDay: null
       },
       paralelo: {
         id: 'paralelo',
         name: 'Dólar Paralelo',
         code: 'USD/VES',
-        value: 947.30,
+        value: null,
         change: 0,
         currency: 'VES',
         type: 'parallel',
-        icon: 'trending-up'
+        icon: 'trending-up',
+        nextDay: null
       },
       euro: {
         id: 'euro',
         name: 'Euro Oficial (BCV)',
         code: 'EUR/VES',
-        value: 968.07,
+        value: null,
         change: 0,
         currency: 'VES',
         type: 'official',
         icon: 'euro',
-        nextDay: {
-          published: true,
-          isOfficial: true,
-          value: 968.07,
-          change: 0,
-          date: 'Oficial BCV',
-          scheduleText: 'Pronóstico Oficial BCV'
-        }
+        nextDay: null
       }
     }
   }

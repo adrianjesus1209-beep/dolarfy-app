@@ -10,26 +10,29 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 
 ### Ultima Version
 
-* **Version**: v1.2.6 (Latest)
-* **Descarga Directa**: [Dolarfy-v1.2.6.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.6/Dolarfy-v1.2.6.apk)
+* **Version**: v1.2.7 (Latest)
+* **Descarga Directa**: [Dolarfy-v1.2.7.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.7/Dolarfy-v1.2.7.apk)
 * **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
 ## Historial de Versiones (Changelog)
 
-### v1.2.6 (Latest)
+### v1.2.7 (Latest)
 
-#### Botón de Pronóstico / Fecha Valor Siempre Visible (Lunes, Martes, Miércoles, Jueves, Viernes)
+#### Estado de Carga Limpio con Guiones (`Bs. — — —`) en Lugar de Cifras Estáticas
 
-* Fijada la visibilidad permanente del botón de selector de fecha (**Hoy** vs **Pronóstico / Fecha Valor**) al lado de "Hoy", sin importar el estado inicial de la red o la carga de la API.
-* Añadidos snapshots y fallbacks automáticos para garantizar que al pulsar el botón del día siguiente (Lunes, Martes, Miércoles, Jueves, Viernes) se muestren siempre las tarjetas correspondientes a la Fecha Valor bancaria.
+* Eliminados los valores estáticos simulados del estado inicial del snapshot (`countriesData.js`). Ahora la app inicia mostrando guiones de carga (`Bs. — — —`) hasta que se realiza la sincronización en vivo con la API.
+* Añadido `android:usesCleartextTraffic="true"` y `"allowNavigation": ["*"]` en Capacitor Android para garantizar la conectividad de red ilimitada hacia endpoints de cotización en vivo.
+* Si el BCV no ha publicado la Fecha Valor para el día seleccionado, la tarjeta de pronóstico muestra guiones `Bs. — — —` indicando "Sin publicación oficial BCV aún para [Día]" sin duplicar cifras falsas.
 
 #### Assets
 
-* [Dolarfy-v1.2.6.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.6/Dolarfy-v1.2.6.apk)
+* [Dolarfy-v1.2.7.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.7/Dolarfy-v1.2.7.apk)
 
 ---
+
+### v1.2.6
 
 ### v1.2.5
 

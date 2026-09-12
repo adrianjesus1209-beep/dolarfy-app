@@ -221,29 +221,26 @@ export class DashboardView {
 
   renderNextDayRateCard(rate, nextDayLabel = 'Mañana') {
     if (!rate) return '';
-    const nextDay = (rate.nextDay && rate.nextDay.value) ? rate.nextDay : {
-      published: true,
-      isOfficial: rate.type === 'official',
-      value: rate.value,
-      change: rate.change || 0,
-      date: `Fecha Valor ${nextDayLabel}`,
-      scheduleText: `Oficial BCV · ${nextDayLabel}`
-    };
+    const hasOfficialNextDay = rate.nextDay && rate.nextDay.value && rate.nextDay.published;
+    const nextDay = hasOfficialNextDay ? rate.nextDay : null;
 
-    const val = nextDay.value || rate.value;
-    const isPositive = nextDay.change >= 0;
+    const val = nextDay ? nextDay.value : null;
+    const isPositive = nextDay ? nextDay.change >= 0 : true;
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
-    const isLoaded = val !== null && val !== undefined && !isNaN(val);
-    const valueDisplay = isLoaded
+    const valueDisplay = val !== null && val !== undefined && !isNaN(val)
       ? formatCurrency(val, rate.currency, val < 10 ? 4 : 2)
       : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
 
-    const isOfficial = rate.type === 'official' || nextDay.isOfficial;
+    const isOfficial = rate.type === 'official' || (nextDay && nextDay.isOfficial);
     const badgeTag = isOfficial 
       ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="check-circle" class="w-3 h-3 text-emerald-400"></i> Oficial BCV</span>'
       : '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="coins" class="w-3 h-3 text-cyan-400"></i> Binance P2P</span>';
+
+    const dateSubtitle = hasOfficialNextDay
+      ? escapeHtml(this.cleanText(nextDay.date)) || `Oficial ${nextDayLabel}`
+      : `Sin publicación oficial BCV aún para ${nextDayLabel}`;
 
     return `
       <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
@@ -259,7 +256,7 @@ export class DashboardView {
           </div>
           <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
             <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${formatPercentage(nextDay.change)}</span>
+            <span>${nextDay ? formatPercentage(nextDay.change) : '0.00%'}</span>
           </span>
         </div>
 
@@ -268,7 +265,7 @@ export class DashboardView {
             <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${escapeHtml(this.cleanText(nextDay.date)) || 'Oficial BCV'}</p>
+            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${dateSubtitle}</p>
           </div>
           <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>
