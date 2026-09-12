@@ -1808,7 +1808,7 @@ class CalculatorView {
   getPillLabel(rateKey, rateObj) {
     if (!rateObj) return rateKey || '';
     if (rateKey === 'bcv') return 'BCV';
-    if (rateKey === 'paralelo' || rateObj.id === 'paralelo') return 'Paralelo';
+    if (rateKey === 'paralelo' || rateObj.id === 'paralelo') return 'USDT';
     if (rateKey === 'usdc' || rateObj.id === 'usdc') return 'USDC';
     if (rateKey === 'usdt' || rateObj.id === 'usdt') return 'USDT';
     if (rateKey === 'euro') return 'Euro';
@@ -2362,7 +2362,7 @@ class AnalyticsView {
     if (!rateObj) return rateKey || '';
     if (rateKey === 'bcv') return 'BCV';
     if (rateKey === 'euro') return 'Euro';
-    if (rateKey === 'paralelo' || rateObj.id === 'paralelo') return 'Paralelo';
+    if (rateKey === 'paralelo' || rateObj.id === 'paralelo') return 'USDT';
     return rateObj.name.split(' ')[0];
   }
 
