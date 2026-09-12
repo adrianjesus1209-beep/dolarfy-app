@@ -1,8 +1,6 @@
 /**
- * Catálogo de Países y Tasas Financieras por País
- * Solo fuentes oficiales venezolanas: BCV (USD y EUR)
- * Los valores aquí son un snapshot de referencia (PLACEHOLDER); se sobreescriben
- * en runtime con las tasas reales de ve.dolarapi.com y bcv.org.ve.
+ * Catálogo de países y tasas financieras de Dolarfy
+ * Los valores son placeholders de arranque; se sobreescriben con datos reales en runtime.
  */
 
 export const COUNTRIES_DATA = [

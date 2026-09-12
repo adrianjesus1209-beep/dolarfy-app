@@ -292,28 +292,6 @@ export class DashboardView {
     this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
       if (action === 'rates_refreshed') {
         this.render();
-        return;
-      }
-
-      const valEl = document.getElementById(`val-${updatedId}`);
-      const badgeEl = document.getElementById(`badge-${updatedId}`);
-
-      if (valEl && rates[updatedId]) {
-        const rate = rates[updatedId];
-        valEl.textContent = formatCurrency(rate.value, rate.currency, rate.value < 10 ? 4 : 2);
-
-        if (badgeEl) {
-          const isPositive = rate.change >= 0;
-          const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
-          const trendIcon = isPositive ? 'trending-up' : 'trending-down';
-
-          badgeEl.className = `inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}`;
-          badgeEl.innerHTML = `
-            <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${formatPercentage(rate.change)}</span>
-          `;
-          if (window.lucide) window.lucide.createIcons();
-        }
       }
     });
   }
