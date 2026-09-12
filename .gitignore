@@ -16,3 +16,4 @@ www/
 dist/
 !assets/vendor/capacitor/core/dist/
 scratch/
+releases/*.apk
