@@ -14,38 +14,41 @@ class MockDataEngine {
   }
 
   hydrateCacheSync() {
+    // Declarar `current` fuera del try para que sea accesible después del catch
+    const current = this.getCurrentCountry();
     try {
-      if (typeof localStorage === 'undefined') return;
-      const current = this.getCurrentCountry();
-
-      // Limpieza de versiones anteriores del caché de tasas en localStorage
-      const cacheKey = `${RATES_CACHE_KEY_PREFIX}_${current.id}`;
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('dolarfy_rates_cache_') && key !== cacheKey) {
-          keysToRemove.push(key);
+      if (typeof localStorage === 'undefined') {
+        // nada que hidratar, continuar al placeholder
+      } else {
+        // Limpieza de versiones anteriores del caché de tasas en localStorage
+        const cacheKey = `${RATES_CACHE_KEY_PREFIX}_${current.id}`;
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('dolarfy_rates_cache_') && key !== cacheKey) {
+            keysToRemove.push(key);
+          }
         }
-      }
-      keysToRemove.forEach(k => {
-        try { localStorage.removeItem(k); } catch (e) {}
-      });
+        keysToRemove.forEach(k => {
+          try { localStorage.removeItem(k); } catch (e) {}
+        });
 
-      const raw = localStorage.getItem(cacheKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const data = parsed.data || parsed;
-        const hasValidRates = data && typeof data === 'object' &&
-          Object.values(data).some(r => r && typeof r === 'object' &&
-            typeof r.value === 'number' && !isNaN(r.value));
-        if (hasValidRates) {
-          // Descartar caché demasiado antigua (> 7 días) para no mostrar datos sin vigencia
-          const cachedAt = typeof parsed.timestamp === 'number' ? parsed.timestamp : 0;
-          const isTooOld = cachedAt > 0 && (Date.now() - cachedAt) > 7 * 24 * 60 * 60 * 1000;
-          if (isTooOld) {
-            localStorage.removeItem(cacheKey);
-          } else {
-            current.rates = { ...this.countries[0].rates, ...data };
+        const raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const data = parsed.data || parsed;
+          const hasValidRates = data && typeof data === 'object' &&
+            Object.values(data).some(r => r && typeof r === 'object' &&
+              typeof r.value === 'number' && !isNaN(r.value));
+          if (hasValidRates) {
+            // Descartar caché demasiado antigua (> 7 días) para no mostrar datos sin vigencia
+            const cachedAt = typeof parsed.timestamp === 'number' ? parsed.timestamp : 0;
+            const isTooOld = cachedAt > 0 && (Date.now() - cachedAt) > 7 * 24 * 60 * 60 * 1000;
+            if (isTooOld) {
+              localStorage.removeItem(cacheKey);
+            } else {
+              current.rates = { ...this.countries[0].rates, ...data };
+            }
           }
         }
       }
