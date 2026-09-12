@@ -78,44 +78,16 @@ class ApiService {
       }
     });
 
-    // 1. FUENTE PRIMARIA: open.er-api.com
-    //    Actualiza diariamente con los valores exactos del BCV.
+    // 1. FUENTE OFICIAL DE HOY Y PARALELO: ve.dolarapi.com
+    //    Proporciona la tasa oficial vigente para el día de HOY y el dólar paralelo en tiempo real.
     try {
-      const [resUsd, resEur] = await Promise.all([
-        this._fetch('https://open.er-api.com/v6/latest/USD'),
-        this._fetch('https://open.er-api.com/v6/latest/EUR')
-      ]);
-
+      const resUsd = await this._fetch('https://ve.dolarapi.com/v1/dolares');
       if (resUsd.ok) {
         const data = await resUsd.json();
-        if (data?.rates?.VES) {
-          rates.bcv.value = parseFloat(data.rates.VES.toFixed(2));
-          fetched.openErUsd = true;
-        }
-      }
-
-      if (resEur.ok) {
-        const data = await resEur.json();
-        if (data?.rates?.VES) {
-          rates.euro.value = parseFloat(data.rates.VES.toFixed(2));
-          fetched.openErEur = true;
-        }
-      }
-    } catch (e) {
-      console.warn('Error al consultar open.er-api.com:', e);
-    }
-
-    // 2. ve.dolarapi.com — Dólar Paralelo (tiempo real) + fallback BCV/EUR
-    try {
-      const res = await this._fetch('https://ve.dolarapi.com/v1/dolares');
-      if (res.ok) {
-        const data = await res.json();
         if (Array.isArray(data)) {
-          if (!fetched.openErUsd) {
-            const bcvItem = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial');
-            if (bcvItem?.promedio) {
-              rates.bcv.value = parseFloat(bcvItem.promedio.toFixed(2));
-            }
+          const bcvItem = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial');
+          if (bcvItem?.promedio) {
+            rates.bcv.value = parseFloat(bcvItem.promedio.toFixed(2));
           }
           const paraleloItem = data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
           if (paraleloItem?.promedio) {
@@ -128,25 +100,71 @@ class ApiService {
       console.warn('Error al consultar DolarApi dolares:', e);
     }
 
-    if (!fetched.openErEur) {
-      try {
-        const res = await this._fetch('https://ve.dolarapi.com/v1/euros');
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            const item = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial' || d.moneda === 'EUR');
-            if (item?.promedio) {
-              rates.euro.value = parseFloat(item.promedio.toFixed(2));
-              fetched.dolarapiEuro = true;
-            }
+    try {
+      const resEur = await this._fetch('https://ve.dolarapi.com/v1/euros');
+      if (resEur.ok) {
+        const data = await resEur.json();
+        if (Array.isArray(data)) {
+          const item = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial' || d.moneda === 'EUR');
+          if (item?.promedio) {
+            rates.euro.value = parseFloat(item.promedio.toFixed(2));
+            fetched.dolarapiEuro = true;
           }
         }
-      } catch (e) {
-        console.warn('Error al consultar DolarApi euros:', e);
       }
+    } catch (e) {
+      console.warn('Error al consultar DolarApi euros:', e);
     }
 
-    // 3. Pronóstico oficial BCV (nextDay) — procesado según la Fecha Valor oficial
+    // 2. PRONÓSTICO DÍA SIGUIENTE (LUNES / PRÓXIMO DÍA HÁBIL): open.er-api.com
+    //    Si open.er-api difiere de la tasa de Hoy, es la tasa oficial recién publicada por el BCV para la Fecha Valor del próximo día hábil.
+    try {
+      const [resUsd, resEur] = await Promise.all([
+        this._fetch('https://open.er-api.com/v6/latest/USD'),
+        this._fetch('https://open.er-api.com/v6/latest/EUR')
+      ]);
+
+      if (resUsd.ok) {
+        const data = await resUsd.json();
+        if (data?.rates?.VES) {
+          const openErUsd = parseFloat(data.rates.VES.toFixed(2));
+          fetched.openErUsd = true;
+
+          if (!rates.bcv.value) {
+            rates.bcv.value = openErUsd;
+          } else if (Math.abs(openErUsd - rates.bcv.value) >= 0.01) {
+            // Tasa para el próximo día hábil (Lunes en fin de semana)
+            const changeUsd = parseFloat((((openErUsd - rates.bcv.value) / rates.bcv.value) * 100).toFixed(2));
+            rates.bcv.nextDay = {
+              published: true, isOfficial: true, value: openErUsd, change: changeUsd,
+              date: 'Fecha Valor BCV (Lunes)', scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
+            };
+          }
+        }
+      }
+
+      if (resEur.ok) {
+        const data = await resEur.json();
+        if (data?.rates?.VES) {
+          const openErEur = parseFloat(data.rates.VES.toFixed(2));
+          fetched.openErEur = true;
+
+          if (!rates.euro.value) {
+            rates.euro.value = openErEur;
+          } else if (Math.abs(openErEur - rates.euro.value) >= 0.01) {
+            const changeEur = parseFloat((((openErEur - rates.euro.value) / rates.euro.value) * 100).toFixed(2));
+            rates.euro.nextDay = {
+              published: true, isOfficial: true, value: openErEur, change: changeEur,
+              date: 'Fecha Valor BCV (Lunes)', scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error al consultar open.er-api.com:', e);
+    }
+
+    // 3. Pronóstico oficial BCV por scraping o proxy si responde
     try {
       const bcvData = await this.fetchBcvOfficialSite();
       if (bcvData?.usd) {
