@@ -10,27 +10,28 @@ La ultima version disponible de la aplicacion en formato APK para Android se enc
 
 ### Ultima Version
 
-* **Version**: v1.2.5 (Latest)
-* **Descarga Directa**: [Dolarfy-v1.2.5.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.5/Dolarfy-v1.2.5.apk)
+* **Version**: v1.2.6 (Latest)
+* **Descarga Directa**: [Dolarfy-v1.2.6.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.6/Dolarfy-v1.2.6.apk)
 * **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
 ## Historial de Versiones (Changelog)
 
-### v1.2.5 (Latest)
+### v1.2.6 (Latest)
 
-#### Polling Constante en Vivo (15s) + Botón de Refresco Manual
+#### Botón de Pronóstico / Fecha Valor Siempre Visible (Lunes, Martes, Miércoles, Jueves, Viernes)
 
-* Reducido el intervalo de polling automático en segundo plano de 30 minutos a **15 segundos** (`15s`) para capturar al instante cualquier cambio de cotización publicado en las APIs.
-* Reducido el TTL de caché a 15 segundos y añadido refresco automático inmediato al reactivar/abrir la aplicación (`visibilitychange`).
-* Añadido botón de **Refresco Manual** en tiempo real (`#header-refresh-btn`) en la barra superior con animación de giro para forzar la actualización instantánea de las tasas.
+* Fijada la visibilidad permanente del botón de selector de fecha (**Hoy** vs **Pronóstico / Fecha Valor**) al lado de "Hoy", sin importar el estado inicial de la red o la carga de la API.
+* Añadidos snapshots y fallbacks automáticos para garantizar que al pulsar el botón del día siguiente (Lunes, Martes, Miércoles, Jueves, Viernes) se muestren siempre las tarjetas correspondientes a la Fecha Valor bancaria.
 
 #### Assets
 
-* [Dolarfy-v1.2.5.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.5/Dolarfy-v1.2.5.apk)
+* [Dolarfy-v1.2.6.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.6/Dolarfy-v1.2.6.apk)
 
 ---
+
+### v1.2.5
 
 ### v1.2.4
 

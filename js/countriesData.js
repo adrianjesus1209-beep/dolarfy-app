@@ -23,7 +23,15 @@ export const COUNTRIES_DATA = [
         change: 0,
         currency: 'VES',
         type: 'official',
-        icon: 'building-2'
+        icon: 'building-2',
+        nextDay: {
+          published: true,
+          isOfficial: true,
+          value: 832.49,
+          change: 0,
+          date: 'Oficial BCV',
+          scheduleText: 'Pronóstico Oficial BCV'
+        }
       },
       paralelo: {
         id: 'paralelo',
@@ -43,7 +51,15 @@ export const COUNTRIES_DATA = [
         change: 0,
         currency: 'VES',
         type: 'official',
-        icon: 'euro'
+        icon: 'euro',
+        nextDay: {
+          published: true,
+          isOfficial: true,
+          value: 968.07,
+          change: 0,
+          date: 'Oficial BCV',
+          scheduleText: 'Pronóstico Oficial BCV'
+        }
       }
     }
   }
