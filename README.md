@@ -4,7 +4,7 @@ Dolarfy es una aplicación móvil y web nativa para consultar cotizaciones del d
 
 ---
 
-## 📱 Descarga Oficial
+## Descarga Oficial
 
 La versión oficial de la aplicación para dispositivos Android se encuentra disponible para instalación directa en GitHub Releases.
 
@@ -16,20 +16,20 @@ La versión oficial de la aplicación para dispositivos Android se encuentra dis
 
 ---
 
-## ✨ Características Principales
+## Características Principales
 
-* 🏛️ **Dólar y Euro Oficial (BCV)**: Conexión directa con los datos en tiempo real del Banco Central de Venezuela.
-* ⚡ **USDT (Binance P2P)**: Consulta en vivo de las órdenes de compra/venta del mercado Binance P2P C2C las 24 horas del día.
-* 🗓️ **Calendario BCV y Pronóstico**: 
+* **Dólar y Euro Oficial (BCV)**: Conexión directa con los datos en tiempo real del Banco Central de Venezuela.
+* **USDT (Binance P2P)**: Consulta en vivo de las órdenes de compra/venta del mercado Binance P2P C2C las 24 horas del día.
+* **Calendario BCV y Pronóstico**: 
   - **Fines de semana**: La tasa oficial del viernes se mantiene estática en *"Hoy"*, mientras la pestaña de la Fecha Valor (*"Lunes"*) muestra el valor oficial publicado para el inicio de semana.
   - **Mercado USDT**: Cotización continua en tiempo real 24/7 sin cierre bancario.
-* 🧮 **Calculadora Financiera**: Conversor de divisas instantáneo con selector de fecha (*Hoy* vs *Pronóstico*).
-* 📈 **Tendencias e Historial**: Gráficos de evolución histórica y registro de conversiones pasadas.
-* 🛑 **Cero Datos Falsos**: Sin cifras simuladas ni parches estáticos; estado inicial de carga limpio con guiones (`— — —`).
+* **Calculadora Financiera**: Conversor de divisas instantáneo con selector de fecha (*Hoy* vs *Pronóstico*).
+* **Tendencias e Historial**: Gráficos de evolución histórica y registro de conversiones pasadas.
+* **Cero Datos Falsos**: Sin cifras simuladas ni parches estáticos; estado inicial de carga limpio con guiones (`— — —`).
 
 ---
 
-## 🛠️ Desarrollo y Compilación Local
+## Desarrollo y Compilación Local
 
 1. **Clonar el repositorio**:
    ```bash
@@ -48,6 +48,6 @@ La versión oficial de la aplicación para dispositivos Android se encuentra dis
 
 ---
 
-## 📄 Créditos y Licencia
+## Créditos y Licencia
 
 Desarrollado y mantenido por Adrián Bello.
