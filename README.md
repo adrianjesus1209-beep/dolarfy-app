@@ -1,183 +1,53 @@
-# Dolarfy
+# Dolarfy — Tasas Financieras en Tiempo Real
 
-Dolarfy es una aplicacion movil y web para consultar cotizaciones del dolar en tiempo real en Venezuela, convertir divisas y calcular operaciones financieras.
-
----
-
-## Descargas y Releases
-
-La ultima version disponible de la aplicacion en formato APK para Android se encuentra lista para instalacion directa en la seccion de Releases oficiales de GitHub.
-
-### Ultima Version
-
-* **Version**: v1.2.7 (Latest)
-* **Descarga Directa**: [Dolarfy-v1.2.7.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.7/Dolarfy-v1.2.7.apk)
-* **Releases Oficiales**: [Ver todas las versiones en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
+Dolarfy es una aplicación móvil y web nativa para consultar cotizaciones del dólar y euro oficial (BCV) en tiempo real en Venezuela, monitor de mercado USDT (Binance P2P), calculadora conversora de divisas y análisis de tendencias.
 
 ---
 
-## Historial de Versiones (Changelog)
+## 📱 Descarga Oficial
 
-### v1.2.7 (Latest)
+La versión oficial de la aplicación para dispositivos Android se encuentra disponible para instalación directa en GitHub Releases.
 
-#### Estado de Carga Limpio con Guiones (`Bs. — — —`) en Lugar de Cifras Estáticas
+### Versión Actual
 
-* Eliminados los valores estáticos simulados del estado inicial del snapshot (`countriesData.js`). Ahora la app inicia mostrando guiones de carga (`Bs. — — —`) hasta que se realiza la sincronización en vivo con la API.
-* Añadido `android:usesCleartextTraffic="true"` y `"allowNavigation": ["*"]` en Capacitor Android para garantizar la conectividad de red ilimitada hacia endpoints de cotización en vivo.
-* Si el BCV no ha publicado la Fecha Valor para el día seleccionado, la tarjeta de pronóstico muestra guiones `Bs. — — —` indicando "Sin publicación oficial BCV aún para [Día]" sin duplicar cifras falsas.
-
-#### Assets
-
-* [Dolarfy-v1.2.7.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.7/Dolarfy-v1.2.7.apk)
+* **Versión**: `v1.0.0`
+* **Descarga Directa (APK)**: [Dolarfy-v1.0.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.0/Dolarfy-v1.0.0.apk)
+* **Releases en GitHub**: [Ver entregas en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
 
 ---
 
-### v1.2.6
+## ✨ Características Principales
 
-### v1.2.5
-
-### v1.2.4
-
-### v1.2.3
-
-### v1.2.1
-
-### v1.2.0
-
-#### Correcciones Criticas
-
-* Tasas 100% reales desde ve.dolarapi.com: Dolar Paralelo deja de ser un valor estatico y ahora se actualiza en vivo, y el Euro usa el endpoint oficial (se elimina el calculo aproximado USD x 1.162).
-* Variacion diaria (cambio %) recalculada con el valor anterior real de cada tasa, no valores fijos.
-* Historico real del mercado con grafico de tendencias: datos de ve.dolarapi.com con filtro por fuente y serie; rango minimo/maximo calculado sobre el peridoo y la tasa seleccionada.
-* Eliminada la tarjeta de USDT P2P (dato no oficial no verificable).
-* Sin conexion: cuando no hay red y no hay cache, la app muestra valores de referencia claramente marcados como "Sin conexion" en lugar de mostrarlos como "En Vivo".
-* Ajustes: estado de conexion real de las tasas (en vivo / cache / sin conexion) y detalle de logs de notificaciones.
-
-#### Mejoras
-
-* Periodo "1D" oculto en el historico (minimo 1W) por falta de datos diarios.
-* Cache de tasas regenerado (v13) y Service Worker v1.2.0 para invalidar la instalacion anterior.
-* Correcciones de contraste en el modo claro (banner y modales).
-
-#### Assets
-
-* [dolarfy-v1.2.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.2.0/dolarfy-v1.2.0.apk)
+* 🏛️ **Dólar y Euro Oficial (BCV)**: Conexión directa con los datos en tiempo real del Banco Central de Venezuela.
+* ⚡ **USDT (Binance P2P)**: Consulta en vivo de las órdenes de compra/venta del mercado Binance P2P C2C las 24 horas del día.
+* 🗓️ **Calendario BCV y Pronóstico**: 
+  - **Fines de semana**: La tasa oficial del viernes se mantiene estática en *"Hoy"*, mientras la pestaña de la Fecha Valor (*"Lunes"*) muestra el valor oficial publicado para el inicio de semana.
+  - **Mercado USDT**: Cotización continua en tiempo real 24/7 sin cierre bancario.
+* 🧮 **Calculadora Financiera**: Conversor de divisas instantáneo con selector de fecha (*Hoy* vs *Pronóstico*).
+* 📈 **Tendencias e Historial**: Gráficos de evolución histórica y registro de conversiones pasadas.
+* 🛑 **Cero Datos Falsos**: Sin cifras simuladas ni parches estáticos; estado inicial de carga limpio con guiones (`— — —`).
 
 ---
 
-### v1.1.0
+## 🛠️ Desarrollo y Compilación Local
 
-#### Novedades
-* Notificaciones locales reales de la tasa BCV (recordatorio diario 5:05 p.m. y alerta al publicar la tasa).
-* Offline y funcionamiento sin conexion: assets locales (Tailwind, Lucide, ApexCharts, fuentes) y Service Worker.
-* Fuentes de tasas corregidas: BCV directo, DolarApi oficial/paralelo, Euro BCV y USDT P2P, con etiquetas de origen (en vivo / cache / sin conexion).
-* Cache de tasas regenerado (v11) y limpieza automatica de cache obsoleta.
-
-#### Assets
-* [dolarfy-v1.1.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.1.0/dolarfy-v1.1.0.apk)
-
----
-
-### v1.0.3
-
-#### Novedades
-* Selector de fecha en la calculadora (Hoy vs Prediccion de siguiente dia habil).
-* Sincronizacion limpia de assets nativos compilados con Capacitor.
-* Limpieza automatica de cache al actualizar o instalar la app.
-
-#### Assets
-* [dolarfy-v1.0.3.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.3/dolarfy-v1.0.3.apk)
-
----
-
-### v1.0.2
-
-#### Correcciones
-* Corregida la seleccion de tasa activa y pill Paralelo en la Calculadora.
-* Reactividad ante eventos de actualizacion en mockEngine.
-
-#### Assets
-* [dolarfy-v1.0.2.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.2/dolarfy-v1.0.2.apk)
-
----
-
-### v1.0.1
-
-#### Mejoras
-* Depuracion agresiva de cache local en almacenamiento.
-* Ajuste de tasa inicial por defecto BCV a 813.74.
-* Mejora en el soporte de proxies CORS para peticiones bancarias.
-
-#### Assets
-* [dolarfy-v1.0.1.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.1/dolarfy-v1.0.1.apk)
-
----
-
-### v1.0.0
-
-#### Lanzamiento Inicial
-* Primera version de Dolarfy compilada para Android mediante Capacitor.
-
-#### Assets
-* [dolarfy-v1.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.0/dolarfy-v1.0.apk)
-
----
-
-## Instrucciones de Instalacion
-
-1. Descarga el archivo `.apk` correspondiente a la version deseada desde la seccion Releases.
-2. Abre el archivo descargado en tu dispositivo Android.
-3. Si el sistema lo requiere, habilita la opcion "Instalar aplicaciones de fuentes desconocidas".
-4. Presiona "Instalar" para completar el proceso.
-
----
-
-## Caracteristicas Principales
-
-* **Cotizaciones en Tiempo Real**: BCV Oficial, Dolar Paralelo, Euros y otras divisas.
-* **Tasa de Prediccion**: Consulta y realiza calculos con la tasa oficial publicada para el proximo dia habil.
-* **Calculadora y Conversor**: Conversiones entre distintas monedas locales e internacionales.
-* **Historial de Operaciones**: Guardado y consulta de calculos recientes.
-* **Analisis y Tendencias**: Graficos e historico de variaciones.
-* **Modo Oscuro y Claro**: Interfaz adaptable.
-
----
-
-## Tecnologias Utilizadas
-
-* HTML5 & Vanilla CSS
-* JavaScript (ES6+)
-* Capacitor (Android)
-
----
-
-## Desarrollo Local
-
-1. Clonar el repositorio:
+1. **Clonar el repositorio**:
    ```bash
    git clone https://github.com/adrianjesus1209-beep/dolarfy-app.git
    ```
-2. Abrir `index.html` en el navegador o mediante un servidor local.
 
-### Sincronizacion con Capacitor (Android)
+2. **Generar el bundle JavaScript**:
+   ```bash
+   node scripts/bundle.js
+   ```
 
-Compilacion completa (assets + sync + APK con nombre oficial `Dolarfy-vX.Y.Z.apk`):
-
-```powershell
-npm run build:apk
-```
-
-O paso a paso:
-
-```powershell
-Copy-Item -Path index.html, manifest.json, sw.js, package.json, js, assets -Destination www -Recurse -Force
-npx cap sync android
-cd android
-.\gradlew.bat assembleDebug
-```
+3. **Compilar el archivo APK para Android**:
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-apk.ps1
+   ```
 
 ---
 
-## Licencia
+## 📄 Créditos y Licencia
 
-Proyecto creado por Adrian Bello.
+Desarrollado y mantenido por Adrián Bello.
