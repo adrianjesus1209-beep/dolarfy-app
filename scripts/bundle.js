@@ -14,6 +14,8 @@ const files = [
   'js/notificationService.js',
   'js/mockData.js',
   'js/components/notificationModal.js',
+  'js/components/countryModal.js',
+  'js/components/aboutModal.js',
   'js/components/dashboard.js',
   'js/components/calculator.js',
   'js/components/analytics.js',
