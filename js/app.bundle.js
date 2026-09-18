@@ -1905,7 +1905,7 @@ class CalculatorView {
           <!-- Top info bar inside card -->
           <div class="flex items-center justify-between">
             <span id="rate-badge-pill" class="bg-black/50 border border-cyan-500/30 text-cyan-300 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5">
-              ${this.selectedDay === 'prediccion' && showDayToggle
+              ${this.selectedDay === 'prediccion' && hasNextDay
                 ? `<i data-lucide="calendar-check" class="w-3 h-3 text-amber-400"></i><span class="text-amber-300">${nextDayLabel}:</span>`
                 : `<i data-lucide="sun" class="w-3 h-3 text-emerald-400"></i>`
               }
@@ -1990,10 +1990,11 @@ class CalculatorView {
     const historyBtn = document.getElementById('calc-history-btn');
     const keypadKeys = document.querySelectorAll('#calc-keypad button');
 
-    // Selector Hoy / Predicción
+    // Selector Hoy / Predicción (Día Siguiente)
     const dayBtns = document.querySelectorAll('.calc-day-btn');
     dayBtns.forEach(btn => {
       btn.addEventListener('click', () => {
+        if (btn.hasAttribute('disabled') || btn.disabled) return;
         const day = btn.getAttribute('data-calcday');
         if (day && day !== this.selectedDay) {
           this.selectedDay = day;
@@ -2037,9 +2038,37 @@ class CalculatorView {
     copyBtn?.addEventListener('click', () => {
       const displayEl = document.getElementById('calc-equality-display');
       if (!displayEl) return;
-      const textToCopy = displayEl.textContent.trim();
+      const fullText = displayEl.textContent.trim();
+      
+      // Extraer únicamente el resultado después del signo '=' (por ejemplo: "84.855,00 Bs.")
+      let resultOnly = fullText;
+      if (fullText.includes('=')) {
+        resultOnly = fullText.split('=').pop().trim();
+      }
 
-      navigator.clipboard.writeText(textToCopy).then(() => {
+      const performCopy = (text) => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text);
+        } else {
+          const textArea = document.createElement('textarea');
+          textArea.value = text;
+          textArea.style.position = 'fixed';
+          textArea.style.opacity = '0';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          try {
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            return Promise.resolve();
+          } catch (err) {
+            document.body.removeChild(textArea);
+            return Promise.reject(err);
+          }
+        }
+      };
+
+      performCopy(resultOnly).then(() => {
         copyBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-emerald-400"></i>`;
         if (window.lucide) window.lucide.createIcons();
         setTimeout(() => {
