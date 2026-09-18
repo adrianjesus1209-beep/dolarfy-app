@@ -1,0 +1,18 @@
+{
+  "name": "dolarfy-app",
+  "version": "1.0.0",
+  "description": "Calculadora y conversor de divisas con cotizaciones del dólar en tiempo real",
+  "main": "index.html",
+  "scripts": {
+    "build": "node scripts/bundle.js"
+  },
+  "keywords": [
+    "dolar",
+    "divisas",
+    "calculadora",
+    "cotizaciones",
+    "web"
+  ],
+  "author": "",
+  "license": "ISC"
+}

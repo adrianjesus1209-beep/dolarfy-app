@@ -1,0 +1,197 @@
+import { notificationService } from '../notificationService.js';
+import { calcHistoryService } from '../calcHistoryService.js';
+import { themeService } from '../themeService.js';
+import { mockEngine } from '../mockData.js';
+import { APP_VERSION } from '../constants.js';
+
+export class SettingsView {
+  constructor(containerId) {
+    this.container = document.getElementById(containerId);
+    this.unsubscribe = null;
+  }
+
+  getConnectionStatus(rates) {
+    const meta = (rates && rates._meta) || {};
+    const src = meta.source || 'live';
+    switch (src) {
+      case 'stale':
+        return { label: 'Conectado · Último dato', cls: 'text-amber-400', dot: 'bg-amber-400' };
+      case 'cache':
+        return { label: 'Conectado · Caché', cls: 'text-gray-400', dot: 'bg-gray-400' };
+      case 'placeholder':
+      case 'offline':
+        return { label: 'Sin conexión', cls: 'text-red-400', dot: 'bg-red-400' };
+      default:
+        return { label: 'Conectado', cls: 'text-emerald-400', dot: 'bg-emerald-400' };
+    }
+  }
+
+  render() {
+    const isNotifEnabled = notificationService.isEnabled();
+    const currentTheme = themeService.getTheme();
+    const status = this.getConnectionStatus(mockEngine.getRates());
+
+    this.container.innerHTML = `
+      <div class="space-y-4 pb-24 animate-fade-in max-w-md mx-auto">
+        
+        <!-- Header de Ajustes -->
+        <div class="flex items-center space-x-2">
+          <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <i data-lucide="settings" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-extrabold text-white leading-tight">Ajustes y Preferencias</h2>
+            <p class="text-xs text-gray-400 mt-0.5">Configuración general de Dolarfy Mobile</p>
+          </div>
+        </div>
+
+        <!-- 1. Sección: Preferencias Principales -->
+        <div class="space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Preferencias del Sistema</h3>
+
+          <!-- Tema de la Aplicación -->
+          <div class="glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/10">
+            <div class="flex items-center space-x-3">
+              <div class="p-2 rounded-xl bg-white/5 text-amber-400">
+                <i data-lucide="${currentTheme === 'light' ? 'sun' : 'moon'}" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-gray-100">Tema de la Aplicación</h4>
+                <p class="text-[10px] text-gray-400">Selecciona el modo visual de la interfaz.</p>
+              </div>
+            </div>
+
+            <div id="settings-theme-selector" class="flex items-center bg-black/40 p-1 rounded-xl border border-white/10 space-x-1">
+              <button type="button" data-theme="dark" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${currentTheme === 'dark' ? 'bg-cyan-500 text-slate-950 shadow-md font-black' : 'text-gray-400 hover:text-white'}">
+                <i data-lucide="moon" class="w-3.5 h-3.5"></i>
+                <span>Oscuro</span>
+              </button>
+              <button type="button" data-theme="light" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${currentTheme === 'light' ? 'bg-cyan-500 text-slate-950 shadow-md font-black' : 'text-gray-400 hover:text-white'}">
+                <i data-lucide="sun" class="w-3.5 h-3.5"></i>
+                <span>Claro</span>
+              </button>
+            </div>
+          </div>
+
+
+
+          <!-- Alertas de Tasa Diaria -->
+          <div class="glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/10">
+            <div class="flex items-center space-x-3">
+              <div class="p-2 rounded-xl bg-white/5 text-emerald-400">
+                <i data-lucide="bell" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-gray-100">Alertas de Tasa Diaria</h4>
+                <p class="text-[10px] text-gray-400">Notificar al emitirse la nueva tasa del Banco Central.</p>
+              </div>
+            </div>
+
+            <button id="settings-notif-toggle" type="button" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${isNotifEnabled ? 'bg-cyan-500' : 'bg-gray-700'}">
+              <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${isNotifEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Sección: Almacenamiento y Datos -->
+        <div class="space-y-2 pt-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Gestión de Datos</h3>
+
+          <div class="glass-card rounded-2xl p-3.5 flex items-center justify-between border border-white/10">
+            <div class="flex items-center space-x-3">
+              <div class="p-2 rounded-xl bg-white/5 text-amber-400">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-gray-100">Historial de Conversiones</h4>
+                <p class="text-[10px] text-gray-400">Eliminar registros guardados de la calculadora.</p>
+              </div>
+            </div>
+
+            <button id="settings-clear-history-btn" type="button" class="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold transition-all active:scale-95">
+              Limpiar
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Sección: Información de la Aplicación -->
+        <div class="space-y-2 pt-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Información del Sistema</h3>
+
+          <div class="glass-card rounded-2xl p-4 space-y-3 border border-white/10">
+            <div class="flex items-center justify-between border-b border-white/5 pb-2.5">
+              <span class="text-xs font-semibold text-gray-300">Versión</span>
+              <span class="text-xs font-extrabold text-cyan-400">${APP_VERSION}</span>
+            </div>
+
+            <div class="flex items-center justify-between border-b border-white/5 pb-2.5">
+              <span class="text-xs font-semibold text-gray-300">Estado de APIs Bancarias</span>
+              <span class="text-xs font-bold ${status.cls} flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full ${status.dot} animate-pulse"></span> ${status.label}
+              </span>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-gray-300">Desarrollo</span>
+              <span class="text-xs font-bold text-cyan-300">Adrian Bello</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    this.attachEvents();
+    this.subscribeToUpdates();
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  subscribeToUpdates() {
+    if (this.unsubscribe) this.unsubscribe();
+    this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
+      if (action === 'rates_refreshed') {
+        this.render();
+      }
+    });
+  }
+
+  attachEvents() {
+    const notifToggle = document.getElementById('settings-notif-toggle');
+    const clearHistoryBtn = document.getElementById('settings-clear-history-btn');
+    const themeSelector = document.getElementById('settings-theme-selector');
+
+    themeSelector?.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-theme]');
+      if (btn) {
+        const selectedTheme = btn.getAttribute('data-theme');
+        if (selectedTheme && selectedTheme !== themeService.getTheme()) {
+          themeService.setTheme(selectedTheme);
+          this.render();
+        }
+      }
+    });
+
+    notifToggle?.addEventListener('click', async () => {
+      await notificationService.toggleNotifications();
+      this.render();
+      document.dispatchEvent(new CustomEvent('dolarfy:notification_toggled'));
+    });
+
+    clearHistoryBtn?.addEventListener('click', () => {
+      calcHistoryService.clearHistory();
+      clearHistoryBtn.textContent = '¡Limpiado!';
+      clearHistoryBtn.className = 'px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold transition-all';
+      setTimeout(() => {
+        clearHistoryBtn.textContent = 'Limpiar';
+        clearHistoryBtn.className = 'px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold transition-all active:scale-95';
+      }, 2000);
+    });
+  }
+
+  destroy() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+  }
+}
