@@ -181,7 +181,6 @@ export class CalculatorView {
               ${activeRate.toFixed(activeRate < 10 ? 4 : 2)}
             </span>
             <div class="flex items-center space-x-3 text-cyan-400">
-              <button id="calc-shift-btn" type="button" title="Shift / Swap" class="hover:text-white transition-all cursor-pointer"><i data-lucide="code-2" class="w-4 h-4"></i></button>
               <button id="swap-currency-btn" type="button" title="Intercambiar divisas" class="hover:text-white transition-all cursor-pointer"><i data-lucide="arrow-up-down" class="w-4 h-4"></i></button>
               <button id="calc-history-btn" type="button" title="Historial de conversiones" class="hover:text-emerald-400 transition-all cursor-pointer"><i data-lucide="history" class="w-4 h-4 text-emerald-400"></i></button>
             </div>
@@ -302,7 +301,6 @@ export class CalculatorView {
     };
 
     swapBtn?.addEventListener('click', triggerSwap);
-    shiftBtn?.addEventListener('click', triggerSwap);
 
     copyBtn?.addEventListener('click', () => {
       const displayEl = document.getElementById('calc-equality-display');
