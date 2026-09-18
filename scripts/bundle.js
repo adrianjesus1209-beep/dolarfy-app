@@ -7,6 +7,7 @@ const files = [
   'js/constants.js',
   'js/utils/formatters.js',
   'js/utils/mathEval.js',
+  'js/utils/toast.js',
   'js/countriesData.js',
   'js/themeService.js',
   'js/calcHistoryService.js',

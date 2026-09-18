@@ -1,4 +1,5 @@
 import { APP_VERSION } from '../constants.js';
+import { showDialogModal } from '../utils/toast.js';
 
 export class AboutModal {
   constructor() {
@@ -118,11 +119,19 @@ export class AboutModal {
     closeBtn?.addEventListener('click', () => this.close());
 
     privacyBtn?.addEventListener('click', () => {
-      alert('🛡️ Política de Privacidad Dolarfy\n\nDolarfy no recopila, vende ni comparte datos personales de sus usuarios. Toda la configuración e historial se almacenan de forma local en tu dispositivo.');
+      showDialogModal({
+        title: 'Política de Privacidad',
+        body: 'Dolarfy no recopila, vende ni comparte datos personales de sus usuarios. Toda la configuración e historial se almacenan de forma totalmente local y privada en tu dispositivo.',
+        icon: 'shield-check'
+      });
     });
 
     openSourceBtn?.addEventListener('click', () => {
-      alert('📄 Licencias de Código Abierto\n\nDolarfy hace uso de librerías de código abierto incluyendo Lucide Icons, ApexCharts, TailwindCSS y bibliotecas de utilidades bajo licencia MIT.');
+      showDialogModal({
+        title: 'Licencias de Código Abierto',
+        body: 'Dolarfy hace uso de librerías de código abierto incluyendo Lucide Icons, ApexCharts, TailwindCSS y bibliotecas de utilidades bajo licencia MIT.',
+        icon: 'file-text'
+      });
     });
   }
 }

@@ -3,6 +3,7 @@ import { themeService } from '../themeService.js';
 import { mockEngine } from '../mockData.js';
 import { APP_VERSION } from '../constants.js';
 import { aboutModal } from './aboutModal.js';
+import { showToast, showDialogModal } from '../utils/toast.js';
 
 export class SettingsView {
   constructor(containerId) {
@@ -205,11 +206,19 @@ export class SettingsView {
     });
 
     proBtn?.addEventListener('click', () => {
-      alert('🌟 Dolarfy PRO\n\nPróximamente disponible la suscripción PRO en tiendas oficiales.');
+      showDialogModal({
+        title: 'Dolarfy PRO',
+        body: 'Próximamente disponible la suscripción PRO en tiendas oficiales.',
+        icon: 'sparkles'
+      });
     });
 
     langBtn?.addEventListener('click', () => {
-      alert('🌐 Idioma de la Aplicación\n\nActualmente configurado en Español (Predeterminado del sistema).');
+      showDialogModal({
+        title: 'Idioma de la Aplicación',
+        body: 'Actualmente configurado en Español (Predeterminado del sistema).',
+        icon: 'globe'
+      });
     });
 
     shareBtn?.addEventListener('click', async () => {
@@ -226,15 +235,19 @@ export class SettingsView {
       } else {
         try {
           await navigator.clipboard.writeText(window.location.href);
-          alert('¡Enlace de Dolarfy copiado al portapapeles!');
+          showToast('¡Enlace de Dolarfy copiado al portapapeles!', 'Compartir', 'check-circle');
         } catch {
-          alert('Comparte Dolarfy desde la URL: ' + window.location.href);
+          showToast(`URL: ${window.location.href}`, 'Comparte Dolarfy', 'share-2');
         }
       }
     });
 
     rateBtn?.addEventListener('click', () => {
-      alert('⭐ ¡Muchas gracias por tu apoyo!\n\nTu calificación nos ayuda a seguir mejorando Dolarfy.');
+      showDialogModal({
+        title: '¡Muchas gracias!',
+        body: 'Tu calificación nos ayuda a seguir mejorando Dolarfy.',
+        icon: 'star'
+      });
     });
 
     aboutBtn?.addEventListener('click', () => {
