@@ -8,8 +8,8 @@ export class DashboardView {
     this.selectedDay = 'hoy'; // 'hoy' | 'manana'
   }
 
-  getNextDayLabel() {
-    return 'Mañana';
+  getNextDayLabel(rates) {
+    return getNextBusinessDayName(rates || mockEngine.getRates());
   }
 
   hasNextDayRate(rates) {
@@ -60,7 +60,7 @@ export class DashboardView {
       this.selectedDay = 'hoy';
     }
 
-    const nextDayLabel = 'Mañana';
+    const nextDayLabel = this.getNextDayLabel(rates);
     const isManana = this.selectedDay === 'manana' && hasNextDay;
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]] || { name: 'Dólar Oficial (BCV)', currency: 'VES', value: 0 };
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
@@ -69,16 +69,16 @@ export class DashboardView {
     const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.value) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
     let bannerTag = isManana 
-      ? `Fecha Valor · Mañana` 
+      ? `Fecha Valor · ${nextDayLabel}` 
       : 'Resumen del Día';
     let bannerText = '';
     let bannerSub = '';
 
     if (isManana) {
       bannerText = (mainVal !== null && mainVal !== undefined)
-        ? `${this.cleanText(mainRate.name)} (Mañana): ${formatCurrency(mainVal, mainRate.currency, 2)}`
-        : `Mañana: Bs. — — —`;
-      bannerSub = `Cotización oficial del Banco Central de Venezuela publicada para Mañana.`;
+        ? `${this.cleanText(mainRate.name)} (${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
+        : `${nextDayLabel}: Bs. — — —`;
+      bannerSub = `Cotización oficial del Banco Central de Venezuela publicada para ${nextDayLabel}.`;
     } else {
       bannerText = (mainVal !== null && mainVal !== undefined) ? `${this.cleanText(mainRate.name)}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
       bannerSub = mainVal 

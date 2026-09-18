@@ -26,8 +26,8 @@ export class CalculatorView {
     this.unsubscribe = null;
   }
 
-  getNextDayLabel() {
-    return 'Mañana';
+  getNextDayLabel(rates) {
+    return getNextBusinessDayName(rates || this.currentCountry?.rates);
   }
 
   hasNextDayRate(rates) {

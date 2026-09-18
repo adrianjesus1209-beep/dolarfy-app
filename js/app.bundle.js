@@ -88,8 +88,36 @@ const escapeHtml = (value) => {
  * Miércoles -> 'Jueves'
  * Jueves -> 'Viernes'
  */
-const getNextBusinessDayName = () => {
-  return 'Mañana';
+const getNextBusinessDayName = (rates) => {
+  if (rates && typeof rates === 'object') {
+    const rateObj = rates.bcv || rates.euro || Object.values(rates).find(r => r && r.nextDay && r.nextDay.published);
+    if (rateObj?.nextDay?.date) {
+      const rawDate = rateObj.nextDay.date.toLowerCase();
+      if (rawDate.includes('lunes')) return 'Lunes';
+      if (rawDate.includes('martes')) return 'Martes';
+      if (rawDate.includes('miércoles') || rawDate.includes('miercoles')) return 'Miércoles';
+      if (rawDate.includes('jueves')) return 'Jueves';
+      if (rawDate.includes('viernes')) return 'Viernes';
+    }
+  }
+
+  const now = new Date();
+  const vetOffsetMs = -4 * 60 * 60 * 1000;
+  const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const vetDate = new Date(utcMs + vetOffsetMs);
+  const day = vetDate.getDay();
+
+  const daysMap = {
+    0: 'Lunes',     // Domingo -> Lunes
+    1: 'Martes',    // Lunes -> Martes
+    2: 'Miércoles', // Martes -> Miércoles
+    3: 'Jueves',    // Miércoles -> Jueves
+    4: 'Viernes',   // Jueves -> Viernes
+    5: 'Lunes',     // Viernes -> Lunes
+    6: 'Lunes'      // Sábado -> Lunes
+  };
+
+  return daysMap[day] || 'Lunes';
 };
 
 
@@ -1331,8 +1359,8 @@ class DashboardView {
     this.selectedDay = 'hoy'; // 'hoy' | 'manana'
   }
 
-  getNextDayLabel() {
-    return 'Mañana';
+  getNextDayLabel(rates) {
+    return getNextBusinessDayName(rates || mockEngine.getRates());
   }
 
   hasNextDayRate(rates) {
@@ -1383,7 +1411,7 @@ class DashboardView {
       this.selectedDay = 'hoy';
     }
 
-    const nextDayLabel = 'Mañana';
+    const nextDayLabel = this.getNextDayLabel(rates);
     const isManana = this.selectedDay === 'manana' && hasNextDay;
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]] || { name: 'Dólar Oficial (BCV)', currency: 'VES', value: 0 };
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
@@ -1392,16 +1420,16 @@ class DashboardView {
     const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.value) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
     let bannerTag = isManana 
-      ? `Fecha Valor · Mañana` 
+      ? `Fecha Valor · ${nextDayLabel}` 
       : 'Resumen del Día';
     let bannerText = '';
     let bannerSub = '';
 
     if (isManana) {
       bannerText = (mainVal !== null && mainVal !== undefined)
-        ? `${this.cleanText(mainRate.name)} (Mañana): ${formatCurrency(mainVal, mainRate.currency, 2)}`
-        : `Mañana: Bs. — — —`;
-      bannerSub = `Cotización oficial del Banco Central de Venezuela publicada para Mañana.`;
+        ? `${this.cleanText(mainRate.name)} (${nextDayLabel}): ${formatCurrency(mainVal, mainRate.currency, 2)}`
+        : `${nextDayLabel}: Bs. — — —`;
+      bannerSub = `Cotización oficial del Banco Central de Venezuela publicada para ${nextDayLabel}.`;
     } else {
       bannerText = (mainVal !== null && mainVal !== undefined) ? `${this.cleanText(mainRate.name)}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
       bannerSub = mainVal 
@@ -1716,8 +1744,8 @@ class CalculatorView {
     this.unsubscribe = null;
   }
 
-  getNextDayLabel() {
-    return 'Mañana';
+  getNextDayLabel(rates) {
+    return getNextBusinessDayName(rates || this.currentCountry?.rates);
   }
 
   hasNextDayRate(rates) {

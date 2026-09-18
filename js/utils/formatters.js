@@ -72,7 +72,35 @@ export const escapeHtml = (value) => {
  * Miércoles -> 'Jueves'
  * Jueves -> 'Viernes'
  */
-export const getNextBusinessDayName = () => {
-  return 'Mañana';
+export const getNextBusinessDayName = (rates) => {
+  if (rates && typeof rates === 'object') {
+    const rateObj = rates.bcv || rates.euro || Object.values(rates).find(r => r && r.nextDay && r.nextDay.published);
+    if (rateObj?.nextDay?.date) {
+      const rawDate = rateObj.nextDay.date.toLowerCase();
+      if (rawDate.includes('lunes')) return 'Lunes';
+      if (rawDate.includes('martes')) return 'Martes';
+      if (rawDate.includes('miércoles') || rawDate.includes('miercoles')) return 'Miércoles';
+      if (rawDate.includes('jueves')) return 'Jueves';
+      if (rawDate.includes('viernes')) return 'Viernes';
+    }
+  }
+
+  const now = new Date();
+  const vetOffsetMs = -4 * 60 * 60 * 1000;
+  const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const vetDate = new Date(utcMs + vetOffsetMs);
+  const day = vetDate.getDay();
+
+  const daysMap = {
+    0: 'Lunes',     // Domingo -> Lunes
+    1: 'Martes',    // Lunes -> Martes
+    2: 'Miércoles', // Martes -> Miércoles
+    3: 'Jueves',    // Miércoles -> Jueves
+    4: 'Viernes',   // Jueves -> Viernes
+    5: 'Lunes',     // Viernes -> Lunes
+    6: 'Lunes'      // Sábado -> Lunes
+  };
+
+  return daysMap[day] || 'Lunes';
 };
 
