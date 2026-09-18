@@ -1,49 +1,29 @@
-# Dolarfy — Tasas Financieras en Tiempo Real
+# Dolarfy — Aplicación Web Financiera en Tiempo Real
 
-Dolarfy es una aplicación móvil y web nativa para consultar cotizaciones del dólar y euro oficial (BCV) en tiempo real en Venezuela, monitor de mercado USDT (Binance P2P), calculadora conversora de divisas y análisis de tendencias.
-
----
-
-## Descarga Oficial
-
-La versión oficial de la aplicación para dispositivos Android se encuentra disponible para instalación directa en GitHub Releases.
-
-### Versión Actual
-
-* **Versión**: `v1.0.0`
-* **Descarga Directa (APK)**: [Dolarfy-v1.0.0.apk](https://github.com/adrianjesus1209-beep/dolarfy-app/releases/download/v1.0.0/Dolarfy-v1.0.0.apk)
-* **Releases en GitHub**: [Ver entregas en GitHub Releases](https://github.com/adrianjesus1209-beep/dolarfy-app/releases)
+Dolarfy es una aplicación Web (SPA) ligera, rápida y moderna para consultar cotizaciones del dólar y euro oficial (BCV) en tiempo real en Venezuela, monitor de mercado USDT (Binance P2P), calculadora conversora de divisas y análisis de tendencias.
 
 ---
 
 ## Características Principales
 
-* **Dólar y Euro Oficial (BCV)**: Conexión directa con los datos en tiempo real del Banco Central de Venezuela.
-* **USDT (Binance P2P)**: Consulta en vivo de las órdenes de compra/venta del mercado Binance P2P C2C las 24 horas del día.
-* **Calendario BCV y Pronóstico**: 
-  - **Fines de semana**: La tasa oficial del viernes se mantiene estática en *"Hoy"*, mientras la pestaña de la Fecha Valor (*"Lunes"*) muestra el valor oficial publicado para el inicio de semana.
-  - **Mercado USDT**: Cotización continua en tiempo real 24/7 sin cierre bancario.
-* **Calculadora Financiera**: Conversor de divisas instantáneo con selector de fecha (*Hoy* vs *Pronóstico*).
-* **Tendencias e Historial**: Gráficos de evolución histórica y registro de conversiones pasadas.
-* **Cero Datos Falsos**: Sin cifras simuladas ni parches estáticos; estado inicial de carga limpio con guiones (`— — —`).
+* **Dólar y Euro Oficial (BCV)**: Conexión directa en tiempo real con los datos oficiales del Banco Central de Venezuela.
+* **USDT (Binance P2P)**: Consulta en vivo de las órdenes de compra del mercado Binance P2P C2C las 24 horas del día.
+* **Sección de Pronóstico Oficial (Mañana)**:
+  - La sección y pestaña de pronóstico permanece oculta hasta que el Banco Central de Venezuela (BCV) publica oficialmente la tasa Fecha Valor para el siguiente día hábil.
+  - Al publicarse la tasa oficial de mañana, se habilita automáticamente con la etiqueta estándar **Mañana**.
+* **Calculadora Financiera**: Conversor de divisas instantáneo en tiempo real.
+* **Arquitectura Web Pura**: Construida con HTML5, Vanilla CSS, Javascript ES modules e interfaz progresiva (PWA).
 
 ---
 
-## Desarrollo y Compilación Local
+## Ejecución Local
 
-1. **Clonar el repositorio**:
+1. **Servir la aplicación**:
+   Puedes abrir `index.html` directamente en cualquier navegador moderno o servirla desde XAMPP / Apache / Nginx / Live Server.
+
+2. **Generar el bundle JavaScript (opcional)**:
    ```bash
-   git clone https://github.com/adrianjesus1209-beep/dolarfy-app.git
-   ```
-
-2. **Generar el bundle JavaScript**:
-   ```bash
-   node scripts/bundle.js
-   ```
-
-3. **Compilar el archivo APK para Android**:
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-apk.ps1
+   npm run build
    ```
 
 ---
