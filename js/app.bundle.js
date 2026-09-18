@@ -3091,42 +3091,33 @@ class SettingsView {
         </div>
 
         <!-- Tarjeta Promocional: ¡Conviértete en usuario PRO! -->
-        <div class="glass-card rounded-3xl p-5 border border-cyan-500/30 shadow-2xl relative overflow-hidden bg-gradient-to-br from-cyan-950/40 via-slate-900/90 to-cyan-900/20">
-          <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
-
-          <div class="flex items-center space-x-3 mb-3">
-            <div class="p-2.5 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 shadow-md">
-              <i data-lucide="star" class="w-6 h-6 fill-cyan-400/20"></i>
-            </div>
+        <div class="glass-card rounded-3xl p-5 border border-white/10 shadow-xl space-y-3.5">
+          
+          <div class="flex items-center space-x-3">
+            <i data-lucide="star" class="w-6 h-6 text-white shrink-0"></i>
             <div>
               <h3 class="text-base font-extrabold text-white">¡Conviértete en usuario PRO!</h3>
-              <p class="text-[11px] text-cyan-300/80 font-medium">Disfruta la versión definitiva de Dolarfy</p>
+              <p class="text-[11px] text-gray-400 font-medium">Disfruta la versión definitiva de Dolarfy</p>
             </div>
           </div>
 
-          <ul class="space-y-2 mb-4 text-xs text-gray-300">
+          <ul class="space-y-2.5 text-xs text-gray-300">
             <li class="flex items-start space-x-2.5">
-              <div class="p-1 rounded-lg bg-emerald-500/10 text-emerald-400 mt-0.5 shrink-0">
-                <i data-lucide="ban" class="w-3.5 h-3.5"></i>
-              </div>
+              <i data-lucide="ban" class="w-4 h-4 text-white mt-0.5 shrink-0"></i>
               <div>
                 <span class="font-bold text-white">Adiós a la publicidad:</span>
                 <span class="text-gray-400"> Disfruta de una interfaz limpia y sin interrupciones.</span>
               </div>
             </li>
             <li class="flex items-start space-x-2.5">
-              <div class="p-1 rounded-lg bg-cyan-500/10 text-cyan-400 mt-0.5 shrink-0">
-                <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-              </div>
+              <i data-lucide="zap" class="w-4 h-4 text-white mt-0.5 shrink-0"></i>
               <div>
                 <span class="font-bold text-white">Máxima velocidad:</span>
                 <span class="text-gray-400"> Navegación más fluida.</span>
               </div>
             </li>
             <li class="flex items-start space-x-2.5">
-              <div class="p-1 rounded-lg bg-rose-500/10 text-rose-400 mt-0.5 shrink-0">
-                <i data-lucide="heart" class="w-3.5 h-3.5 fill-rose-400/20"></i>
-              </div>
+              <i data-lucide="heart" class="w-4 h-4 text-white mt-0.5 shrink-0"></i>
               <div>
                 <span class="font-bold text-white">Apoya el proyecto:</span>
                 <span class="text-gray-400"> Ayúdanos a seguir mejorando la herramienta.</span>
@@ -3134,7 +3125,7 @@ class SettingsView {
             </li>
           </ul>
 
-          <button id="settings-pro-btn" type="button" class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-black text-xs shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2 transition-all active:scale-[0.98] cursor-pointer">
+          <button id="settings-pro-btn" type="button" class="w-full py-3 px-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-xs shadow-md flex items-center justify-center space-x-2 transition-all active:scale-[0.98] cursor-pointer">
             <i data-lucide="sparkles" class="w-4 h-4"></i>
             <span>Obtener PRO - USD 1,99</span>
           </button>
