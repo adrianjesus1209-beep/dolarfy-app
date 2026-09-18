@@ -554,10 +554,10 @@ class ApiService {
       console.warn('Error al consultar DolarApi euros:', e);
     }
 
-    // Limpiar pronósticos obsoletos si coinciden con la tasa de hoy
+    // Limpiar pronósticos verdaderamente inválidos o sin valor
     const cleanStaleNextDay = (rateObj) => {
       if (!rateObj || !rateObj.nextDay) return;
-      if (!rateObj.value || Math.abs(rateObj.nextDay.value - rateObj.value) < 0.01 || rateObj.nextDay.value <= rateObj.value) {
+      if (!rateObj.nextDay.value || rateObj.nextDay.value <= 0) {
         rateObj.nextDay = null;
       }
     };
@@ -1124,6 +1124,45 @@ class RatesEngine {
     this.listeners.forEach(l => l(this.getRates(), updatedRateId, action));
   }
 
+  toggleSimulationNextDay() {
+    const rates = this.getCurrentCountry().rates;
+    const hasNext = rates.bcv && rates.bcv.nextDay && rates.bcv.nextDay.published;
+
+    if (hasNext) {
+      if (rates.bcv) rates.bcv.nextDay = null;
+      if (rates.euro) rates.euro.nextDay = null;
+      this._simulatingNextDay = false;
+    } else {
+      const bcvVal = rates.bcv?.value || 848.55;
+      const eurVal = rates.euro?.value || 974.42;
+
+      if (rates.bcv) {
+        rates.bcv.nextDay = {
+          published: true,
+          isOfficial: true,
+          value: parseFloat((bcvVal + 4.25).toFixed(2)),
+          change: 0.50,
+          date: 'Simulación: Fecha Valor Mañana',
+          scheduleText: 'Simulación para pruebas'
+        };
+      }
+      if (rates.euro) {
+        rates.euro.nextDay = {
+          published: true,
+          isOfficial: true,
+          value: parseFloat((eurVal + 5.10).toFixed(2)),
+          change: 0.52,
+          date: 'Simulación: Fecha Valor Mañana',
+          scheduleText: 'Simulación para pruebas'
+        };
+      }
+      this._simulatingNextDay = true;
+    }
+
+    this._notify(null, 'rates_refreshed');
+    return this._simulatingNextDay;
+  }
+
   // Alias público para compatibilidad interna
   notifyListeners(updatedRateId, action = 'update') {
     this._notify(updatedRateId, action);
@@ -1379,7 +1418,7 @@ class DashboardView {
     this.container.innerHTML = `
       <div class="space-y-6 pb-24 animate-fade-in">
         <!-- Header status bar -->
-        <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4">
+        <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4 gap-2">
           <div class="flex items-center space-x-3">
             <span class="relative flex h-3 w-3">
               <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
@@ -1392,9 +1431,16 @@ class DashboardView {
               <p class="text-[11px] text-gray-300 font-semibold mt-0.5">${currentCountry.officialSchedule || 'Cierre Banco Central'}</p>
             </div>
           </div>
-          <div id="dash-country-badge" class="text-xs font-bold px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center space-x-1.5">
-            <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">
-            <span>${currentCountry.name}</span>
+
+          <div class="flex items-center space-x-2">
+            <button id="btn-test-nextday" type="button" class="text-xs font-bold px-3 py-1.5 rounded-full ${hasNextDay ? 'bg-purple-500/30 text-purple-300 border-purple-500/50' : 'bg-white/10 text-gray-300 border-white/20'} border hover:bg-purple-500/40 transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm">
+              <i data-lucide="flask-conical" class="w-3.5 h-3.5 text-purple-400"></i>
+              <span>${hasNextDay ? 'Simulación ON (Quitar)' : '🧪 Probador Pronóstico'}</span>
+            </button>
+            <div id="dash-country-badge" class="text-xs font-bold px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 items-center space-x-1.5 hidden md:flex">
+              <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">
+              <span>${currentCountry.name}</span>
+            </div>
           </div>
         </div>
 
@@ -1614,6 +1660,13 @@ class DashboardView {
         }
       });
     });
+
+    const testBtn = this.container.querySelector('#btn-test-nextday');
+    if (testBtn) {
+      testBtn.addEventListener('click', () => {
+        mockEngine.toggleSimulationNextDay();
+      });
+    }
   }
 
   subscribeToUpdates() {

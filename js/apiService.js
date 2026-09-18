@@ -143,10 +143,10 @@ class ApiService {
       console.warn('Error al consultar DolarApi euros:', e);
     }
 
-    // Limpiar pronósticos obsoletos si coinciden con la tasa de hoy
+    // Limpiar pronósticos verdaderamente inválidos o sin valor
     const cleanStaleNextDay = (rateObj) => {
       if (!rateObj || !rateObj.nextDay) return;
-      if (!rateObj.value || Math.abs(rateObj.nextDay.value - rateObj.value) < 0.01 || rateObj.nextDay.value <= rateObj.value) {
+      if (!rateObj.nextDay.value || rateObj.nextDay.value <= 0) {
         rateObj.nextDay = null;
       }
     };

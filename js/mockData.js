@@ -113,6 +113,45 @@ class RatesEngine {
     this.listeners.forEach(l => l(this.getRates(), updatedRateId, action));
   }
 
+  toggleSimulationNextDay() {
+    const rates = this.getCurrentCountry().rates;
+    const hasNext = rates.bcv && rates.bcv.nextDay && rates.bcv.nextDay.published;
+
+    if (hasNext) {
+      if (rates.bcv) rates.bcv.nextDay = null;
+      if (rates.euro) rates.euro.nextDay = null;
+      this._simulatingNextDay = false;
+    } else {
+      const bcvVal = rates.bcv?.value || 848.55;
+      const eurVal = rates.euro?.value || 974.42;
+
+      if (rates.bcv) {
+        rates.bcv.nextDay = {
+          published: true,
+          isOfficial: true,
+          value: parseFloat((bcvVal + 4.25).toFixed(2)),
+          change: 0.50,
+          date: 'Simulación: Fecha Valor Mañana',
+          scheduleText: 'Simulación para pruebas'
+        };
+      }
+      if (rates.euro) {
+        rates.euro.nextDay = {
+          published: true,
+          isOfficial: true,
+          value: parseFloat((eurVal + 5.10).toFixed(2)),
+          change: 0.52,
+          date: 'Simulación: Fecha Valor Mañana',
+          scheduleText: 'Simulación para pruebas'
+        };
+      }
+      this._simulatingNextDay = true;
+    }
+
+    this._notify(null, 'rates_refreshed');
+    return this._simulatingNextDay;
+  }
+
   // Alias público para compatibilidad interna
   notifyListeners(updatedRateId, action = 'update') {
     this._notify(updatedRateId, action);
