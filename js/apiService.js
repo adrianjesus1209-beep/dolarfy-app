@@ -154,61 +154,7 @@ class ApiService {
     cleanStaleNextDay(rates.bcv);
     cleanStaleNextDay(rates.euro);
 
-    // 2. PRONÓSTICO DÍA SIGUIENTE (PRÓXIMO DÍA HÁBIL): open.er-api.com
-    //    Si open.er-api difiere de la tasa de Hoy, es la tasa oficial recién publicada por el BCV para la Fecha Valor del próximo día hábil.
-    try {
-      const [resUsd, resEur] = await Promise.all([
-        this._fetch('https://open.er-api.com/v6/latest/USD'),
-        this._fetch('https://open.er-api.com/v6/latest/EUR')
-      ]);
-
-      const targetDayName = getNextBusinessDayName();
-
-      if (resUsd.ok) {
-        const data = await resUsd.json();
-        if (data?.rates?.VES) {
-          const openErUsd = parseFloat(data.rates.VES.toFixed(2));
-          fetched.openErUsd = true;
-
-          if (!rates.bcv.value) {
-            rates.bcv.value = openErUsd;
-          } else if (Math.abs(openErUsd - rates.bcv.value) >= 0.01) {
-            // Tasa para el próximo día hábil recién publicada
-            const changeUsd = parseFloat((((openErUsd - rates.bcv.value) / rates.bcv.value) * 100).toFixed(2));
-            rates.bcv.nextDay = {
-              published: true, isOfficial: true, value: openErUsd, change: changeUsd,
-              date: `Fecha Valor BCV (${targetDayName})`, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
-            };
-          } else {
-            rates.bcv.nextDay = null;
-          }
-        }
-      }
-
-      if (resEur.ok) {
-        const data = await resEur.json();
-        if (data?.rates?.VES) {
-          const openErEur = parseFloat(data.rates.VES.toFixed(2));
-          fetched.openErEur = true;
-
-          if (!rates.euro.value) {
-            rates.euro.value = openErEur;
-          } else if (Math.abs(openErEur - rates.euro.value) >= 0.01) {
-            const changeEur = parseFloat((((openErEur - rates.euro.value) / rates.euro.value) * 100).toFixed(2));
-            rates.euro.nextDay = {
-              published: true, isOfficial: true, value: openErEur, change: changeEur,
-              date: `Fecha Valor BCV (${targetDayName})`, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
-            };
-          } else {
-            rates.euro.nextDay = null;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Error al consultar open.er-api.com:', e);
-    }
-
-    // 3. Pronóstico oficial BCV por scraping o proxy si responde
+    // 2. FUENTE OFICIAL DEL BCV (bcv.org.ve): Fecha Valor Oficial del Banco Central de Venezuela
     try {
       const bcvData = await this.fetchBcvOfficialSite();
       if (bcvData?.usd) {
