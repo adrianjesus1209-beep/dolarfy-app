@@ -112,7 +112,7 @@ export class DashboardView {
           <div class="flex items-center space-x-2">
             <button id="btn-test-nextday" type="button" class="text-xs font-bold px-3 py-1.5 rounded-full ${hasNextDay ? 'bg-purple-500/30 text-purple-300 border-purple-500/50' : 'bg-white/10 text-gray-300 border-white/20'} border hover:bg-purple-500/40 transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm">
               <i data-lucide="flask-conical" class="w-3.5 h-3.5 text-purple-400"></i>
-              <span>${hasNextDay ? 'Simulación ON (Quitar)' : '🧪 Probador Pronóstico'}</span>
+              <span>${hasNextDay ? `🧪 Simular: ${nextDayLabel}` : '🧪 Probador Pronóstico'}</span>
             </button>
             <div id="dash-country-badge" class="text-xs font-bold px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 items-center space-x-1.5 hidden md:flex">
               <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">

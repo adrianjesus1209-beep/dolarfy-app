@@ -115,13 +115,19 @@ class RatesEngine {
 
   toggleSimulationNextDay() {
     const rates = this.getCurrentCountry().rates;
-    const hasNext = rates.bcv && rates.bcv.nextDay && rates.bcv.nextDay.published;
+    const daysCycle = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+    
+    const currentIndex = typeof this._simulatedDayIndex === 'number' ? this._simulatedDayIndex : -1;
+    const nextIndex = currentIndex + 1;
 
-    if (hasNext) {
+    if (nextIndex >= daysCycle.length) {
       if (rates.bcv) rates.bcv.nextDay = null;
       if (rates.euro) rates.euro.nextDay = null;
-      this._simulatingNextDay = false;
+      this._simulatedDayIndex = -1;
     } else {
+      const targetDay = daysCycle[nextIndex];
+      this._simulatedDayIndex = nextIndex;
+
       const bcvVal = rates.bcv?.value || 848.55;
       const eurVal = rates.euro?.value || 974.42;
 
@@ -129,27 +135,26 @@ class RatesEngine {
         rates.bcv.nextDay = {
           published: true,
           isOfficial: true,
-          value: parseFloat((bcvVal + 4.25).toFixed(2)),
-          change: 0.50,
-          date: 'Simulación: Fecha Valor Mañana',
-          scheduleText: 'Simulación para pruebas'
+          value: parseFloat((bcvVal + (nextIndex + 1) * 1.25).toFixed(2)),
+          change: parseFloat((0.40 + nextIndex * 0.1).toFixed(2)),
+          date: `Fecha Valor: ${targetDay}`,
+          scheduleText: `Simulación de prueba (${targetDay})`
         };
       }
       if (rates.euro) {
         rates.euro.nextDay = {
           published: true,
           isOfficial: true,
-          value: parseFloat((eurVal + 5.10).toFixed(2)),
-          change: 0.52,
-          date: 'Simulación: Fecha Valor Mañana',
-          scheduleText: 'Simulación para pruebas'
+          value: parseFloat((eurVal + (nextIndex + 1) * 1.50).toFixed(2)),
+          change: parseFloat((0.45 + nextIndex * 0.1).toFixed(2)),
+          date: `Fecha Valor: ${targetDay}`,
+          scheduleText: `Simulación de prueba (${targetDay})`
         };
       }
-      this._simulatingNextDay = true;
     }
 
     this._notify(null, 'rates_refreshed');
-    return this._simulatingNextDay;
+    return this._simulatedDayIndex >= 0 ? daysCycle[this._simulatedDayIndex] : null;
   }
 
   // Alias público para compatibilidad interna
