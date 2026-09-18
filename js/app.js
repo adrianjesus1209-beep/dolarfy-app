@@ -3,6 +3,7 @@ import { CalculatorView } from './components/calculator.js';
 import { AnalyticsView } from './components/analytics.js';
 import { SettingsView } from './components/settings.js';
 import { NotificationModal } from './components/notificationModal.js';
+import { countryModal } from './components/countryModal.js';
 import { notificationService } from './notificationService.js';
 import { mockEngine } from './mockData.js';
 import { themeService } from './themeService.js';
@@ -20,7 +21,7 @@ class App {
     if (window.lucide) window.lucide.createIcons();
     this.bindNavigation();
     this.bindNotificationBell();
-    this.bindRefreshButton();
+    this.bindCountryButton();
     this.updateHeaderBellUI();
     this.navigateTo(this.activeTab);
 
@@ -31,8 +32,6 @@ class App {
     mockEngine.subscribe((rates, updatedRateId, action) => {
       if (action === 'rates_refreshed') {
         notificationService.checkDailyUpdate(mockEngine.getCurrentCountry(), rates);
-        // El refresco visual lo maneja cada vista activa vía su propio subscribe,
-        // lo que preserva su estado (expresión, día seleccionado, etc.).
       }
     });
 
@@ -60,23 +59,13 @@ class App {
     });
   }
 
-  bindRefreshButton() {
-    document.addEventListener('click', async (e) => {
-      const refreshBtn = e.target.closest('#header-refresh-btn');
-      if (refreshBtn) {
+  bindCountryButton() {
+    document.addEventListener('click', (e) => {
+      const countryBtn = e.target.closest('#header-country-btn');
+      if (countryBtn) {
         e.preventDefault();
         e.stopPropagation();
-
-        const icon = refreshBtn.querySelector('i, svg');
-        if (icon) icon.classList.add('animate-spin');
-
-        try {
-          await mockEngine.syncRealRates(true);
-        } finally {
-          setTimeout(() => {
-            if (icon) icon.classList.remove('animate-spin');
-          }, 600);
-        }
+        countryModal.open();
       }
     });
   }

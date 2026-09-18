@@ -57,17 +57,14 @@
     </div>
 
     <div class="flex items-center space-x-2">
-      <!-- Badge de País (fijo: Venezuela) -->
-      <span aria-label="Venezuela" class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold">
+      <!-- Selector de País con Flecha Abajo -->
+      <button id="header-country-btn" type="button" aria-label="Seleccionar País" title="Seleccionar País" class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold hover:bg-cyan-500/20 active:scale-95 transition-all cursor-pointer">
         <img src="https://flagcdn.com/w40/ve.png" alt="Bandera Venezuela" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">
         <span class="text-xs font-extrabold text-cyan-300 uppercase">VE</span>
-      </span>
-
-      <button id="header-refresh-btn" type="button" aria-label="Refrescar Tasas en Vivo" title="Refrescar Tasas en Vivo" class="relative p-2 rounded-xl bg-white/5 border border-white/10 text-cyan-400 hover:text-white transition-all active:scale-95 cursor-pointer">
-        <i data-lucide="refresh-cw" class="w-4 h-4 text-cyan-400"></i>
+        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-cyan-300"></i>
       </button>
 
-      <button id="header-bell-btn" type="button" aria-label="Notificaciones" class="relative p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-all active:scale-95 cursor-pointer">
+      <button id="header-bell-btn" type="button" aria-label="Notificaciones" title="Centro de Alertas" class="relative p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-all active:scale-95 cursor-pointer">
         <i data-lucide="bell" class="w-4 h-4 text-cyan-400"></i>
         <span id="header-bell-dot" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
       </button>

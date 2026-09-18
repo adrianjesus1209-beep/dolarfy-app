@@ -987,6 +987,34 @@ class NotificationService {
     this.showToast(logEntry);
   }
 
+  clearLogs() {
+    this.logs = [];
+    this.saveLogs();
+  }
+
+  async sendTestNotification() {
+    const testEntry = {
+      id: Date.now(),
+      countryId: 'VE',
+      countryName: 'Venezuela',
+      flagUrl: 'https://flagcdn.com/w40/ve.png',
+      rateName: 'Notificación de Prueba · Dolarfy',
+      value: 852.30,
+      currency: 'VES',
+      formattedValue: 'Bs. 852,30',
+      time: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      date: new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }),
+      type: 'test'
+    };
+
+    this.logs.unshift(testEntry);
+    this.saveLogs();
+
+    await this.sendLocalNotification(testEntry);
+    this.showToast(testEntry);
+    return testEntry;
+  }
+
   // ==========================================================================
   //  Toast in-app (fallback / navegador)
   // ==========================================================================
@@ -1007,14 +1035,14 @@ class NotificationService {
       <div class="flex-1">
         <div class="flex items-center justify-between">
           <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Nueva Tasa del Día
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Alerta en Vivo
           </span>
           <span class="text-[9px] text-gray-400">${logEntry.time}</span>
         </div>
         <h4 class="text-xs font-bold text-white mt-0.5">${logEntry.rateName}</h4>
         <p class="text-sm font-extrabold text-emerald-400">${logEntry.formattedValue}</p>
       </div>
-      <button class="toast-close-btn text-gray-400 hover:text-white p-1 text-xs">✕</button>
+      <button class="toast-close-btn text-gray-400 hover:text-white p-1 text-xs cursor-pointer">✕</button>
     `;
 
     const closeBtn = toastEl.querySelector('.toast-close-btn');
@@ -1208,10 +1236,15 @@ class NotificationModal {
           <!-- Modal Header -->
           <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
             <div class="flex items-center space-x-2">
-              <i data-lucide="bell" class="w-5 h-5 text-cyan-400"></i>
-              <h3 class="text-base font-extrabold text-white">Alertas de Tasa Diaria</h3>
+              <div class="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                <i data-lucide="bell" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h3 class="text-base font-extrabold text-white leading-tight">Centro de Alertas</h3>
+                <p class="text-[10px] text-cyan-400 font-semibold">Notificaciones Financieras en Tiempo Real</p>
+              </div>
             </div>
-            <button id="close-notif-modal-btn" type="button" class="p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all active:scale-95">
+            <button id="close-notif-modal-btn" type="button" class="p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all active:scale-95 cursor-pointer">
               <i data-lucide="x" class="w-5 h-5"></i>
             </button>
           </div>
@@ -1220,14 +1253,14 @@ class NotificationModal {
           <div class="p-4 overflow-y-auto space-y-4 max-h-[70vh] custom-scroll">
             
             <!-- Toggle Switch Card -->
-            <div class="glass-card rounded-2xl p-4 flex items-center justify-between border border-cyan-500/30">
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between border border-cyan-500/30 bg-gradient-to-r from-cyan-950/20 to-blue-950/20">
               <div class="pr-3">
                 <h4 class="text-xs font-extrabold text-white flex items-center gap-1.5">
-                  <span>Notificar Tasa del Día</span>
+                  <span>Alertas Automáticas de Tasa</span>
                   ${isEnabled ? `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>` : ''}
                 </h4>
                 <p class="text-[11px] text-gray-400 mt-1 leading-snug">
-                  Te avisará automáticamente apenas cambie la tasa oficial del día sin necesidad de adivinar la hora.
+                  Recibe avisos inmediatos en tu dispositivo apenas el BCV o Binance actualicen sus tasas oficiales.
                 </p>
               </div>
 
@@ -1236,36 +1269,49 @@ class NotificationModal {
               </button>
             </div>
 
+            <!-- Action Bar Buttons (Test & Clear) -->
+            <div class="grid grid-cols-2 gap-2">
+              <button id="test-notif-btn" type="button" class="py-2.5 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-bold transition-all flex items-center justify-center space-x-1.5 active:scale-95 cursor-pointer">
+                <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                <span>Probar Notificación</span>
+              </button>
+
+              <button id="clear-notif-btn" type="button" class="py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-red-400 text-xs font-bold transition-all flex items-center justify-center space-x-1.5 active:scale-95 cursor-pointer">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <span>Limpiar Historial</span>
+              </button>
+            </div>
+
             <!-- Current Country Info Tip -->
             <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center space-x-3 text-xs">
-              <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-6 h-6 rounded-full object-cover">
+              <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-6 h-6 rounded-full object-cover border border-cyan-500/30">
               <div>
-                <p class="font-bold text-gray-200">Monitoreando: ${currentCountry.name}</p>
-                <p class="text-[10px] text-gray-400">Recibirás alertas cuando el Banco Central publica la tasa oficial.</p>
+                <p class="font-bold text-gray-200">País Activo: ${currentCountry.name}</p>
+                <p class="text-[10px] text-gray-400">Monitoreando aperturas y cierres bancarios del BCV.</p>
               </div>
             </div>
 
             <!-- Log History Section -->
             <div>
               <div class="flex justify-between items-center mb-3">
-                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Historial de Alertas</h4>
-                <span class="text-[10px] text-gray-500">${logs.length} registros</span>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Historial Reciente</h4>
+                <span class="text-[10px] text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">${logs.length} registros</span>
               </div>
 
               ${logs.length === 0 ? `
                 <div class="text-center py-8 bg-black/20 rounded-2xl border border-white/5 space-y-2">
                   <i data-lucide="bell-off" class="w-8 h-8 text-gray-600 mx-auto"></i>
-                  <p class="text-xs text-gray-400 font-semibold">Sin alertas recientes</p>
+                  <p class="text-xs text-gray-400 font-semibold">Sin alertas registradas aún</p>
                   <p class="text-[10px] text-gray-500 max-w-xs mx-auto">
-                    Tan pronto como la API detecte una actualización en la tasa del día, aparecerá aquí.
+                    Presiona "Probar Notificación" arriba para ver una simulación en vivo o espera a la próxima actualización del mercado.
                   </p>
                 </div>
               ` : `
                 <div class="space-y-2">
                   ${logs.map(log => `
-                    <div class="glass-card rounded-xl p-3 flex items-center justify-between border border-white/5">
+                    <div class="glass-card rounded-xl p-3 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
                       <div class="flex items-center space-x-3">
-                        <img src="${log.flagUrl}" alt="${log.countryName}" class="w-6 h-6 rounded-full object-cover">
+                        <img src="${log.flagUrl}" alt="${log.countryName}" class="w-6 h-6 rounded-full object-cover border border-white/10">
                         <div>
                           <h5 class="text-xs font-bold text-white">${log.rateName}</h5>
                           <p class="text-[10px] text-gray-400">${log.date} a las ${log.time}</p>
@@ -1302,7 +1348,26 @@ class NotificationModal {
       this.render();
       if (window.lucide) window.lucide.createIcons();
 
-      // Notificar a la app para actualizar el icono de la campana en el header
+      const event = new CustomEvent('dolarfy:notification_toggled');
+      document.dispatchEvent(event);
+    });
+
+    const testBtn = document.getElementById('test-notif-btn');
+    testBtn?.addEventListener('click', async () => {
+      await notificationService.sendTestNotification();
+      this.render();
+      if (window.lucide) window.lucide.createIcons();
+
+      const event = new CustomEvent('dolarfy:notification_toggled');
+      document.dispatchEvent(event);
+    });
+
+    const clearBtn = document.getElementById('clear-notif-btn');
+    clearBtn?.addEventListener('click', () => {
+      notificationService.clearLogs();
+      this.render();
+      if (window.lucide) window.lucide.createIcons();
+
       const event = new CustomEvent('dolarfy:notification_toggled');
       document.dispatchEvent(event);
     });
@@ -2976,6 +3041,7 @@ class SettingsView {
 
 
 
+
 class App {
   constructor() {
     this.currentView = null;
@@ -2989,7 +3055,7 @@ class App {
     if (window.lucide) window.lucide.createIcons();
     this.bindNavigation();
     this.bindNotificationBell();
-    this.bindRefreshButton();
+    this.bindCountryButton();
     this.updateHeaderBellUI();
     this.navigateTo(this.activeTab);
 
@@ -3000,8 +3066,6 @@ class App {
     mockEngine.subscribe((rates, updatedRateId, action) => {
       if (action === 'rates_refreshed') {
         notificationService.checkDailyUpdate(mockEngine.getCurrentCountry(), rates);
-        // El refresco visual lo maneja cada vista activa vía su propio subscribe,
-        // lo que preserva su estado (expresión, día seleccionado, etc.).
       }
     });
 
@@ -3029,23 +3093,13 @@ class App {
     });
   }
 
-  bindRefreshButton() {
-    document.addEventListener('click', async (e) => {
-      const refreshBtn = e.target.closest('#header-refresh-btn');
-      if (refreshBtn) {
+  bindCountryButton() {
+    document.addEventListener('click', (e) => {
+      const countryBtn = e.target.closest('#header-country-btn');
+      if (countryBtn) {
         e.preventDefault();
         e.stopPropagation();
-
-        const icon = refreshBtn.querySelector('i, svg');
-        if (icon) icon.classList.add('animate-spin');
-
-        try {
-          await mockEngine.syncRealRates(true);
-        } finally {
-          setTimeout(() => {
-            if (icon) icon.classList.remove('animate-spin');
-          }, 600);
-        }
+        countryModal.open();
       }
     });
   }

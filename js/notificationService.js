@@ -172,6 +172,34 @@ class NotificationService {
     this.showToast(logEntry);
   }
 
+  clearLogs() {
+    this.logs = [];
+    this.saveLogs();
+  }
+
+  async sendTestNotification() {
+    const testEntry = {
+      id: Date.now(),
+      countryId: 'VE',
+      countryName: 'Venezuela',
+      flagUrl: 'https://flagcdn.com/w40/ve.png',
+      rateName: 'Notificación de Prueba · Dolarfy',
+      value: 852.30,
+      currency: 'VES',
+      formattedValue: 'Bs. 852,30',
+      time: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      date: new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }),
+      type: 'test'
+    };
+
+    this.logs.unshift(testEntry);
+    this.saveLogs();
+
+    await this.sendLocalNotification(testEntry);
+    this.showToast(testEntry);
+    return testEntry;
+  }
+
   // ==========================================================================
   //  Toast in-app (fallback / navegador)
   // ==========================================================================
@@ -192,14 +220,14 @@ class NotificationService {
       <div class="flex-1">
         <div class="flex items-center justify-between">
           <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Nueva Tasa del Día
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Alerta en Vivo
           </span>
           <span class="text-[9px] text-gray-400">${logEntry.time}</span>
         </div>
         <h4 class="text-xs font-bold text-white mt-0.5">${logEntry.rateName}</h4>
         <p class="text-sm font-extrabold text-emerald-400">${logEntry.formattedValue}</p>
       </div>
-      <button class="toast-close-btn text-gray-400 hover:text-white p-1 text-xs">✕</button>
+      <button class="toast-close-btn text-gray-400 hover:text-white p-1 text-xs cursor-pointer">✕</button>
     `;
 
     const closeBtn = toastEl.querySelector('.toast-close-btn');
