@@ -2,6 +2,7 @@ import { notificationService } from '../notificationService.js';
 import { themeService } from '../themeService.js';
 import { mockEngine } from '../mockData.js';
 import { APP_VERSION } from '../constants.js';
+import { aboutModal } from './aboutModal.js';
 
 export class SettingsView {
   constructor(containerId) {
@@ -258,7 +259,7 @@ export class SettingsView {
     });
 
     aboutBtn?.addEventListener('click', () => {
-      alert(`ℹ️ Acerca de Dolarfy\n\nVersión: ${APP_VERSION}\nDesarrollador: Adrian Bello\nEstado de servicios: Conectado en tiempo real`);
+      aboutModal.open();
     });
   }
 

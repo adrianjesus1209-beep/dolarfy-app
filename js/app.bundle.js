@@ -2806,6 +2806,7 @@ class AnalyticsView {
 
 
 
+
 class SettingsView {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
@@ -3061,7 +3062,7 @@ class SettingsView {
     });
 
     aboutBtn?.addEventListener('click', () => {
-      alert(`ℹ️ Acerca de Dolarfy\n\nVersión: ${APP_VERSION}\nDesarrollador: Adrian Bello\nEstado de servicios: Conectado en tiempo real`);
+      aboutModal.open();
     });
   }
 
