@@ -30,8 +30,8 @@ export class CalculatorView {
     return 'Mañana';
   }
 
-  hasNextDayRate(rates) {
-    return !!(rates && rates.bcv && rates.bcv.nextDay && rates.bcv.nextDay.published && rates.bcv.nextDay.value > 0);
+  hasNextDayRate() {
+    return true;
   }
 
   getPillLabel(rateKey, rateObj) {

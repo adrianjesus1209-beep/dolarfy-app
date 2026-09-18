@@ -1350,8 +1350,8 @@ class DashboardView {
     return 'Mañana';
   }
 
-  hasNextDayRate(rates) {
-    return !!(rates && rates.bcv && rates.bcv.nextDay && rates.bcv.nextDay.published && rates.bcv.nextDay.value > 0);
+  hasNextDayRate() {
+    return true;
   }
 
   cleanText(str) {
@@ -1388,14 +1388,9 @@ class DashboardView {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
     const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
-    const showNextDay = this.hasNextDayRate(rates);
-
-    if (!showNextDay) {
-      this.selectedDay = 'hoy';
-    }
 
     const nextDayLabel = 'Mañana';
-    const isManana = this.selectedDay === 'manana' && showNextDay;
+    const isManana = this.selectedDay === 'manana';
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]] || { name: 'Dólar Oficial (BCV)', currency: 'VES', value: 0 };
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
 
@@ -1457,7 +1452,7 @@ class DashboardView {
           </div>
         </div>
 
-        <!-- Encabezado de Tasas y Selector 'Hoy' / Pronóstico Día Siguiente -->
+        <!-- Encabezado de Tasas y Selector 'Hoy' / 'Mañana' -->
         <div>
           <div class="flex justify-between items-center mb-3">
             <div>
@@ -1465,7 +1460,6 @@ class DashboardView {
               <span class="text-xs font-bold text-cyan-400">${currentCountry.currency.code}</span>
             </div>
 
-            ${showNextDay ? `
             <div class="bg-[#131924] border border-white/10 p-1 rounded-2xl flex items-center space-x-1 shadow-inner">
               <button type="button" data-day="hoy" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
@@ -1474,7 +1468,6 @@ class DashboardView {
                 <span>Mañana</span>
               </button>
             </div>
-            ` : ''}
           </div>
 
           <!-- Contenido de Cotizaciones segun la pestaña activa -->
@@ -1706,8 +1699,8 @@ class CalculatorView {
     return 'Mañana';
   }
 
-  hasNextDayRate(rates) {
-    return !!(rates && rates.bcv && rates.bcv.nextDay && rates.bcv.nextDay.published && rates.bcv.nextDay.value > 0);
+  hasNextDayRate() {
+    return true;
   }
 
   getPillLabel(rateKey, rateObj) {
