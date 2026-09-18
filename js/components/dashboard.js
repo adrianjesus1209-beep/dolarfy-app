@@ -12,8 +12,12 @@ export class DashboardView {
     return 'Mañana';
   }
 
-  hasNextDayRate() {
-    return true;
+  hasNextDayRate(rates) {
+    if (!rates) rates = mockEngine.getRates();
+    if (!rates || typeof rates !== 'object') return false;
+    return Object.values(rates).some(r =>
+      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0
+    );
   }
 
   cleanText(str) {
@@ -51,8 +55,13 @@ export class DashboardView {
     const rates = mockEngine.getRates();
     const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
 
+    const hasNextDay = this.hasNextDayRate(rates);
+    if (!hasNextDay && this.selectedDay === 'manana') {
+      this.selectedDay = 'hoy';
+    }
+
     const nextDayLabel = 'Mañana';
-    const isManana = this.selectedDay === 'manana';
+    const isManana = this.selectedDay === 'manana' && hasNextDay;
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]] || { name: 'Dólar Oficial (BCV)', currency: 'VES', value: 0 };
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
 
@@ -126,7 +135,13 @@ export class DashboardView {
               <button type="button" data-day="hoy" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
-              <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
+              <button type="button" data-day="manana" ${!hasNextDay ? 'disabled="disabled"' : ''} class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${!hasNextDay ? 'opacity-40 cursor-not-allowed text-gray-500 bg-transparent' : (this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm cursor-pointer' : 'text-gray-400 hover:text-white cursor-pointer')}">
+                ${hasNextDay ? `
+                  <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                ` : ''}
                 <span>Mañana</span>
               </button>
             </div>
@@ -249,8 +264,8 @@ export class DashboardView {
     const hasOfficialNextDay = rate.nextDay && rate.nextDay.value && rate.nextDay.published;
     const nextDay = hasOfficialNextDay ? rate.nextDay : null;
 
-    const val = nextDay ? nextDay.value : rate.value;
-    const isPositive = nextDay ? nextDay.change >= 0 : (rate.change >= 0);
+    const val = nextDay ? nextDay.value : null;
+    const isPositive = nextDay ? nextDay.change >= 0 : true;
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
@@ -260,11 +275,11 @@ export class DashboardView {
 
     const badgeTag = hasOfficialNextDay
       ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="check-circle" class="w-3 h-3 text-emerald-400"></i> Oficial BCV</span>'
-      : '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3 text-cyan-400"></i> Ref. Cierre BCV</span>';
+      : '<span class="text-[10px] bg-amber-500/20 text-amber-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3 text-amber-400"></i> Pendiente BCV</span>';
 
     const dateSubtitle = hasOfficialNextDay
       ? escapeHtml(this.cleanText(nextDay.date)) || `Oficial ${nextDayLabel}`
-      : `Ref. Vigente BCV · Publicación ${nextDayLabel} (5:00 PM)`;
+      : `Pendiente por publicación del BCV`;
 
     return `
       <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
@@ -278,10 +293,16 @@ export class DashboardView {
               ${badgeTag}
             </div>
           </div>
-          <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
-            <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${nextDay ? formatPercentage(nextDay.change) : formatPercentage(rate.change || 0)}</span>
-          </span>
+          ${hasOfficialNextDay ? `
+            <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
+              <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
+              <span>${formatPercentage(nextDay.change)}</span>
+            </span>
+          ` : `
+            <span class="inline-flex items-center space-x-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-white/5 text-gray-400 border-white/10">
+              <span>Pendiente</span>
+            </span>
+          `}
         </div>
 
         <div class="mt-4 flex justify-between items-end">
@@ -301,6 +322,7 @@ export class DashboardView {
     const dayBtns = this.container.querySelectorAll('.dash-day-btn');
     dayBtns.forEach(btn => {
       btn.addEventListener('click', () => {
+        if (btn.hasAttribute('disabled') || btn.disabled) return;
         const day = btn.getAttribute('data-day');
         if (day && day !== this.selectedDay) {
           this.selectedDay = day;

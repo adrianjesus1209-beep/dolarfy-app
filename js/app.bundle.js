@@ -1296,8 +1296,12 @@ class DashboardView {
     return 'Mañana';
   }
 
-  hasNextDayRate() {
-    return true;
+  hasNextDayRate(rates) {
+    if (!rates) rates = mockEngine.getRates();
+    if (!rates || typeof rates !== 'object') return false;
+    return Object.values(rates).some(r =>
+      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0
+    );
   }
 
   cleanText(str) {
@@ -1335,8 +1339,13 @@ class DashboardView {
     const rates = mockEngine.getRates();
     const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
 
+    const hasNextDay = this.hasNextDayRate(rates);
+    if (!hasNextDay && this.selectedDay === 'manana') {
+      this.selectedDay = 'hoy';
+    }
+
     const nextDayLabel = 'Mañana';
-    const isManana = this.selectedDay === 'manana';
+    const isManana = this.selectedDay === 'manana' && hasNextDay;
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]] || { name: 'Dólar Oficial (BCV)', currency: 'VES', value: 0 };
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
 
@@ -1410,7 +1419,13 @@ class DashboardView {
               <button type="button" data-day="hoy" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
-              <button type="button" data-day="manana" class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
+              <button type="button" data-day="manana" ${!hasNextDay ? 'disabled="disabled"' : ''} class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${!hasNextDay ? 'opacity-40 cursor-not-allowed text-gray-500 bg-transparent' : (this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm cursor-pointer' : 'text-gray-400 hover:text-white cursor-pointer')}">
+                ${hasNextDay ? `
+                  <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                ` : ''}
                 <span>Mañana</span>
               </button>
             </div>
@@ -1533,8 +1548,8 @@ class DashboardView {
     const hasOfficialNextDay = rate.nextDay && rate.nextDay.value && rate.nextDay.published;
     const nextDay = hasOfficialNextDay ? rate.nextDay : null;
 
-    const val = nextDay ? nextDay.value : rate.value;
-    const isPositive = nextDay ? nextDay.change >= 0 : (rate.change >= 0);
+    const val = nextDay ? nextDay.value : null;
+    const isPositive = nextDay ? nextDay.change >= 0 : true;
     const badgeBg = isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
     const trendIcon = isPositive ? 'trending-up' : 'trending-down';
 
@@ -1544,11 +1559,11 @@ class DashboardView {
 
     const badgeTag = hasOfficialNextDay
       ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="check-circle" class="w-3 h-3 text-emerald-400"></i> Oficial BCV</span>'
-      : '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3 text-cyan-400"></i> Ref. Cierre BCV</span>';
+      : '<span class="text-[10px] bg-amber-500/20 text-amber-300 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3 text-amber-400"></i> Pendiente BCV</span>';
 
     const dateSubtitle = hasOfficialNextDay
       ? escapeHtml(this.cleanText(nextDay.date)) || `Oficial ${nextDayLabel}`
-      : `Ref. Vigente BCV · Publicación ${nextDayLabel} (5:00 PM)`;
+      : `Pendiente por publicación del BCV`;
 
     return `
       <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
@@ -1562,10 +1577,16 @@ class DashboardView {
               ${badgeTag}
             </div>
           </div>
-          <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
-            <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${nextDay ? formatPercentage(nextDay.change) : formatPercentage(rate.change || 0)}</span>
-          </span>
+          ${hasOfficialNextDay ? `
+            <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
+              <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
+              <span>${formatPercentage(nextDay.change)}</span>
+            </span>
+          ` : `
+            <span class="inline-flex items-center space-x-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-white/5 text-gray-400 border-white/10">
+              <span>Pendiente</span>
+            </span>
+          `}
         </div>
 
         <div class="mt-4 flex justify-between items-end">
@@ -1585,6 +1606,7 @@ class DashboardView {
     const dayBtns = this.container.querySelectorAll('.dash-day-btn');
     dayBtns.forEach(btn => {
       btn.addEventListener('click', () => {
+        if (btn.hasAttribute('disabled') || btn.disabled) return;
         const day = btn.getAttribute('data-day');
         if (day && day !== this.selectedDay) {
           this.selectedDay = day;
@@ -1645,8 +1667,12 @@ class CalculatorView {
     return 'Mañana';
   }
 
-  hasNextDayRate() {
-    return true;
+  hasNextDayRate(rates) {
+    if (!rates) rates = this.currentCountry?.rates;
+    if (!rates || typeof rates !== 'object') return false;
+    return Object.values(rates).some(r =>
+      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0
+    );
   }
 
   getPillLabel(rateKey, rateObj) {
@@ -1709,6 +1735,11 @@ class CalculatorView {
     const rates = this.currentCountry.rates;
     const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
 
+    const hasNextDay = this.hasNextDayRate(rates);
+    if (!hasNextDay && this.selectedDay === 'prediccion') {
+      this.selectedDay = 'hoy';
+    }
+
     if (!rates[this.selectedRateId]) {
       this.selectedRateId = this.currentCountry.defaultRateId && rates[this.selectedRateId]
         ? this.currentCountry.defaultRateId
@@ -1733,8 +1764,6 @@ class CalculatorView {
 
     const fromSym = this.getCurrencySymbol(this.fromCurrency);
     const toSym = this.getCurrencySymbol(this.toCurrency);
-
-    const showDayToggle = this.hasNextDayRate(rates);
     const nextDayLabel = this.getNextDayLabel(rates);
 
     this.container.innerHTML = `
@@ -1756,20 +1785,24 @@ class CalculatorView {
             }).join('')}
           </div>
 
-          <!-- Selector Hoy / Predicción (solo si hay nextDay publicado) -->
-          ${showDayToggle ? `
+          <!-- Selector Hoy / Predicción -->
           <div class="flex items-center justify-between">
             <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider flex items-center gap-1.5">Calcular con tasa de: ${this.getSourceLabel(rates)}</span>
             <div class="bg-[#131924] border border-white/10 p-0.5 rounded-xl flex items-center space-x-0.5 shadow-inner" id="calc-day-toggle">
               <button type="button" data-calcday="hoy" class="calc-day-btn px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'hoy' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
                 Hoy
               </button>
-              <button type="button" data-calcday="prediccion" class="calc-day-btn px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${this.selectedDay === 'prediccion' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm' : 'text-gray-400 hover:text-white'}">
-                ${nextDayLabel}
+              <button type="button" data-calcday="prediccion" ${!hasNextDay ? 'disabled="disabled"' : ''} class="calc-day-btn relative px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${!hasNextDay ? 'opacity-40 cursor-not-allowed text-gray-500 bg-transparent' : (this.selectedDay === 'prediccion' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm cursor-pointer' : 'text-gray-400 hover:text-white cursor-pointer')}">
+                ${hasNextDay ? `
+                  <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                ` : ''}
+                <span>${nextDayLabel}</span>
               </button>
             </div>
           </div>
-          ` : ''}
         </div>
 
         <!-- 2. Pantalla Digital de Conversión Integrada -->
