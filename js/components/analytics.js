@@ -235,21 +235,6 @@ export class AnalyticsView {
           </div>
         </div>
 
-        <!-- Tabla / Historial de Cierres Recientes -->
-        <div class="space-y-2">
-          <div class="flex justify-between items-center px-1">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">Últimos Cierres Registrados</h3>
-            <span class="text-[10px] text-gray-500 font-semibold">Banco Central de Venezuela</span>
-          </div>
-
-          <div id="recent-closures-container" class="space-y-2">
-            <!-- Renderizado dinámico de cierres -->
-            <div class="glass-card rounded-2xl p-4 text-center border border-white/5">
-              <p class="text-xs text-gray-400 font-medium">Cargando registros recientes...</p>
-            </div>
-          </div>
-        </div>
-
       </div>
     `;
 
@@ -360,9 +345,6 @@ export class AnalyticsView {
       }
     }
 
-    // Renderizar cierres recientes en la tabla
-    this.renderRecentClosures(bcvHistoricalPoints || (this.historicalCache['bcv'] || []));
-
     const options = {
       series: seriesData.map(s => ({ name: s.name, data: s.data })),
       chart: {
@@ -422,67 +404,6 @@ export class AnalyticsView {
     }
     this.chart = new ApexCharts(chartContainer, options);
     this.chart.render();
-  }
-
-  renderRecentClosures(rawPoints) {
-    const container = document.getElementById('recent-closures-container');
-    if (!container) return;
-
-    if (!rawPoints || rawPoints.length === 0) {
-      container.innerHTML = `
-        <div class="glass-card rounded-2xl p-4 text-center border border-white/5">
-          <p class="text-xs text-gray-400 font-medium">No hay registros de cierres disponibles</p>
-        </div>
-      `;
-      return;
-    }
-
-    // Tomar los últimos 5 cierres en orden descendente (más reciente primero)
-    const recent = [...rawPoints].slice(-6).reverse();
-
-    container.innerHTML = `
-      <div class="space-y-2">
-        ${recent.map((item, i) => {
-          const date = new Date(item.date + 'T12:00:00');
-          const dateStr = date.toLocaleDateString('es-VE', { weekday: 'short', day: '2-digit', month: 'short' });
-          const prevItem = recent[i + 1];
-          let changePct = 0;
-          if (prevItem && prevItem.value > 0) {
-            changePct = ((item.value - prevItem.value) / prevItem.value) * 100;
-          }
-
-          const isUp = changePct >= 0;
-          const badgeColor = isUp ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20';
-
-          return `
-            <div class="glass-card rounded-xl p-3 flex items-center justify-between border border-white/5 hover:border-cyan-500/30 transition-all">
-              <div class="flex items-center space-x-3">
-                <div class="p-2 rounded-xl bg-white/5 border border-white/10 text-cyan-400">
-                  <i data-lucide="calendar" class="w-4 h-4"></i>
-                </div>
-                <div>
-                  <h4 class="text-xs font-bold text-white capitalize">${dateStr}</h4>
-                  <p class="text-[10px] text-gray-400">Cierre Oficial BCV</p>
-                </div>
-              </div>
-
-              <div class="text-right">
-                <p class="text-sm font-black text-white tracking-tight">${formatCurrency(item.value, 'VES', 2)}</p>
-                ${i < recent.length - 1 ? `
-                  <span class="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${badgeColor}">
-                    ${isUp ? '+' : ''}${changePct.toFixed(2)}%
-                  </span>
-                ` : `
-                  <span class="text-[9px] text-gray-500 font-medium">Base</span>
-                `}
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `;
-
-    if (window.lucide) window.lucide.createIcons();
   }
 
   attachEvents() {
