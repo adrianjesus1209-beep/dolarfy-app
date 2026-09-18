@@ -2045,6 +2045,8 @@ class CalculatorView {
       if (fullText.includes('=')) {
         resultOnly = fullText.split('=').pop().trim();
       }
+      // Limpiar símbolos de moneda y letras (ej. "Bs.", "$", "€") para copiar únicamente el número limpio
+      resultOnly = resultOnly.replace(/[^\d.,]/g, '').trim();
 
       const performCopy = (text) => {
         if (navigator.clipboard && navigator.clipboard.writeText) {
