@@ -149,7 +149,7 @@ export class DashboardView {
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                   </span>
                 ` : ''}
-                <span>Mañana</span>
+                <span>${nextDayLabel}</span>
               </button>
             </div>
           </div>
