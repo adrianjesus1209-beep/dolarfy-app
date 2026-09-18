@@ -95,7 +95,7 @@ export class DashboardView {
     this.container.innerHTML = `
       <div class="space-y-6 pb-24 animate-fade-in">
         <!-- Header status bar -->
-        <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4 gap-2">
+        <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4">
           <div class="flex items-center space-x-3">
             <span class="relative flex h-3 w-3">
               <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
@@ -108,16 +108,9 @@ export class DashboardView {
               <p class="text-[11px] text-gray-300 font-semibold mt-0.5">${currentCountry.officialSchedule || 'Cierre Banco Central'}</p>
             </div>
           </div>
-
-          <div class="flex items-center space-x-2">
-            <button id="btn-test-nextday" type="button" class="text-xs font-bold px-3 py-1.5 rounded-full ${hasNextDay ? 'bg-purple-500/30 text-purple-300 border-purple-500/50' : 'bg-white/10 text-gray-300 border-white/20'} border hover:bg-purple-500/40 transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm">
-              <i data-lucide="flask-conical" class="w-3.5 h-3.5 text-purple-400"></i>
-              <span>${hasNextDay ? `🧪 Simular: ${nextDayLabel}` : '🧪 Probador Pronóstico'}</span>
-            </button>
-            <div id="dash-country-badge" class="text-xs font-bold px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 items-center space-x-1.5 hidden md:flex">
-              <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">
-              <span>${currentCountry.name}</span>
-            </div>
+          <div id="dash-country-badge" class="text-xs font-bold px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center space-x-1.5">
+            <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-4 h-4 rounded-full object-cover border border-cyan-500/30">
+            <span>${currentCountry.name}</span>
           </div>
         </div>
 
@@ -337,13 +330,6 @@ export class DashboardView {
         }
       });
     });
-
-    const testBtn = this.container.querySelector('#btn-test-nextday');
-    if (testBtn) {
-      testBtn.addEventListener('click', () => {
-        mockEngine.toggleSimulationNextDay();
-      });
-    }
   }
 
   subscribeToUpdates() {
