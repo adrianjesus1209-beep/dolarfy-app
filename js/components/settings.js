@@ -94,10 +94,8 @@ export class SettingsView {
 
           <!-- Notificaciones -->
           <div class="glass-card rounded-2xl p-4 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
-            <div class="flex items-center space-x-3.5 pr-2">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-                <i data-lucide="bell" class="w-5 h-5"></i>
-              </div>
+            <div class="flex items-center space-x-3 pr-2">
+              <i data-lucide="bell" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <h4 class="text-xs font-bold text-white">Notificaciones</h4>
                 <p class="text-[10px] text-gray-400 mt-0.5">Avisar cuando salga nueva tasa</p>
@@ -111,10 +109,8 @@ export class SettingsView {
 
           <!-- Siguiente tasa por defecto -->
           <div class="glass-card rounded-2xl p-4 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
-            <div class="flex items-center space-x-3.5 pr-2">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-                <i data-lucide="trending-up" class="w-5 h-5"></i>
-              </div>
+            <div class="flex items-center space-x-3 pr-2">
+              <i data-lucide="trending-up" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <h4 class="text-xs font-bold text-white">Siguiente tasa por defecto</h4>
                 <p class="text-[10px] text-gray-400 mt-0.5 leading-snug">Usar la tasa de mañana/siguiente día automáticamente cuando esté disponible.</p>
@@ -128,10 +124,8 @@ export class SettingsView {
 
           <!-- Idioma -->
           <button id="settings-language-btn" type="button" class="w-full glass-card rounded-2xl p-4 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all text-left cursor-pointer group">
-            <div class="flex items-center space-x-3.5">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 group-hover:bg-cyan-500/20 transition-all">
-                <i data-lucide="globe" class="w-5 h-5"></i>
-              </div>
+            <div class="flex items-center space-x-3">
+              <i data-lucide="globe" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <h4 class="text-xs font-bold text-white">Idioma</h4>
                 <p class="text-[10px] text-gray-400 mt-0.5">Predeterminado del sistema</p>
@@ -147,10 +141,8 @@ export class SettingsView {
 
           <!-- Compartir app -->
           <button id="settings-share-btn" type="button" class="w-full glass-card rounded-2xl p-4 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all text-left cursor-pointer group">
-            <div class="flex items-center space-x-3.5">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 group-hover:bg-cyan-500/20 transition-all">
-                <i data-lucide="share-2" class="w-5 h-5"></i>
-              </div>
+            <div class="flex items-center space-x-3">
+              <i data-lucide="share-2" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <h4 class="text-xs font-bold text-white">Compartir app</h4>
                 <p class="text-[10px] text-gray-400 mt-0.5">Recomienda esta aplicación a tus amigos</p>
@@ -161,10 +153,8 @@ export class SettingsView {
 
           <!-- Calificar app -->
           <button id="settings-rate-btn" type="button" class="w-full glass-card rounded-2xl p-4 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all text-left cursor-pointer group">
-            <div class="flex items-center space-x-3.5">
-              <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 group-hover:bg-amber-500/20 transition-all">
-                <i data-lucide="star" class="w-5 h-5"></i>
-              </div>
+            <div class="flex items-center space-x-3">
+              <i data-lucide="star" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <h4 class="text-xs font-bold text-white">Calificar app</h4>
                 <p class="text-[10px] text-gray-400 mt-0.5">Apoya este proyecto con 5 estrellas</p>
@@ -175,10 +165,8 @@ export class SettingsView {
 
           <!-- Acerca de la app -->
           <button id="settings-about-btn" type="button" class="w-full glass-card rounded-2xl p-4 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all text-left cursor-pointer group">
-            <div class="flex items-center space-x-3.5">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 group-hover:bg-cyan-500/20 transition-all">
-                <i data-lucide="info" class="w-5 h-5"></i>
-              </div>
+            <div class="flex items-center space-x-3">
+              <i data-lucide="info" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <h4 class="text-xs font-bold text-white">Acerca de la app</h4>
                 <p class="text-[10px] text-gray-400 mt-0.5">Versión, desarrollador y licencias</p>

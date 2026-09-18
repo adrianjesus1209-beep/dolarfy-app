@@ -41,21 +41,17 @@ export class AboutModal {
           <div class="px-5 space-y-4 text-xs">
             
             <!-- Desarrollador -->
-            <div class="flex items-start space-x-3.5 border-b border-white/5 pb-3.5">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shrink-0">
-                <i data-lucide="code-2" class="w-4 h-4"></i>
-              </div>
+            <div class="flex items-center space-x-3 border-b border-white/5 pb-3">
+              <i data-lucide="code-2" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <span class="text-[11px] font-semibold text-gray-400 block">Desarrollador</span>
-                <span class="text-sm font-extrabold text-white block mt-0.5">Adrian Bello</span>
+                <span class="text-xs font-extrabold text-white block mt-0.5">Adrian Bello</span>
               </div>
             </div>
 
             <!-- Fuente de datos -->
-            <div class="flex items-start space-x-3.5 border-b border-white/5 pb-3.5">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shrink-0">
-                <i data-lucide="layers" class="w-4 h-4"></i>
-              </div>
+            <div class="flex items-center space-x-3 border-b border-white/5 pb-3">
+              <i data-lucide="layers" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <span class="text-[11px] font-semibold text-gray-400 block">Fuente de datos</span>
                 <a href="https://www.bcv.org.ve" target="_blank" rel="noopener noreferrer" class="text-xs font-extrabold text-cyan-400 hover:underline flex items-center gap-1 mt-0.5">
@@ -66,10 +62,8 @@ export class AboutModal {
             </div>
 
             <!-- Política de privacidad -->
-            <div class="flex items-start space-x-3.5 border-b border-white/5 pb-3.5">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shrink-0">
-                <i data-lucide="shield-check" class="w-4 h-4"></i>
-              </div>
+            <div class="flex items-center space-x-3 border-b border-white/5 pb-3">
+              <i data-lucide="shield-check" class="w-5 h-5 text-white shrink-0"></i>
               <div>
                 <span class="text-[11px] font-semibold text-gray-400 block">Política de privacidad</span>
                 <button id="about-privacy-btn" type="button" class="text-xs font-extrabold text-cyan-400 hover:underline mt-0.5 cursor-pointer">
