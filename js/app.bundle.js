@@ -2364,9 +2364,6 @@ class AnalyticsView {
     return rateObj.name.split(' ')[0];
   }
 
-  /**
-   * Obtiene días de historia según el período seleccionado
-   */
   getDaysForPeriod(period) {
     switch (period) {
       case '1W': return 7;
@@ -2376,18 +2373,12 @@ class AnalyticsView {
     }
   }
 
-  /**
-   * Fetch de datos históricos reales desde ve.dolarapi.com (1 punto/día hábil)
-   * Endpoints: /v1/historicos/dolares/oficial | /v1/historicos/dolares/paralelo | /v1/historicos/euros
-   * Respuesta: [{ fuente, promedio, fecha }]
-   */
   async fetchHistoricalData(rateKey, days) {
     const endpointMap = {
       bcv: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial',
       paralelo: 'https://ve.dolarapi.com/v1/historicos/dolares/paralelo',
       euro: 'https://ve.dolarapi.com/v1/historicos/euros'
     };
-    // /v1/historicos/euros devuelve series oficial Y paralelo juntas: filtrar por fuente
     const fuenteMap = { bcv: 'oficial', paralelo: 'paralelo', euro: 'oficial' };
     const url = endpointMap[rateKey];
     const fuente = fuenteMap[rateKey];
@@ -2417,15 +2408,12 @@ class AnalyticsView {
       this.historicalCache[rateKey] = parsed;
       return this._filterHistorical(parsed, days);
     } catch (e) {
-      console.warn(`Error fetching historical data for ${rateKey}:`, e);
+      console.warn(`Error al cargar histórico para ${rateKey}:`, e);
     }
 
-    return null; // Retorna null si falla, el gráfico mostrará un aviso
+    return null;
   }
 
-  /**
-   * Filtra la serie completa (cacheada) al período solicitado, en cliente.
-   */
   _filterHistorical(series, days) {
     const today = new Date();
     const from = new Date();
@@ -2435,16 +2423,10 @@ class AnalyticsView {
     return series.filter(d => d.date >= fromStr && d.date <= toStr);
   }
 
-  /**
-   * Convierte los datos históricos reales a formato para ApexCharts
-   * Reduce puntos si son muchos para mejor visualización
-   */
   processHistoricalForChart(historicalData, period) {
     if (!historicalData || historicalData.length === 0) return null;
 
     let data = [...historicalData];
-
-    // Reducir puntos para mejor visualización según el período
     const maxPoints = { '1W': 7, '1M': 30, '3M': 30, '1Y': 24 };
     const targetPoints = maxPoints[period] || 30;
 
@@ -2454,7 +2436,6 @@ class AnalyticsView {
       for (let i = 0; i < data.length; i += step) {
         sampled.push(data[i]);
       }
-      // Siempre incluir el último punto
       if (sampled[sampled.length - 1] !== data[data.length - 1]) {
         sampled.push(data[data.length - 1]);
       }
@@ -2463,18 +2444,11 @@ class AnalyticsView {
 
     const labels = data.map(d => {
       const date = new Date(d.date + 'T12:00:00');
-      if (period === '1Y') {
-        return date.toLocaleDateString('es-VE', { month: 'short', year: '2-digit' });
-      } else if (period === '3M') {
-        return date.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-      } else {
-        return date.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-      }
+      return date.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
     });
 
     const values = data.map(d => d.value);
-
-    return { labels, values };
+    return { labels, values, rawData: data };
   }
 
   render() {
@@ -2499,61 +2473,63 @@ class AnalyticsView {
     this.container.innerHTML = `
       <div class="space-y-4 pb-24 animate-fade-in max-w-md mx-auto">
         
-        <!-- Header con selector de país -->
+        <!-- Header con indicador de país -->
         <div class="flex justify-between items-center">
           <div>
-            <h2 class="text-lg font-extrabold text-white leading-tight">Tendencias de Mercado</h2>
-            <p class="text-xs text-gray-400 mt-0.5">Datos históricos oficiales BCV · ${currentCountry.name}</p>
+            <h2 class="text-lg font-extrabold text-white leading-tight flex items-center gap-2">
+              <span>Tendencias de Mercado</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+            </h2>
+            <p class="text-xs text-gray-400 mt-0.5">Histórico y variaciones oficiales · ${currentCountry.name}</p>
           </div>
 
-          <div class="bg-white/5 border border-white/10 text-cyan-300 text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center space-x-1.5">
+          <div class="bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold px-3 py-1.5 rounded-full flex items-center space-x-1.5 shadow-sm">
             <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-4 h-4 rounded-full object-cover">
             <span>${currentCountry.currency.code}</span>
           </div>
         </div>
 
-        <!-- Tarjetas de Métricas Principales (Brecha, Mín, Máx) -->
+        <!-- Tarjetas de Métricas Principales (Brecha, Mínimo, Máximo, Variación) -->
         <div class="grid grid-cols-3 gap-2">
           <!-- Brecha BCV vs Paralelo -->
-          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
-            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha BCV → Paralelo</span>
+          <div class="glass-card rounded-2xl p-3 text-center border border-white/10 hover:border-cyan-500/30 transition-all">
+            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha Oficial/P2P</span>
             <p class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent.toFixed(2)}%` : '0.00%'}</p>
-            <span class="text-[9px] text-gray-400 font-semibold block truncate">Mercado paralelo vs oficial</span>
+            <span class="text-[9px] text-gray-400 font-semibold block truncate">Diferencia BCV vs USDT</span>
           </div>
 
-          <!-- Mínimo del Período (histórico real) -->
-          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
-            <span id="min-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Mínimo (${periodDetails.short})</span>
+          <!-- Mínimo del Período -->
+          <div class="glass-card rounded-2xl p-3 text-center border border-white/10 hover:border-emerald-500/30 transition-all">
+            <span id="min-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Piso (${periodDetails.short})</span>
             <p id="stat-min-value" class="text-sm font-black text-emerald-400 mt-1">— — —</p>
-            <span class="text-[9px] text-gray-500 font-medium block">Piso oficial</span>
+            <span class="text-[9px] text-gray-500 font-medium block">Valor mínimo</span>
           </div>
 
-          <!-- Máximo del Período (histórico real) -->
-          <div class="glass-card rounded-2xl p-3 text-center border border-white/10">
-            <span id="max-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Máximo (${periodDetails.short})</span>
+          <!-- Máximo del Período -->
+          <div class="glass-card rounded-2xl p-3 text-center border border-white/10 hover:border-amber-500/30 transition-all">
+            <span id="max-period-label" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Techo (${periodDetails.short})</span>
             <p id="stat-max-value" class="text-sm font-black text-amber-400 mt-1">— — —</p>
-            <span class="text-[9px] text-gray-500 font-medium block">Techo oficial</span>
+            <span class="text-[9px] text-gray-500 font-medium block">Valor máximo</span>
           </div>
         </div>
 
-        <!-- Tarjeta del Gráfico ApexCharts -->
-        <div class="glass-card rounded-3xl p-4 relative overflow-hidden space-y-3 border border-white/10 shadow-2xl">
+        <!-- Tarjeta Principal del Gráfico ApexCharts -->
+        <div class="glass-card rounded-3xl p-4 relative overflow-hidden space-y-3 border border-white/10 shadow-2xl bg-[#111622]/95">
           
           <!-- Filtros del Gráfico: Tasas y Períodos -->
-          <div class="space-y-2">
-            <!-- Píldoras de Tasas para filtrar -->
+          <div class="space-y-2.5">
             <div class="flex items-center justify-between">
-              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <i data-lucide="line-chart" class="w-3.5 h-3.5 text-cyan-400"></i> Histórico de Mercado
+              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="line-chart" class="w-3.5 h-3.5 text-cyan-400"></i> Comportamiento Histórico
               </span>
-              <span class="text-[9px] text-emerald-400 font-bold flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-                Fuente: ve.dolarapi.com
+              <span id="period-info-text" class="text-[10px] text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                ${periodDetails.text}
               </span>
             </div>
 
+            <!-- Píldoras de Tasas -->
             <div class="grid grid-cols-${Math.min(rateKeys.length + 1, 4)} gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="analytics-rate-filter">
-              <button data-rate="all" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${this.selectedRateFilter === 'all' ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+              <button data-rate="all" class="w-full py-1.5 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate cursor-pointer ${this.selectedRateFilter === 'all' ? 'bg-cyan-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                 Todas
               </button>
               ${rateKeys.map(key => {
@@ -2561,7 +2537,7 @@ class AnalyticsView {
                 const isSel = this.selectedRateFilter === key;
                 const pillLabel = this.getPillLabel(key, r);
                 return `
-                  <button data-rate="${key}" class="w-full py-1 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+                  <button data-rate="${key}" class="w-full py-1.5 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate cursor-pointer ${isSel ? 'bg-cyan-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
                     ${pillLabel}
                   </button>
                 `;
@@ -2569,65 +2545,41 @@ class AnalyticsView {
             </div>
 
             <!-- Selector de Período Temporal -->
-            <div class="space-y-1.5 pt-1">
-              <div class="flex bg-black/40 p-1 rounded-xl border border-white/10 justify-between" id="period-selector">
-                ${[
-                  { code: '1W', name: '1W (Semana)' },
-                  { code: '1M', name: '1M (Mes)' },
-                  { code: '3M', name: '3M (Trimestre)' },
-                  { code: '1Y', name: '1Y (Año)' }
-                ].map(p => `
-                  <button data-period="${p.code}" title="${p.name}" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-center transition-all ${this.selectedPeriod === p.code ? 'bg-cyan-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
-                    ${p.code}
-                  </button>
-                `).join('')}
-              </div>
-
-              <p id="period-info-text" class="text-[10px] text-gray-400 font-semibold text-right pt-0.5 px-1">
-                ${periodDetails.text}
-              </p>
+            <div class="bg-black/40 p-1 rounded-2xl border border-white/10 flex justify-between gap-1" id="period-selector">
+              ${[
+                { code: '1W', name: '7 Días' },
+                { code: '1M', name: '30 Días' },
+                { code: '3M', name: '90 Días' },
+                { code: '1Y', name: '1 Año' }
+              ].map(p => `
+                <button data-period="${p.code}" title="${p.name}" class="flex-1 py-1.5 text-[11px] font-bold rounded-xl text-center transition-all cursor-pointer ${this.selectedPeriod === p.code ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}">
+                  ${p.code}
+                </button>
+              `).join('')}
             </div>
-
           </div>
 
           <!-- Contenedor del Gráfico -->
-          <div id="apex-analytics-chart" class="w-full h-60 pt-1 relative">
-            <!-- Skeleton loader mientras carga -->
+          <div id="apex-analytics-chart" class="w-full h-64 pt-1 relative">
             <div id="chart-loading-skeleton" class="absolute inset-0 flex flex-col items-center justify-center gap-2">
               <div class="w-8 h-8 border-2 border-cyan-500/40 border-t-cyan-400 rounded-full animate-spin"></div>
-              <p class="text-[10px] text-gray-400 font-semibold">Cargando datos históricos BCV...</p>
+              <p class="text-[10px] text-gray-400 font-semibold">Cargando datos históricos del BCV...</p>
             </div>
           </div>
         </div>
 
-        <!-- Fuente Oficial y Señales -->
+        <!-- Tabla / Historial de Cierres Recientes -->
         <div class="space-y-2">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Fuente Oficial</h3>
-
-          <div class="glass-card rounded-2xl p-3 flex items-center justify-between border border-white/5">
-            <div class="flex items-center space-x-3">
-              <div class="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <i data-lucide="landmark" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <h4 class="text-xs font-bold text-gray-100">Banco Central de Venezuela</h4>
-                <p class="text-[10px] text-gray-400">Tasas oficiales publicadas en bcv.org.ve</p>
-              </div>
-            </div>
-            <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">BCV</span>
+          <div class="flex justify-between items-center px-1">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">Últimos Cierres Registrados</h3>
+            <span class="text-[10px] text-gray-500 font-semibold">Banco Central de Venezuela</span>
           </div>
 
-          <div class="glass-card rounded-2xl p-3 flex items-center justify-between border border-white/5">
-            <div class="flex items-center space-x-3">
-              <div class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                <i data-lucide="shield-check" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <h4 class="text-xs font-bold text-gray-100">Publicación Oficial</h4>
-                <p class="text-[10px] text-gray-400">${currentCountry.officialSchedule || 'Monitoreo diario del Banco Central'}</p>
-              </div>
+          <div id="recent-closures-container" class="space-y-2">
+            <!-- Renderizado dinámico de cierres -->
+            <div class="glass-card rounded-2xl p-4 text-center border border-white/5">
+              <p class="text-xs text-gray-400 font-medium">Cargando registros recientes...</p>
             </div>
-            <span class="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">Oficial</span>
           </div>
         </div>
 
@@ -2654,13 +2606,17 @@ class AnalyticsView {
     }
 
     const days = this.getDaysForPeriod(this.selectedPeriod);
-    const paletteColors = ['#06B6D4', '#10B981', '#F59E0B', '#8B5CF6'];
+    const colorMap = {
+      bcv: '#06B6D4',      // Cyan para Dólar BCV
+      paralelo: '#F59E0B', // Amarillo para Binance P2P
+      euro: '#10B981'      // Esmeralda para Euro BCV
+    };
+
     const seriesData = [];
     let categories = [];
     let hasRealData = false;
+    let bcvHistoricalPoints = null;
 
-    // Rango real del período sobre la tasa activa (BCV por defecto con "Todas"):
-    // las tarjetas dicen "Piso/Techo oficial", así que nunca mezclan series.
     const rangeKey = this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]
       ? this.selectedRateFilter
       : 'bcv';
@@ -2668,7 +2624,6 @@ class AnalyticsView {
     let realMax = -Infinity;
     let hasRangeData = false;
 
-    // Intentar cargar datos históricos reales para cada tasa activa
     for (let index = 0; index < activeKeys.length; index++) {
       const key = activeKeys[index];
       const rateObj = rates[key];
@@ -2679,6 +2634,8 @@ class AnalyticsView {
       if (historicalRaw && historicalRaw.length > 0) {
         chartData = this.processHistoricalForChart(historicalRaw, this.selectedPeriod);
         hasRealData = true;
+        if (key === 'bcv') bcvHistoricalPoints = historicalRaw;
+
         if (key === rangeKey) {
           for (const point of historicalRaw) {
             if (typeof point.value === 'number' && !isNaN(point.value)) {
@@ -2691,42 +2648,39 @@ class AnalyticsView {
       }
 
       if (chartData) {
-        if (index === 0) {
+        if (categories.length === 0) {
           categories = chartData.labels;
         }
         seriesData.push({
           name: rateObj.name,
           data: chartData.values,
-          color: paletteColors[index % paletteColors.length]
+          color: colorMap[key] || '#8B5CF6'
         });
       } else {
-        // Si no hay datos históricos reales, usar valor actual como referencia con aviso
         seriesData.push({
           name: rateObj.name,
           data: [rateObj.value || 0],
-          color: paletteColors[index % paletteColors.length]
+          color: colorMap[key] || '#8B5CF6'
         });
       }
     }
 
-    // Quitar skeleton loader
     const skeleton = document.getElementById('chart-loading-skeleton');
     if (skeleton) skeleton.remove();
 
     if (!hasRealData || seriesData.every(s => s.data.length <= 1)) {
-      // Mostrar aviso de datos no disponibles
       chartContainer.innerHTML = `
         <div class="flex flex-col items-center justify-center h-full gap-2 py-8">
           <i data-lucide="wifi-off" class="w-8 h-8 text-gray-500"></i>
           <p class="text-[11px] text-gray-400 font-semibold text-center">Datos históricos no disponibles</p>
-          <p class="text-[10px] text-gray-500 text-center">Verifica tu conexión a Internet para cargar el historial oficial del BCV</p>
+          <p class="text-[10px] text-gray-500 text-center">Conéctate a Internet para cargar el gráfico histórico oficial del BCV</p>
         </div>
       `;
       if (window.lucide) window.lucide.createIcons();
       return;
     }
 
-    // Actualizar tarjetas de Mínimo/Máximo con el rango real del período
+    // Actualizar Mínimo y Máximo
     const minStatEl = document.getElementById('stat-min-value');
     const maxStatEl = document.getElementById('stat-max-value');
     if (minStatEl && maxStatEl) {
@@ -2739,22 +2693,25 @@ class AnalyticsView {
       }
     }
 
+    // Renderizar cierres recientes en la tabla
+    this.renderRecentClosures(bcvHistoricalPoints || (this.historicalCache['bcv'] || []));
+
     const options = {
       series: seriesData.map(s => ({ name: s.name, data: s.data })),
       chart: {
         type: 'area',
-        height: 220,
+        height: 230,
         toolbar: { show: false },
         background: 'transparent',
         sparkline: { enabled: false },
-        animations: { enabled: true, speed: 400 }
+        animations: { enabled: true, speed: 450 }
       },
       colors: seriesData.map(s => s.color),
       fill: {
         type: 'gradient',
         gradient: {
           shadeIntensity: 1,
-          opacityFrom: 0.4,
+          opacityFrom: 0.45,
           opacityTo: 0.05,
           stops: [0, 100]
         }
@@ -2774,11 +2731,11 @@ class AnalyticsView {
         }
       },
       grid: {
-        borderColor: themeService.getTheme() === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.05)',
+        borderColor: themeService.getTheme() === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.06)',
         strokeDashArray: 4
       },
       legend: {
-        labels: { colors: themeService.getTheme() === 'light' ? '#0F172A' : '#E5E7EB', useSeriesColors: false },
+        labels: { colors: themeService.getTheme() === 'light' ? '#0F172A' : '#E5E7EB' },
         fontSize: '10px',
         position: 'top',
         horizontalAlign: 'right',
@@ -2788,7 +2745,7 @@ class AnalyticsView {
         theme: themeService.getTheme() === 'light' ? 'light' : 'dark',
         x: { show: true },
         y: {
-          formatter: (val) => `${val.toLocaleString('es-VE')} ${currentCountry.currency.code}`
+          formatter: (val) => formatCurrency(val, currentCountry.currency.code, val < 10 ? 4 : 2)
         }
       }
     };
@@ -2800,6 +2757,67 @@ class AnalyticsView {
     this.chart.render();
   }
 
+  renderRecentClosures(rawPoints) {
+    const container = document.getElementById('recent-closures-container');
+    if (!container) return;
+
+    if (!rawPoints || rawPoints.length === 0) {
+      container.innerHTML = `
+        <div class="glass-card rounded-2xl p-4 text-center border border-white/5">
+          <p class="text-xs text-gray-400 font-medium">No hay registros de cierres disponibles</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Tomar los últimos 5 cierres en orden descendente (más reciente primero)
+    const recent = [...rawPoints].slice(-6).reverse();
+
+    container.innerHTML = `
+      <div class="space-y-2">
+        ${recent.map((item, i) => {
+          const date = new Date(item.date + 'T12:00:00');
+          const dateStr = date.toLocaleDateString('es-VE', { weekday: 'short', day: '2-digit', month: 'short' });
+          const prevItem = recent[i + 1];
+          let changePct = 0;
+          if (prevItem && prevItem.value > 0) {
+            changePct = ((item.value - prevItem.value) / prevItem.value) * 100;
+          }
+
+          const isUp = changePct >= 0;
+          const badgeColor = isUp ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20';
+
+          return `
+            <div class="glass-card rounded-xl p-3 flex items-center justify-between border border-white/5 hover:border-cyan-500/30 transition-all">
+              <div class="flex items-center space-x-3">
+                <div class="p-2 rounded-xl bg-white/5 border border-white/10 text-cyan-400">
+                  <i data-lucide="calendar" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-white capitalize">${dateStr}</h4>
+                  <p class="text-[10px] text-gray-400">Cierre Oficial BCV</p>
+                </div>
+              </div>
+
+              <div class="text-right">
+                <p class="text-sm font-black text-white tracking-tight">${formatCurrency(item.value, 'VES', 2)}</p>
+                ${i < recent.length - 1 ? `
+                  <span class="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${badgeColor}">
+                    ${isUp ? '+' : ''}${changePct.toFixed(2)}%
+                  </span>
+                ` : `
+                  <span class="text-[9px] text-gray-500 font-medium">Base</span>
+                `}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    if (window.lucide) window.lucide.createIcons();
+  }
+
   attachEvents() {
     const periodBtns = document.querySelectorAll('#period-selector button');
     periodBtns.forEach(btn => {
@@ -2809,17 +2827,17 @@ class AnalyticsView {
 
         periodBtns.forEach(b => {
           const isSel = b.getAttribute('data-period') === this.selectedPeriod;
-          b.className = `flex-1 py-1.5 text-[11px] font-bold rounded-lg text-center transition-all ${isSel ? 'bg-cyan-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
+          b.className = `flex-1 py-1.5 text-[11px] font-bold rounded-xl text-center transition-all cursor-pointer ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
         });
 
         const infoText = document.getElementById('period-info-text');
         if (infoText) infoText.textContent = details.text;
 
         const minLabel = document.getElementById('min-period-label');
-        if (minLabel) minLabel.textContent = `Mínimo (${details.short})`;
+        if (minLabel) minLabel.textContent = `Piso (${details.short})`;
 
         const maxLabel = document.getElementById('max-period-label');
-        if (maxLabel) maxLabel.textContent = `Máximo (${details.short})`;
+        if (maxLabel) maxLabel.textContent = `Techo (${details.short})`;
 
         this.initChart();
       });
@@ -2831,7 +2849,7 @@ class AnalyticsView {
         this.selectedRateFilter = btn.getAttribute('data-rate');
         rateFilterBtns.forEach(b => {
           const isSel = b.getAttribute('data-rate') === this.selectedRateFilter;
-          b.className = `px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${isSel ? 'bg-emerald-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
+          b.className = `w-full py-1.5 px-1 text-[11px] font-bold rounded-xl transition-all text-center truncate cursor-pointer ${isSel ? 'bg-cyan-500 text-black shadow-sm font-extrabold' : 'text-gray-400 hover:text-white'}`;
         });
         this.initChart();
       });
@@ -2858,6 +2876,7 @@ class AnalyticsView {
     }
   }
 }
+
 
 
   // --- js/components/settings.js ---
