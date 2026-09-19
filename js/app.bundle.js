@@ -547,8 +547,9 @@ async function fetchWithTimeout(url, options = {}) {
 
 class ApiService {
   constructor() {
-    this.CACHE_TTL_MS = 15 * 1000;           // 15 segundos — polling en vivo
+    this.CACHE_TTL_MS = 5 * 1000;            // 5 segundos — polling ultra-rápido
     this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 días máximo stale
+    this.isSyncing = false;
   }
 
   _fetch(url, options = {}) {
@@ -581,12 +582,16 @@ class ApiService {
   }
 
   async fetchFreshRates(country, cacheKey) {
+    if (this.isSyncing) return null;
+    this.isSyncing = true;
     try {
       return await this.fetchVenezuelaRates(country, cacheKey);
     } catch (error) {
       console.warn(`Error al consultar API para ${country.name}:`, error);
       const rates = JSON.parse(JSON.stringify(country.rates));
       return this._decorate(rates, 'offline', { error: true });
+    } finally {
+      this.isSyncing = false;
     }
   }
 
@@ -1281,13 +1286,32 @@ class RatesEngine {
     }
   }
 
+  hasRatesChanged(oldRates, newRates) {
+    if (!oldRates || !newRates) return true;
+    const keys = ['bcv', 'paralelo', 'euro'];
+    for (const k of keys) {
+      const o = oldRates[k];
+      const n = newRates[k];
+      if (!o || !n) return true;
+      if (o.value !== n.value) return true;
+      const oNext = o.nextDay ? o.nextDay.value : null;
+      const nNext = n.nextDay ? n.nextDay.value : null;
+      if (oNext !== nNext) return true;
+    }
+    return false;
+  }
+
   async syncRealRates(force = false) {
     const current = this.getCurrentCountry();
     try {
+      const oldRates = JSON.parse(JSON.stringify(current.rates));
       const rates = await apiService.fetchRatesForCountry(current, force);
       if (rates) {
+        const changed = this.hasRatesChanged(oldRates, rates);
         current.rates = rates;
-        this._notify(null, 'rates_refreshed');
+        if (changed || force) {
+          this._notify(null, 'rates_refreshed');
+        }
       }
     } catch (e) {
       console.warn('Error al sincronizar tasas:', e);
@@ -1295,8 +1319,8 @@ class RatesEngine {
   }
 
   _startPolling() {
-    // Polling cada 15 segundos
-    setInterval(() => this.syncRealRates(true), 15 * 1000);
+    // Polling continuo en segundo plano cada 5 segundos
+    setInterval(() => this.syncRealRates(true), 5 * 1000);
 
     // Refrescar al volver a la app
     if (typeof document !== 'undefined') {

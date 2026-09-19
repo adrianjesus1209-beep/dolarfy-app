@@ -24,8 +24,9 @@ export async function fetchWithTimeout(url, options = {}) {
 
 class ApiService {
   constructor() {
-    this.CACHE_TTL_MS = 15 * 1000;           // 15 segundos — polling en vivo
+    this.CACHE_TTL_MS = 5 * 1000;            // 5 segundos — polling ultra-rápido
     this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 días máximo stale
+    this.isSyncing = false;
   }
 
   _fetch(url, options = {}) {
@@ -58,12 +59,16 @@ class ApiService {
   }
 
   async fetchFreshRates(country, cacheKey) {
+    if (this.isSyncing) return null;
+    this.isSyncing = true;
     try {
       return await this.fetchVenezuelaRates(country, cacheKey);
     } catch (error) {
       console.warn(`Error al consultar API para ${country.name}:`, error);
       const rates = JSON.parse(JSON.stringify(country.rates));
       return this._decorate(rates, 'offline', { error: true });
+    } finally {
+      this.isSyncing = false;
     }
   }
 

@@ -71,13 +71,32 @@ class RatesEngine {
     }
   }
 
+  hasRatesChanged(oldRates, newRates) {
+    if (!oldRates || !newRates) return true;
+    const keys = ['bcv', 'paralelo', 'euro'];
+    for (const k of keys) {
+      const o = oldRates[k];
+      const n = newRates[k];
+      if (!o || !n) return true;
+      if (o.value !== n.value) return true;
+      const oNext = o.nextDay ? o.nextDay.value : null;
+      const nNext = n.nextDay ? n.nextDay.value : null;
+      if (oNext !== nNext) return true;
+    }
+    return false;
+  }
+
   async syncRealRates(force = false) {
     const current = this.getCurrentCountry();
     try {
+      const oldRates = JSON.parse(JSON.stringify(current.rates));
       const rates = await apiService.fetchRatesForCountry(current, force);
       if (rates) {
+        const changed = this.hasRatesChanged(oldRates, rates);
         current.rates = rates;
-        this._notify(null, 'rates_refreshed');
+        if (changed || force) {
+          this._notify(null, 'rates_refreshed');
+        }
       }
     } catch (e) {
       console.warn('Error al sincronizar tasas:', e);
@@ -85,8 +104,8 @@ class RatesEngine {
   }
 
   _startPolling() {
-    // Polling cada 15 segundos
-    setInterval(() => this.syncRealRates(true), 15 * 1000);
+    // Polling continuo en segundo plano cada 5 segundos
+    setInterval(() => this.syncRealRates(true), 5 * 1000);
 
     // Refrescar al volver a la app
     if (typeof document !== 'undefined') {
