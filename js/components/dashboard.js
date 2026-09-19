@@ -15,8 +15,16 @@ export class DashboardView {
   hasNextDayRate(rates) {
     if (!rates) rates = mockEngine.getRates();
     if (!rates || typeof rates !== 'object') return false;
+
+    // Solo considerar pronósticos cuya Fecha Valor corresponda realmente a un día futuro (VET)
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const todayIso = new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+
     return Object.values(rates).some(r =>
-      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0
+      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0 &&
+      (!r.nextDay._iso || String(r.nextDay._iso) > todayIso)
     );
   }
 
@@ -42,7 +50,7 @@ export class DashboardView {
       case 'cache':
         return `<span class="text-[10px] text-gray-400 font-medium" title="Dato almacenado">Caché ${time}</span>`;
       case 'placeholder':
-        return `<span class="text-[10px] text-gray-500 font-medium" title="Datos de referencia">Sin conexión · Referencia</span>`;
+        return `<span class="text-[10px] text-cyan-400/80 font-semibold" title="Estableciendo conexión con las fuentes">Conectando...</span>`;
       case 'offline':
         return `<span class="text-[10px] text-red-400 font-semibold" title="Sin conexión activa">Sin conexión${time ? ` · ${time}` : ''}</span>`;
       default:
@@ -50,28 +58,20 @@ export class DashboardView {
     }
   }
 
-  render() {
+  _computeBanner(rates) {
     const currentCountry = mockEngine.getCurrentCountry();
-    const rates = mockEngine.getRates();
-    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
-
-    const hasNextDay = this.hasNextDayRate(rates);
-    const showRedDot = hasNextDay && !isPredictionRead(rates);
-
-    if (!hasNextDay && this.selectedDay === 'manana') {
-      this.selectedDay = 'hoy';
-    }
-
-    const nextDayLabel = this.getNextDayLabel(rates);
-    const isManana = this.selectedDay === 'manana' && hasNextDay;
+    const rateKeys = Object.keys(rates || {}).filter(k => k !== '_meta');
     const mainRate = rates[currentCountry.defaultRateId] || rates[rateKeys[0]] || { name: 'Dólar Oficial (BCV)', currency: 'VES', value: 0 };
     const secondRate = rateKeys.length > 1 ? rates[rateKeys[1]] : null;
+
+    const isManana = this.selectedDay === 'manana' && this.hasNextDayRate(rates);
+    const nextDayLabel = this.getNextDayLabel(rates);
 
     const mainVal = (isManana && mainRate && mainRate.nextDay && mainRate.nextDay.value) ? mainRate.nextDay.value : (mainRate ? mainRate.value : null);
     const secondVal = (secondRate && isManana && secondRate.nextDay && secondRate.nextDay.value) ? secondRate.nextDay.value : (secondRate ? secondRate.value : null);
 
-    let bannerTag = isManana 
-      ? `Fecha Valor · ${nextDayLabel}` 
+    let bannerTag = isManana
+      ? `Fecha Valor · ${nextDayLabel}`
       : 'Resumen del Día';
     let bannerText = '';
     let bannerSub = '';
@@ -83,7 +83,7 @@ export class DashboardView {
       bannerSub = `Cotización oficial del Banco Central de Venezuela publicada para ${nextDayLabel}.`;
     } else {
       bannerText = (mainVal !== null && mainVal !== undefined) ? `${this.cleanText(mainRate.name)}: ${formatCurrency(mainVal, mainRate.currency, 2)}` : `${mainRate.name}: Bs. — — —`;
-      bannerSub = mainVal 
+      bannerSub = mainVal
         ? `Tasas de referencia en vivo actualizadas desde bcv.org.ve.`
         : 'Cargando tasas en vivo...';
 
@@ -93,6 +93,24 @@ export class DashboardView {
         bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
       }
     }
+
+    return { bannerTag, bannerText, bannerSub, isManana, nextDayLabel };
+  }
+
+  render() {
+    const currentCountry = mockEngine.getCurrentCountry();
+    const rates = mockEngine.getRates();
+    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
+
+    const hasNextDay = this.hasNextDayRate(rates);
+    this._lastHasNextDay = hasNextDay;
+    const showRedDot = hasNextDay && !isPredictionRead(rates);
+
+    if (!hasNextDay && this.selectedDay === 'manana') {
+      this.selectedDay = 'hoy';
+    }
+
+    const { bannerTag, bannerText, bannerSub, isManana, nextDayLabel } = this._computeBanner(rates);
 
     this.container.innerHTML = `
       <div class="space-y-6 pb-24 animate-fade-in">
@@ -119,9 +137,9 @@ export class DashboardView {
         <!-- Banner Promocional / Alerta de Mercado -->
         <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-900/40 via-blue-900/30 to-purple-900/40 p-5 border border-white/10">
           <div class="relative z-10">
-            <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">${bannerTag}</span>
-            <h3 class="text-lg font-bold text-white mt-2">${bannerText}</h3>
-            <p class="text-xs text-gray-300 mt-1">${bannerSub}</p>
+            <span id="dash-banner-tag" class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">${bannerTag}</span>
+            <h3 id="dash-banner-text" class="text-lg font-bold text-white mt-2">${bannerText}</h3>
+            <p id="dash-banner-sub" class="text-xs text-gray-300 mt-1">${bannerSub}</p>
           </div>
         </div>
 
@@ -214,7 +232,7 @@ export class DashboardView {
               ${valueDisplay}
             </p>
           </div>
-          <span class="text-[10px] text-gray-500 font-medium">${this.getSourceLabel(rates)}</span>
+          <span id="src-${rate.id}" class="text-[10px] text-gray-500 font-medium">${this.getSourceLabel(rates)}</span>
         </div>
       </div>
     `;
@@ -252,7 +270,7 @@ export class DashboardView {
 
           <div class="mt-4 flex justify-between items-end">
             <div>
-              <p class="text-2xl font-extrabold text-amber-400 tracking-tight">
+              <p id="val-${rate.id}" class="text-2xl font-extrabold text-amber-400 tracking-tight">
                 ${valueDisplay}
               </p>
               <p class="text-[11px] text-gray-300 font-medium mt-0.5">Mercado 24/7 en Tiempo Real</p>
@@ -296,20 +314,18 @@ export class DashboardView {
             </div>
           </div>
           ${hasOfficialNextDay ? `
-            <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
+            <span id="badge-next-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
               <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
               <span>${formatPercentage(nextDay.change)}</span>
-            </span>
-          ` : `
+            </span>` : `
             <span class="inline-flex items-center space-x-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-white/5 text-gray-400 border-white/10">
               <span>Pendiente</span>
-            </span>
-          `}
+            </span>`}
         </div>
 
         <div class="mt-4 flex justify-between items-end">
           <div>
-            <p class="text-2xl font-extrabold text-emerald-400 tracking-tight">
+            <p id="val-${rate.id}" class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
             <p class="text-[11px] text-gray-300 font-medium mt-0.5">${dateSubtitle}</p>
@@ -345,9 +361,92 @@ export class DashboardView {
 
     this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
       if (action === 'rates_refreshed') {
-        this.render();
+        const hasNextDay = this.hasNextDayRate(rates);
+        // Solo reconstruir el DOM cuando cambia la disponibilidad de la publicación del BCV.
+        // En flujo normal ('hoy' o 'mañana') se actualizan los nodos en sitio (sin re-render).
+        if (hasNextDay !== this._lastHasNextDay) {
+          this._lastHasNextDay = hasNextDay;
+          this.render();
+        } else {
+          this._patchRates(rates);
+        }
       }
     });
+  }
+
+  _patchRates(rates) {
+    if (!rates || typeof rates !== 'object') return;
+    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
+    const isManana = this.selectedDay === 'manana';
+    let iconsChanged = false;
+
+    for (const key of rateKeys) {
+      const r = rates[key];
+      if (!r || typeof r !== 'object') continue;
+
+      // En modo 'Mañana' las tarjetas oficiales muestran la Fecha Valor publicada;
+      // las tarjetas crypto (paralelo) siempre muestran el mercado en vivo.
+      const isCrypto = r.id === 'paralelo' || r.type === 'crypto';
+      const display = (isManana && !isCrypto && r.nextDay && r.nextDay.published)
+        ? r.nextDay
+        : r;
+
+      const valEl = document.getElementById(`val-${key}`);
+      if (valEl) {
+        const val = typeof display.value === 'number' && !isNaN(display.value) ? display.value : null;
+        const text = val !== null && val > 0
+          ? formatCurrency(val, r.currency, val < 10 ? 4 : 2)
+          : '— — —';
+        if (valEl.dataset.last !== text) {
+          valEl.dataset.last = text;
+          valEl.textContent = text;
+        }
+      }
+
+      const badgeEl = document.getElementById(isManana ? `badge-next-${key}` : `badge-${key}`);
+      if (badgeEl) {
+        const change = typeof display.change === 'number' ? display.change : 0;
+        const isPositive = change >= 0;
+        const pctText = formatPercentage(change);
+        const txtEl = badgeEl.querySelector('span');
+        if (txtEl && txtEl.textContent !== pctText) txtEl.textContent = pctText;
+
+        const iconEl = badgeEl.querySelector('i');
+        const nextIcon = isPositive ? 'trending-up' : 'trending-down';
+        if (iconEl && iconEl.getAttribute('data-lucide') !== nextIcon) {
+          iconEl.setAttribute('data-lucide', nextIcon);
+          iconsChanged = true;
+        }
+
+        const targetClass = isPositive ? 'bg-emerald-500/10' : 'bg-red-500/10';
+        if (badgeEl.className.includes('bg-emerald-500/10') !== isPositive ||
+            badgeEl.className.includes('bg-red-500/10') !== !isPositive) {
+          badgeEl.className = badgeEl.className
+            .replace(/bg-(?:emerald|red)-500\/10\s+text-(?:emerald|red)-400\s+border-(?:emerald|red)-500\/20/,
+              `${targetClass} text-${isPositive ? 'emerald' : 'red'}-400 border-${isPositive ? 'emerald' : 'red'}-500/20`);
+        }
+      }
+
+      const srcEl = document.getElementById(`src-${key}`);
+      if (srcEl) {
+        const label = this.getSourceLabel(rates);
+        if (srcEl.dataset.src !== label) {
+          srcEl.dataset.src = label;
+          srcEl.innerHTML = label;
+        }
+      }
+    }
+
+    // Banner
+    const banner = this._computeBanner(rates);
+    const tagEl = document.getElementById('dash-banner-tag');
+    const textEl = document.getElementById('dash-banner-text');
+    const subEl = document.getElementById('dash-banner-sub');
+    if (tagEl && tagEl.textContent !== banner.bannerTag) tagEl.textContent = banner.bannerTag;
+    if (textEl && textEl.textContent !== banner.bannerText) textEl.textContent = banner.bannerText;
+    if (subEl && subEl.textContent !== banner.bannerSub) subEl.textContent = banner.bannerSub;
+
+    if (iconsChanged && window.lucide) window.lucide.createIcons();
   }
 
   destroy() {

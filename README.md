@@ -9,8 +9,9 @@ Dolarfy es una aplicación Web (SPA) ligera, rápida y moderna para consultar co
 * **Dólar y Euro Oficial (BCV)**: Conexión directa en tiempo real con los datos oficiales del Banco Central de Venezuela.
 * **USDT (Binance P2P)**: Consulta en vivo de las órdenes de compra del mercado Binance P2P C2C las 24 horas del día.
 * **Sección de Pronóstico Oficial (Mañana)**:
-  - La sección y pestaña de pronóstico permanece oculta hasta que el Banco Central de Venezuela (BCV) publica oficialmente la tasa Fecha Valor para el siguiente día hábil.
-  - Al publicarse la tasa oficial de mañana, se habilita automáticamente con la etiqueta estándar **Mañana**.
+  - La pestaña de pronóstico está siempre visible con la etiqueta del siguiente día hábil (por ejemplo, **Lunes** durante el fin de semana).
+  - Permanece **deshabilitada** hasta que el Banco Central de Venezuela (BCV) publica oficialmente la tasa Fecha Valor para el siguiente día hábil.
+  - Al confirmarse la publicación real vía API, se habilita automáticamente y muestra las cotizaciones oficiales de mañana (con punto de aviso si la publicación no se ha visto aún).
 * **Calculadora Financiera**: Conversor de divisas instantáneo en tiempo real.
 * **Arquitectura Web Pura**: Construida con HTML5, Vanilla CSS, Javascript ES modules e interfaz progresiva (PWA).
 

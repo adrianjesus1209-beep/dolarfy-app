@@ -7,10 +7,13 @@ import { COUNTRIES_DATA } from './countriesData.js';
 import { apiService } from './apiService.js';
 import { RATES_CACHE_KEY_PREFIX } from './constants.js';
 
+const POLL_INTERVAL_MS = 15 * 1000; // Base de polling; cada fuente gestiona su propia cadencia/TTL
+
 class RatesEngine {
   constructor() {
     this.countries = COUNTRIES_DATA;
     this.listeners = [];
+    this._timer = null;
     this._hydrateCacheSync();
     this.syncRealRates();
     this._startPolling();
@@ -51,11 +54,25 @@ class RatesEngine {
         return;
       }
 
-      // Preservar datos válidos de nextDay al hidratar la caché
+      // Fecha de hoy en VET (UTC-4)
+      const now = new Date();
+      const vetOffsetMs = -4 * 60 * 60 * 1000;
+      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const todayIso = new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+
+      // Preservar datos válidos de nextDay y sanitizar cotizaciones USDT desactualizadas
       Object.keys(data).forEach(k => {
         const item = data[k];
-        if (item && typeof item === 'object' && item.nextDay) {
-          if (!item.nextDay.value || item.nextDay.value <= 0) {
+        if (item && typeof item === 'object') {
+          if (item.nextDay && (!item.nextDay.value || item.nextDay.value <= 0)) {
+            item.nextDay = null;
+          }
+          // Descartar nextDay fabricados por versiones antiguas (publicación falsa con la tasa de hoy)
+          if (item.nextDay && /^Oficial BCV \((Lunes|Martes|Mi[ée]rcoles|Jueves|Viernes)\)$/i.test(String(item.nextDay.date || ''))) {
+            item.nextDay = null;
+          }
+          // Descartar pronósticos cuya Fecha Valor ya pasó o corresponde al día actual
+          if (item.nextDay && item.nextDay._iso && String(item.nextDay._iso) <= todayIso) {
             item.nextDay = null;
           }
         }
@@ -104,14 +121,31 @@ class RatesEngine {
   }
 
   _startPolling() {
-    // Polling continuo en segundo plano cada 5 segundos
-    setInterval(() => this.syncRealRates(true), 5 * 1000);
+    // Polling en segundo plano; la cadencia real por fuente la controla ApiService
+    this._startPollTimer();
 
-    // Refrescar al volver a la app
+    // Pausar mientras la app esté en segundo plano y reanudar al volver
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') this.syncRealRates(true);
+        if (document.visibilityState === 'visible') {
+          this._startPollTimer();
+          this.syncRealRates(true);
+        } else {
+          this._stopPollTimer();
+        }
       });
+    }
+  }
+
+  _startPollTimer() {
+    if (this._timer) return;
+    this._timer = setInterval(() => this.syncRealRates(true), POLL_INTERVAL_MS);
+  }
+
+  _stopPollTimer() {
+    if (this._timer) {
+      clearInterval(this._timer);
+      this._timer = null;
     }
   }
 

@@ -3,6 +3,9 @@
  */
 
 import { formatCurrency } from './utils/formatters.js';
+import { mockEngine } from './mockData.js';
+
+const REMINDER_CHECK_INTERVAL_MS = 10 * 60 * 1000; // Cobertura de respaldo para detectar la tasa nueva publicada
 
 class NotificationService {
   constructor() {
@@ -14,6 +17,7 @@ class NotificationService {
     this.enabled = this.loadEnabledState();
     this.lastNotifiedDate = this._storageGet(this.STORAGE_LAST_DATE) || '';
     this.logs = this.loadLogs();
+    this.notificationTimer = null;
   }
 
   _storageGet(key) {
@@ -125,6 +129,31 @@ class NotificationService {
   }
 
   // ==========================================================================
+  //  Recordatorio diario
+  // ==========================================================================
+
+  async scheduleDailyReminder() {
+    this.cancelDailyReminder();
+    if (typeof setInterval === 'undefined') return;
+    this.notificationTimer = setInterval(() => {
+      try {
+        const country = mockEngine.getCurrentCountry();
+        const rates = mockEngine.getRates();
+        this.checkDailyUpdate(country, rates);
+      } catch (e) {
+        console.warn('Error en recordatorio diario:', e);
+      }
+    }, REMINDER_CHECK_INTERVAL_MS);
+  }
+
+  async cancelDailyReminder() {
+    if (this.notificationTimer) {
+      clearInterval(this.notificationTimer);
+      this.notificationTimer = null;
+    }
+  }
+
+  // ==========================================================================
   //  Detección de nueva tasa diaria
   // ==========================================================================
 
@@ -178,15 +207,27 @@ class NotificationService {
   }
 
   async sendTestNotification() {
+    const country = mockEngine.getCurrentCountry();
+    const rates = mockEngine.getRates();
+    const rate = (rates && rates[country.defaultRateId]) ||
+      (rates && Object.values(rates).find(r => r && typeof r.value === 'number' && r.value > 0)) ||
+      { name: 'Dólar Oficial (BCV)', currency: 'VES', value: null };
+
+    const liveValue = (typeof rate.value === 'number' && !isNaN(rate.value) && rate.value > 0)
+      ? rate.value
+      : (rate.nextDay && typeof rate.nextDay.value === 'number' && rate.nextDay.value > 0 ? rate.nextDay.value : null);
+    const value = liveValue !== null ? liveValue : 1;
+    const currency = rate.currency || country.currency.code || 'VES';
+
     const testEntry = {
       id: Date.now(),
-      countryId: 'VE',
-      countryName: 'Venezuela',
-      flagUrl: 'https://flagcdn.com/w40/ve.png',
+      countryId: country.id,
+      countryName: country.name,
+      flagUrl: country.flagUrl,
       rateName: 'Notificación de Prueba · Dolarfy',
-      value: 852.30,
-      currency: 'VES',
-      formattedValue: 'Bs. 852,30',
+      value,
+      currency,
+      formattedValue: liveValue !== null ? formatCurrency(value, currency, value < 10 ? 4 : 2) : 'Bs. — — —',
       time: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true }),
       date: new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }),
       type: 'test'

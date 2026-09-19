@@ -177,12 +177,9 @@ export class SettingsView {
   }
 
   subscribeToUpdates() {
+    // La vista de Ajustes no muestra tasas: no necesita re-renderizar en cada refresco.
     if (this.unsubscribe) this.unsubscribe();
-    this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
-      if (action === 'rates_refreshed') {
-        this.render();
-      }
-    });
+    this.unsubscribe = mockEngine.subscribe(() => {});
   }
 
   attachEvents() {

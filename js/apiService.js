@@ -1,12 +1,11 @@
 /**
  * Servicio de tasas de cambio reales para Dolarfy
- * Fuente primaria: open.er-api.com (USD/VES y EUR/VES exactos del BCV)
- * Fuente secundaria: ve.dolarapi.com (Dólar Paralelo en tiempo real)
+ * Fuente oficial BCV: portal oficial bcv.org.ve (con proxies) + ve.dolarapi.com + api.dolarvzla.com (respaldo)
+ * Fuente mercado USDT/VES: Binance P2P C2C en tiempo real
  */
 
 import { RATES_CACHE_KEY_PREFIX } from './constants.js';
 import { getNextBusinessDayName } from './utils/formatters.js';
-
 
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -22,11 +21,28 @@ export async function fetchWithTimeout(url, options = {}) {
   }
 }
 
+// Cadencia por fuente (evita golpear APIs innecesariamente y agotar cuotas gratuitas)
+const API_SOURCE_CONFIG = {
+  binance: { ttlMs: 30 * 1000 },      // Binance P2P: alta volatilidad (30s óptimo PQ exacta)
+  dolarapi: { ttlMs: 60 * 1000 },      // DolarApi: cambios moderados
+  histDolarapi: { ttlMs: 15 * 60 * 1000 }, // DolarApi históricos: la Fecha Valor cambia 1 vez/día hábil
+  bcvSite: { ttlMs: 15 * 60 * 1000 },  // Scraping BCV: 1 publicación/día hábil
+  dolarvzla: { ttlMs: 15 * 60 * 1000 } // Respaldo BCV
+};
+
+const BACKOFF_BASE_MS = 5 * 1000;
+const BACKOFF_MAX_MS = 5 * 60 * 1000;
+
 class ApiService {
   constructor() {
-    this.CACHE_TTL_MS = 5 * 1000;            // 5 segundos — polling ultra-rápido
+    this.CACHE_TTL_MS = 60 * 1000;            // 60s — sirve caché y refresca en segundo plano
     this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 días máximo stale
     this.isSyncing = false;
+    this._inflightPromise = null;
+    this._lastRates = null;      // Última tasa válida conocida (memoria)
+    this._lastFetchedAt = 0;
+    this._attempts = 0;
+    this._sourceState = {};      // Circuit breaker por fuente
   }
 
   _fetch(url, options = {}) {
@@ -37,6 +53,238 @@ class ApiService {
     rates._meta = { source, fetchedAt: extra.fetchedAt || Date.now(), ...extra };
     return rates;
   }
+
+  // --------------------------------------------------------------------------
+  // Control de cadencia / circuit breaker por fuente
+  // --------------------------------------------------------------------------
+
+  _shouldFetchSource(source) {
+    const cfg = API_SOURCE_CONFIG[source];
+    if (!cfg) return true;
+    const state = this._sourceState[source];
+    if (!state) return true;
+    return !state.nextAllowedAt || Date.now() >= state.nextAllowedAt;
+  }
+
+  _markSource(source, ok) {
+    const cfg = API_SOURCE_CONFIG[source];
+    const state = (this._sourceState[source] = this._sourceState[source] || {});
+    if (ok) {
+      state.consecutiveFailures = 0;
+      state.nextAllowedAt = Date.now() + cfg.ttlMs;
+    } else {
+      state.consecutiveFailures = (state.consecutiveFailures || 0) + 1;
+      const backoff = Math.min(
+        BACKOFF_MAX_MS,
+        BACKOFF_BASE_MS * Math.pow(2, state.consecutiveFailures - 1)
+      );
+      state.nextAllowedAt = Date.now() + backoff;
+    }
+  }
+
+  async _request({ source, url, options = {}, parse = 'json' }) {
+    if (!this._shouldFetchSource(source)) return { status: 'skip', data: null };
+    this._attempts++;
+    try {
+      const res = await this._fetch(url, options);
+      if (!res.ok) return { status: 'fail', data: null };
+      const data = parse === 'json' ? await res.json() : await res.text();
+      return { status: 'ok', data };
+    } catch (e) {
+      console.warn(`Error HTTP ${source}:`, e);
+      return { status: 'fail', data: null };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Fuentes individuales (retornan datos sin mutar tasas)
+  // --------------------------------------------------------------------------
+
+  async _fetchBinance() {
+    if (!this._shouldFetchSource('binance')) return { status: 'skip', prices: [] };
+
+    const r = await this._request({
+      source: 'binance',
+      url: 'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search',
+      options: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fiat: 'VES', page: 1, rows: 10, tradeType: 'BUY', asset: 'USDT', countries: [], payTypes: []
+        })
+      }
+    });
+
+    if (r.status !== 'ok' || !r.data?.data || !Array.isArray(r.data.data) || r.data.data.length === 0) {
+      this._markSource('binance', false);
+      return { status: 'fail', prices: [] };
+    }
+
+    const organicItems = r.data.data.filter(i => !i.adv?.isPromoted && !i.isPromoted && i.adv?.price);
+    const sourceItems = organicItems.length > 0 ? organicItems : r.data.data;
+    const prices = sourceItems
+      .map(i => parseFloat(i.adv?.price))
+      .filter(p => !isNaN(p) && p > 0)
+      .sort((a, b) => a - b);
+
+    if (prices.length === 0) {
+      this._markSource('binance', false);
+      return { status: 'fail', prices: [] };
+    }
+
+    this._markSource('binance', true);
+    return { status: 'ok', prices };
+  }
+
+  async _fetchDolarApi() {
+    if (!this._shouldFetchSource('dolarapi')) {
+      return { status: 'skip', bcvUsd: null, euroValue: null, paraleloUsd: null };
+    }
+
+    const [usdRes, eurRes] = await Promise.all([
+      this._request({ source: 'dolarapi', url: 'https://ve.dolarapi.com/v1/dolares' }),
+      this._request({ source: 'dolarapi', url: 'https://ve.dolarapi.com/v1/euros' })
+    ]);
+
+    const out = { bcvUsd: null, euroValue: null, paraleloUsd: null };
+    let ok = false;
+
+    if (usdRes.status === 'ok' && Array.isArray(usdRes.data)) {
+      const bcvItem = usdRes.data.find(d => d.fuente === 'oficial' || d.casa === 'oficial');
+      const paraleloItem = usdRes.data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
+      if (bcvItem?.promedio) {
+        out.bcvUsd = parseFloat(parseFloat(bcvItem.promedio).toFixed(2));
+        ok = true;
+      }
+      if (paraleloItem?.promedio) {
+        out.paraleloUsd = parseFloat(parseFloat(paraleloItem.promedio).toFixed(2));
+      }
+    }
+
+    if (eurRes.status === 'ok' && Array.isArray(eurRes.data)) {
+      const item = eurRes.data.find(d => d.fuente === 'oficial' || d.casa === 'oficial' || d.moneda === 'EUR');
+      if (item?.promedio) {
+        out.euroValue = parseFloat(parseFloat(item.promedio).toFixed(2));
+        ok = true;
+      }
+    }
+
+    this._markSource('dolarapi', ok);
+    return { status: ok ? 'ok' : 'fail', ...out };
+  }
+
+  // Fecha de hoy en zona VET (UTC-4) como ISO yyyy-mm-dd
+  getTodayIsoVet() {
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    return new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+  }
+
+  _formatFechaValor(isoDate) {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    try {
+      const d = new Date(String(isoDate).slice(0, 10) + 'T12:00:00');
+      if (isNaN(d.getTime())) return isoDate;
+      return `Fecha Valor ${days[d.getDay()]} ${d.getDate()} de ${d.toLocaleDateString('es-VE', { month: 'long' })} ${d.getFullYear()}`;
+    } catch (e) {
+      return isoDate;
+    }
+  }
+
+  // Fuente confiable: DolarApi históricos ya contiene la Fecha Valor futura publicada por el BCV.
+  // Devuelve el último registro con fecha > hoy (pronóstico) y el último con fecha <= hoy (tasa vigente).
+  async _fetchDolarApiHistorics() {
+    if (!this._shouldFetchSource('histDolarapi')) {
+      return { status: 'skip', nextUsd: null, hoyUsd: null, nextEur: null, hoyEur: null };
+    }
+
+    const [usdRes, eurRes] = await Promise.all([
+      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial' }),
+      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/euros' })
+    ]);
+
+    const today = this.getTodayIsoVet();
+    const pick = (series) => {
+      if (!Array.isArray(series)) return { next: null, hoy: null };
+      let hoy = null;
+      let next = null;
+      for (const rec of series) {
+        if (!rec || !rec.fecha) continue;
+        const value = parseFloat(parseFloat(rec.promedio).toFixed(2));
+        if (!isNaN(value) && value > 0) {
+          if (String(rec.fecha) <= today) hoy = { value, date: String(rec.fecha) };
+          else next = { value, date: String(rec.fecha) };
+        }
+      }
+      return { next, hoy };
+    };
+
+    const usdSeries = Array.isArray(usdRes.data)
+      ? usdRes.data.filter(d => d && (d.fuente === 'oficial' || d.casa === 'oficial'))
+      : null;
+    const eurSeries = Array.isArray(eurRes.data)
+      ? eurRes.data.filter(d => d && (d.fuente === 'oficial' || d.casa === 'oficial'))
+      : null;
+
+    const usdPick = pick(usdSeries);
+    const eurPick = pick(eurSeries);
+
+    const ok = Boolean(usdPick.hoy || usdPick.next || eurPick.hoy || eurPick.next);
+    this._markSource('histDolarapi', ok);
+
+    return {
+      status: ok ? 'ok' : 'fail',
+      nextUsd: usdPick.next,
+      hoyUsd: usdPick.hoy,
+      nextEur: eurPick.next,
+      hoyEur: eurPick.hoy
+    };
+  }
+
+  async _fetchBcvSite() {
+    if (!this._shouldFetchSource('bcvSite')) return null;
+
+    const proxies = [
+      'https://www.bcv.org.ve',
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.bcv.org.ve'),
+      'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.bcv.org.ve')
+    ];
+
+    for (const url of proxies) {
+      const r = await this._request({ source: 'bcvSite', url, parse: 'text' });
+      if (r.status !== 'ok') continue;
+
+      let html = r.data;
+      if (html.trimStart().startsWith('{')) {
+        try { html = JSON.parse(html).contents || ''; } catch { html = r.data; }
+      }
+      const parsed = this.parseBcvHtml(html);
+      if (parsed && typeof parsed.usd === 'number') {
+        this._markSource('bcvSite', true);
+        return parsed;
+      }
+    }
+
+    // Respaldo: api.dolarvzla.com
+    const dv = await this._request({ source: 'dolarvzla', url: 'https://api.dolarvzla.com/bcv/current.json' });
+    if (dv.status === 'ok' && dv.data?.usd && !isNaN(parseFloat(dv.data.usd))) {
+      this._markSource('dolarvzla', true);
+      return {
+        usd: parseFloat(dv.data.usd),
+        eur: dv.data.eur ? parseFloat(dv.data.eur) : null,
+        fecha: dv.data.fecha_valor || dv.data.fecha || 'Fecha Valor Oficial BCV'
+      };
+    }
+
+    this._markSource('bcvSite', false);
+    if (dv.status === 'fail') this._markSource('dolarvzla', false);
+    return null;
+  }
+
+  // --------------------------------------------------------------------------
+  // Flujo principal
+  // --------------------------------------------------------------------------
 
   async fetchRatesForCountry(country, force = false) {
     const cacheKey = `${RATES_CACHE_KEY_PREFIX}_${country.id}`;
@@ -59,16 +307,32 @@ class ApiService {
   }
 
   async fetchFreshRates(country, cacheKey) {
-    if (this.isSyncing) return null;
+    // Coalescer: si hay una sincronización en curso, compartir su resultado
+    if (this.isSyncing && this._inflightPromise) {
+      return this._inflightPromise;
+    }
+
     this.isSyncing = true;
+    this._attempts = 0;
+    this._inflightPromise = this.fetchVenezuelaRates(country, cacheKey)
+      .then(rates => {
+        if (rates && rates._meta) {
+          this._lastRates = JSON.parse(JSON.stringify(rates));
+          delete this._lastRates._meta;
+          this._lastFetchedAt = rates._meta.fetchedAt || Date.now();
+        }
+        return rates;
+      })
+      .catch((error) => {
+        console.warn(`Error al consultar API para ${country.name}:`, error);
+        return this._getLastKnownRates(country);
+      });
+
     try {
-      return await this.fetchVenezuelaRates(country, cacheKey);
-    } catch (error) {
-      console.warn(`Error al consultar API para ${country.name}:`, error);
-      const rates = JSON.parse(JSON.stringify(country.rates));
-      return this._decorate(rates, 'offline', { error: true });
+      return await this._inflightPromise;
     } finally {
       this.isSyncing = false;
+      this._inflightPromise = null;
     }
   }
 
@@ -85,129 +349,83 @@ class ApiService {
       }
     });
 
-    // 1. FUENTE USDT/VES EN TIEMPO REAL: Binance P2P C2C Directo
-    try {
-      const resBinance = await this._fetch('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fiat: 'VES', page: 1, rows: 5, tradeType: 'BUY', asset: 'USDT', countries: [], payTypes: []
-        })
-      });
-      if (resBinance.ok) {
-        const data = await resBinance.json();
-        if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
-          const prices = data.data.map(i => parseFloat(i.adv.price)).filter(p => !isNaN(p) && p > 0);
-          if (prices.length > 0) {
-            rates.paralelo.value = parseFloat((prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2));
-            fetched.binanceP2p = true;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Error al consultar Binance P2P API:', e);
+    // FUENTES EN PARALELO: Binance P2P + DolarApi (dólares y euros) + DolarApi históricos (Fecha Valor)
+    const [binanceRes, dolarApiRes, histRes] = await Promise.allSettled([
+      this._fetchBinance(),
+      this._fetchDolarApi(),
+      this._fetchDolarApiHistorics()
+    ]);
+
+    // 1. USDT/VES Binance P2P (prioridad sobre el paralelo de DolarApi)
+    if (binanceRes.status === 'fulfilled' && binanceRes.value.status === 'ok' && binanceRes.value.prices.length > 0) {
+      const topPrices = binanceRes.value.prices.slice(0, Math.min(3, binanceRes.value.prices.length));
+      rates.paralelo.value = parseFloat((topPrices.reduce((a, b) => a + b, 0) / topPrices.length).toFixed(2));
+      fetched.binanceP2p = true;
     }
 
-    // 2. FUENTE OFICIAL DE HOY Y PARALELO (FALLBACK): ve.dolarapi.com
-    try {
-      const resUsd = await this._fetch('https://ve.dolarapi.com/v1/dolares');
-      if (resUsd.ok) {
-        const data = await resUsd.json();
-        if (Array.isArray(data)) {
-          const bcvItem = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial');
-          if (bcvItem?.promedio) {
-            rates.bcv.value = parseFloat(bcvItem.promedio.toFixed(2));
-          }
-          if (!fetched.binanceP2p) {
-            const paraleloItem = data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
-            if (paraleloItem?.promedio) {
-              rates.paralelo.value = parseFloat(paraleloItem.promedio.toFixed(2));
-            }
-          }
-          fetched.dolarapi = true;
+    // 2. Oficial BCV + paralelo de DolarApi
+    if (dolarApiRes.status === 'fulfilled' && dolarApiRes.value.status === 'ok') {
+      const r = dolarApiRes.value;
+      if (r.bcvUsd) {
+        rates.bcv.value = r.bcvUsd;
+        fetched.dolarapi = true;
+        if (!fetched.binanceP2p && r.paraleloUsd) {
+          rates.paralelo.value = r.paraleloUsd;
         }
       }
-    } catch (e) {
-      console.warn('Error al consultar DolarApi dolares:', e);
-    }
-
-    try {
-      const resEur = await this._fetch('https://ve.dolarapi.com/v1/euros');
-      if (resEur.ok) {
-        const data = await resEur.json();
-        if (Array.isArray(data)) {
-          const item = data.find(d => d.fuente === 'oficial' || d.casa === 'oficial' || d.moneda === 'EUR');
-          if (item?.promedio) {
-            rates.euro.value = parseFloat(item.promedio.toFixed(2));
-            fetched.dolarapiEuro = true;
-          }
-        }
+      if (r.euroValue) {
+        rates.euro.value = r.euroValue;
+        fetched.dolarapiEuro = true;
       }
-    } catch (e) {
-      console.warn('Error al consultar DolarApi euros:', e);
     }
 
-    // 3. FUENTE INTERBANCARIA / MERCADO EN TIEMPO REAL: open.er-api.com
-    let openErUsd = null;
-    try {
-      const resOpen = await this._fetch('https://open.er-api.com/v6/latest/USD');
-      if (resOpen.ok) {
-        const json = await resOpen.json();
-        if (typeof json?.rates?.VES === 'number' && json.rates.VES > 0) {
-          openErUsd = parseFloat(json.rates.VES.toFixed(2));
-          fetched.openErUsd = true;
-        }
+    // 2.5 Pronóstico oficial (Fecha Valor) desde DolarApi históricos — fuente fiable y confirmada.
+    // Si el scraping del sitio BCV llega a responder, será aplicado después y sobreescribirá este valor.
+    if (histRes.status === 'fulfilled' && histRes.value.status === 'ok') {
+      const h = histRes.value;
+      if (h.nextUsd && !(rates.bcv.nextDay && rates.bcv.nextDay.published)) {
+        const curUsd = (typeof rates.bcv.value === 'number' && rates.bcv.value > 0)
+          ? rates.bcv.value
+          : (h.hoyUsd ? h.hoyUsd.value : h.nextUsd.value);
+        const changeUsd = curUsd > 0
+          ? parseFloat((((h.nextUsd.value - curUsd) / curUsd) * 100).toFixed(2))
+          : 0;
+        rates.bcv.nextDay = {
+          published: true, isOfficial: true, value: h.nextUsd.value, change: changeUsd,
+          date: this._formatFechaValor(h.nextUsd.date), _iso: h.nextUsd.date,
+          scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
+        };
+        fetched.dolarapiHist = true;
       }
-    } catch (e) {
-      console.warn('Error al consultar open.er-api.com:', e);
+      if (h.nextEur && rates.euro && !(rates.euro.nextDay && rates.euro.nextDay.published)) {
+        const curEur = (typeof rates.euro.value === 'number' && rates.euro.value > 0)
+          ? rates.euro.value
+          : (h.hoyEur ? h.hoyEur.value : h.nextEur.value);
+        const changeEur = curEur > 0
+          ? parseFloat((((h.nextEur.value - curEur) / curEur) * 100).toFixed(2))
+          : 0;
+        rates.euro.nextDay = {
+          published: true, isOfficial: true, value: h.nextEur.value, change: changeEur,
+          date: this._formatFechaValor(h.nextEur.date), _iso: h.nextEur.date,
+          scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
+        };
+        fetched.dolarapiHistEuro = true;
+      }
+      // Si la Fecha Valor vigente ya es la más reciente (sin fecha futura), sincronizar la tasa del día
+      if (!rates.bcv.nextDay && h.hoyUsd) {
+        rates.bcv.value = h.hoyUsd.value;
+      }
     }
 
-    // 4. FUENTE OFICIAL DEL BCV (bcv.org.ve): Fecha Valor Oficial del Banco Central de Venezuela
+    // 3. Sitio oficial BCV (autoritativo, se aplica al final / después de DolarApi)
     try {
-      const bcvData = await this.fetchBcvOfficialSite();
-      if (bcvData?.usd) {
+      const bcvData = await this._fetchBcvSite();
+      if (bcvData && typeof bcvData.usd === 'number' && !isNaN(bcvData.usd)) {
         this.processBcvRates(rates, bcvData);
         fetched.bcvSite = true;
       }
     } catch (e) {
-      console.warn('Error al consultar sitio oficial del BCV:', e);
-    }
-
-    // Garantizar que la predicción/pronóstico para el siguiente día hábil NUNCA sea idéntica ni deshabilitada
-    const nextDayLabel = getNextBusinessDayName(rates);
-    const baseBcv = rates.bcv.value || 848.55;
-    const baseEuro = (rates.euro && rates.euro.value) ? rates.euro.value : 974.42;
-
-    // Determinar tasa predicha para el día siguiente
-    let nextBcvVal = openErUsd && openErUsd > baseBcv ? openErUsd : parseFloat((baseBcv * 1.0012).toFixed(2));
-    if (rates.bcv.nextDay && rates.bcv.nextDay.value && rates.bcv.nextDay.value !== baseBcv) {
-      nextBcvVal = rates.bcv.nextDay.value;
-    }
-    const bcvChangePct = parseFloat((((nextBcvVal - baseBcv) / baseBcv) * 100).toFixed(2));
-
-    rates.bcv.nextDay = {
-      published: true,
-      isOfficial: true,
-      value: nextBcvVal,
-      change: bcvChangePct,
-      date: `Oficial BCV (${nextDayLabel})`,
-      scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
-    };
-
-    let nextEuroVal = parseFloat((baseEuro * (1 + bcvChangePct / 100)).toFixed(2));
-    if (rates.euro && rates.euro.nextDay && rates.euro.nextDay.value && rates.euro.nextDay.value !== baseEuro) {
-      nextEuroVal = rates.euro.nextDay.value;
-    }
-
-    if (rates.euro) {
-      rates.euro.nextDay = {
-        published: true,
-        isOfficial: true,
-        value: nextEuroVal,
-        change: bcvChangePct,
-        date: `Oficial BCV (${nextDayLabel})`,
-        scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
-      };
+      console.warn('Error al procesar sitio oficial del BCV:', e);
     }
 
     // Calcular variación real vs valor previo conocido
@@ -221,10 +439,30 @@ class ApiService {
       }
     });
 
-    const hasLiveData = fetched.openErUsd || fetched.openErEur || fetched.dolarapi || fetched.dolarapiEuro || fetched.bcvSite;
-    if (hasLiveData) this.setCache(cacheKey, rates);
+    const succeeded = Object.values(fetched).some(Boolean);
+    let sourceLabel;
+    if (succeeded) {
+      sourceLabel = 'live';
+    } else if (this._attempts > 0) {
+      sourceLabel = 'offline';
+    } else {
+      // Ninguna fuente estaba lista (dentro de su TTL): devolver el snapshot previo, que es reciente
+      const snapshot = this._getCachedSnapshot(cacheKey, rates);
+      return this._decorate(snapshot, 'live', { reused: true, sources: fetched, fetchedAt: this._lastFetchedAt || Date.now() });
+    }
 
-    return this._decorate(rates, hasLiveData ? 'live' : 'offline', { sources: fetched });
+    if (sourceLabel === 'live') {
+      if (rates._meta) { const stored = JSON.parse(JSON.stringify(rates)); delete stored._meta; this.setCache(cacheKey, stored); }
+      else this.setCache(cacheKey, rates);
+    } else if (sourceLabel === 'offline') {
+      // Fallback: última tasa válida conocida, nunca placeholders null
+      return this._getLastKnownRates(country, { sources: fetched });
+    }
+
+    return this._decorate(rates, sourceLabel, {
+      sources: fetched,
+      fetchedAt: this._lastFetchedAt || Date.now()
+    });
   }
 
   processBcvRates(rates, bcvData) {
@@ -269,7 +507,7 @@ class ApiService {
     }
 
     if (isNextDay) {
-      // Asignar al botón de Pronóstico
+      // Asignar al botón de Pronóstico (Fecha Valor) — SOLO publicación real del BCV
       const currentUsd = rates.bcv.value || bcvUsd;
       const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
       rates.bcv.nextDay = {
@@ -280,6 +518,7 @@ class ApiService {
       if (bcvEur && rates.euro) {
         const currentEur = rates.euro.value || bcvEur;
         const changeEur = currentEur > 0 ? parseFloat((((bcvEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
+        rates.euro.value = bcvEur; // Sincronizar tasa base del Euro oficial con BCV
         rates.euro.nextDay = {
           published: true, isOfficial: true, value: bcvEur, change: changeEur,
           date: cleanDate, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
@@ -292,50 +531,6 @@ class ApiService {
         rates.euro.value = bcvEur;
       }
     }
-  }
-
-  async fetchBcvOfficialSite() {
-    const proxies = [
-      'https://www.bcv.org.ve',
-      'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.bcv.org.ve'),
-      'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.bcv.org.ve')
-    ];
-
-    for (const url of proxies) {
-      try {
-        const res = await this._fetch(url);
-        if (res.ok) {
-          const text = await res.text();
-          let html = text;
-          if (text.trimStart().startsWith('{')) {
-            try { html = JSON.parse(text).contents || ''; } catch { html = text; }
-          }
-          const parsed = this.parseBcvHtml(html);
-          if (parsed?.usd) return parsed;
-        }
-      } catch (e) {
-        console.warn(`Error BCV proxy ${url}:`, e);
-      }
-    }
-
-    // Respaldo: api.dolarvzla.com
-    try {
-      const res = await this._fetch('https://api.dolarvzla.com/bcv/current.json');
-      if (res.ok) {
-        const json = await res.json();
-        if (json?.usd) {
-          return {
-            usd: parseFloat(json.usd),
-            eur: json.eur ? parseFloat(json.eur) : null,
-            fecha: json.fecha_valor || json.fecha || 'Fecha Valor Oficial BCV'
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('Error api.dolarvzla.com:', e);
-    }
-
-    return null;
   }
 
   parseBcvHtml(html) {
@@ -369,6 +564,41 @@ class ApiService {
     );
   }
 
+  // --------------------------------------------------------------------------
+  // Caché
+  // --------------------------------------------------------------------------
+
+  _getCachedSnapshot(cacheKey, fallbackRates) {
+    try {
+      if (typeof localStorage === 'undefined') return JSON.parse(JSON.stringify(fallbackRates));
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return JSON.parse(JSON.stringify(fallbackRates));
+      const { data } = JSON.parse(raw);
+      if (data && this.hasValidRateValue(data)) return JSON.parse(JSON.stringify(data));
+    } catch (e) { /* ignore */ }
+    return JSON.parse(JSON.stringify(fallbackRates));
+  }
+
+  _getLastKnownRates(country, extra = {}) {
+    try {
+      if (this._lastRates) {
+        const clone = JSON.parse(JSON.stringify(this._lastRates));
+        return this._decorate(clone, 'offline', { fetchedAt: this._lastFetchedAt || Date.now(), ...extra });
+      }
+      const cacheKey = `${RATES_CACHE_KEY_PREFIX}_${country.id}`;
+      const stale = this.getCacheStale(cacheKey);
+      if (stale) {
+        const clone = JSON.parse(JSON.stringify(stale));
+        delete clone._meta;
+        return this._decorate(clone, 'offline', { fetchedAt: this._lastFetchedAt || Date.now(), ...extra });
+      }
+    } catch (e) {
+      console.warn('Error en fallback offline:', e);
+    }
+    const rates = JSON.parse(JSON.stringify(country.rates));
+    return this._decorate(rates, 'offline', { error: true, ...extra });
+  }
+
   getCache(key) {
     try {
       if (typeof localStorage === 'undefined') return null;
@@ -378,28 +608,7 @@ class ApiService {
       if (typeof timestamp !== 'number' || !data) return null;
       if (Date.now() - timestamp < this.CACHE_TTL_MS && this.hasValidRateValue(data)) {
         const enriched = JSON.parse(JSON.stringify(data));
-        const nextDayLabel = getNextBusinessDayName(enriched);
-        if (enriched.bcv && (!enriched.bcv.nextDay || !enriched.bcv.nextDay.value)) {
-          enriched.bcv.nextDay = {
-            published: true,
-            isOfficial: true,
-            value: enriched.bcv.value || 848.55,
-            change: enriched.bcv.change || 0,
-            date: `Oficial BCV (${nextDayLabel})`,
-            scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
-          };
-        }
-        if (enriched.euro && (!enriched.euro.nextDay || !enriched.euro.nextDay.value)) {
-          enriched.euro.nextDay = {
-            published: true,
-            isOfficial: true,
-            value: enriched.euro.value || 974.42,
-            change: enriched.euro.change || 0,
-            date: `Oficial BCV (${nextDayLabel})`,
-            scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
-          };
-        }
-        return this._decorate(enriched, 'cache', { cachedAt: timestamp, fetchedAt: timestamp });
+        return this._decorate(enriched, 'live', { reused: true, cachedAt: timestamp, fetchedAt: this._lastFetchedAt || timestamp });
       }
     } catch (e) {
       console.warn('Error leyendo caché:', e);
@@ -416,7 +625,8 @@ class ApiService {
       if (typeof timestamp !== 'number' || !data) return null;
       if (Date.now() - timestamp > this.STALE_MAX_AGE_MS) return null;
       if (this.hasValidRateValue(data)) {
-        return this._decorate(JSON.parse(JSON.stringify(data)), 'stale', { cachedAt: timestamp, fetchedAt: timestamp });
+        const enriched = JSON.parse(JSON.stringify(data));
+        return this._decorate(enriched, 'stale', { cachedAt: timestamp, fetchedAt: this._lastFetchedAt || timestamp });
       }
     } catch (e) {
       console.warn('Error leyendo caché expirada:', e);

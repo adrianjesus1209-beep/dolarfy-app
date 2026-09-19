@@ -3,13 +3,17 @@ import { formatCurrency, formatPercentage } from '../utils/formatters.js';
 import { themeService } from '../themeService.js';
 import { fetchWithTimeout } from '../apiService.js';
 
+const HISTORICAL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
+// Caché compartida entre instancias: sobrevive a los cambios de pestaña (evita re-descargar históricos)
+const historicalCacheStore = {}; // { rateKey: { ts, data } }
+
 export class AnalyticsView {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
     this.chart = null;
     this.selectedPeriod = '1M'; // 1W, 1M, 3M, 1Y
     this.selectedRateFilter = 'all'; // 'all' o ID de tasa específica
-    this.historicalCache = {}; // Cache de datos históricos reales
+    this.historicalCache = historicalCacheStore; // Cache de datos históricos reales
     this.unsubscribe = null;
   }
 
@@ -51,8 +55,10 @@ export class AnalyticsView {
     const fuente = fuenteMap[rateKey];
     if (!url || !fuente) return null;
 
-    if (this.historicalCache[rateKey]) {
-      return this._filterHistorical(this.historicalCache[rateKey], days);
+    // Usar caché compartida si aún no caducó
+    const cached = this.historicalCache[rateKey];
+    if (cached && cached.data && (Date.now() - cached.ts) < HISTORICAL_CACHE_TTL_MS) {
+      return this._filterHistorical(cached.data, days);
     }
 
     try {
@@ -72,7 +78,7 @@ export class AnalyticsView {
 
       if (parsed.length === 0) return null;
 
-      this.historicalCache[rateKey] = parsed;
+      this.historicalCache[rateKey] = { data: parsed, ts: Date.now() };
       return this._filterHistorical(parsed, days);
     } catch (e) {
       console.warn(`Error al cargar histórico para ${rateKey}:`, e);
@@ -161,7 +167,7 @@ export class AnalyticsView {
           <!-- Brecha BCV vs Paralelo -->
           <div class="glass-card rounded-2xl p-3 text-center border border-white/10 hover:border-cyan-500/30 transition-all">
             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha Oficial/P2P</span>
-            <p class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent.toFixed(2)}%` : '0.00%'}</p>
+            <p id="gap-value" class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent.toFixed(2)}%` : '0.00%'}</p>
             <span class="text-[9px] text-gray-400 font-semibold block truncate">Diferencia BCV vs USDT</span>
           </div>
 
@@ -308,13 +314,8 @@ export class AnalyticsView {
           data: chartData.values,
           color: colorMap[key] || '#8B5CF6'
         });
-      } else {
-        seriesData.push({
-          name: rateObj.name,
-          data: [rateObj.value || 0],
-          color: colorMap[key] || '#8B5CF6'
-        });
       }
+      // Sin datos históricos reales: la serie se omite (no se inventa ningún punto)
     }
 
     const skeleton = document.getElementById('chart-loading-skeleton');
@@ -448,9 +449,26 @@ export class AnalyticsView {
     if (this.unsubscribe) this.unsubscribe();
     this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
       if (action === 'rates_refreshed') {
-        this.render();
+        // No recrear el gráfico en cada refresco: solo actualizar métricas en vivo
+        this._patchLiveMetrics(rates);
       }
     });
+  }
+
+  _patchLiveMetrics(rates) {
+    if (!rates || typeof rates !== 'object') return;
+    const bcvRate = rates.bcv;
+    const paraleloRate = rates.paralelo;
+    const gapEl = document.getElementById('gap-value');
+    if (
+      gapEl && bcvRate && paraleloRate &&
+      typeof bcvRate.value === 'number' && typeof paraleloRate.value === 'number' &&
+      bcvRate.value > 0 && paraleloRate.value > 0
+    ) {
+      const gap = ((paraleloRate.value / bcvRate.value) - 1) * 100;
+      const text = gap > 0 ? `+${gap.toFixed(2)}%` : '0.00%';
+      if (gapEl.textContent !== text) gapEl.textContent = text;
+    }
   }
 
   destroy() {

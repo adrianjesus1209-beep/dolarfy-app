@@ -86,6 +86,8 @@ export class CalculatorView {
         return `<span class="text-[9px] text-amber-400 font-bold">Última: ${time}</span>`;
       case 'cache':
         return `<span class="text-[9px] text-gray-400 font-bold">Caché ${time}</span>`;
+      case 'placeholder':
+        return `<span class="text-[9px] text-cyan-400/80 font-bold">Conectando...</span>`;
       case 'offline':
         return `<span class="text-[9px] text-red-400 font-bold">Sin conexión</span>`;
       default:
@@ -99,6 +101,7 @@ export class CalculatorView {
     const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
 
     const hasNextDay = this.hasNextDayRate(rates);
+    this._lastHasNextDay = hasNextDay;
     if (!hasNextDay && this.selectedDay === 'prediccion') {
       this.selectedDay = 'hoy';
     }
@@ -111,6 +114,7 @@ export class CalculatorView {
 
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
     const activeRate = this.getEffectiveRate(activeRateObj);
+    this._lastActiveRate = activeRate;
     const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
     const ratePair = [baseCode, targetCode];
 
@@ -591,9 +595,36 @@ export class CalculatorView {
     if (this.unsubscribe) this.unsubscribe();
     this.unsubscribe = mockEngine.subscribe((rates, updatedId, action) => {
       if (action === 'rates_refreshed') {
-        this.render();
+        this._patchRates(rates);
       }
     });
+  }
+
+  _patchRates(rates) {
+    if (!rates || typeof rates !== 'object') return;
+
+    const hasNextDay = this.hasNextDayRate(rates);
+    if (hasNextDay !== this._lastHasNextDay) {
+      this._lastHasNextDay = hasNextDay;
+      this.render();
+      return;
+    }
+
+    const activeRateObj = (this.currentCountry.rates || rates)[this.selectedRateId];
+    if (!activeRateObj) return;
+
+    const newRate = this.getEffectiveRate(activeRateObj);
+    if (this._lastActiveRate === newRate) return;
+    this._lastActiveRate = newRate;
+
+    const pillEl = document.getElementById('rate-badge-pill');
+    if (pillEl) {
+      pillEl.innerHTML = `${this.selectedDay === 'prediccion' && hasNextDay
+        ? `<i data-lucide="calendar-check" class="w-3 h-3 text-amber-400"></i><span class="text-amber-300">${this.getNextDayLabel(rates)}:</span>`
+        : `<i data-lucide="sun" class="w-3 h-3 text-emerald-400"></i>`} ${newRate.toFixed(newRate < 10 ? 4 : 2)}`;
+      if (window.lucide) window.lucide.createIcons();
+    }
+    this.calculate();
   }
 
   destroy() {
