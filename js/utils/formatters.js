@@ -104,3 +104,39 @@ export const getNextBusinessDayName = (rates) => {
   return daysMap[day] || 'Lunes';
 };
 
+/**
+ * Genera una clave única para la predicción publicada actual
+ */
+export const getPredictionKey = (rates) => {
+  const bcvNext = rates?.bcv?.nextDay;
+  if (!bcvNext || !bcvNext.published || !bcvNext.value) return null;
+  return `pred_${bcvNext.date || ''}_${bcvNext.value}`;
+};
+
+/**
+ * Verfica si el usuario ya vio/leyó el aviso rojo de la predicción actual
+ */
+export const isPredictionRead = (rates) => {
+  const key = getPredictionKey(rates);
+  if (!key) return true;
+  try {
+    const readKey = localStorage.getItem('dolarfy_prediction_read_key');
+    return readKey === key;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Marca la predicción actual como leída para ocultar el punto rojo y guardar el estado en caché
+ */
+export const markPredictionRead = (rates) => {
+  const key = getPredictionKey(rates);
+  if (key) {
+    try {
+      localStorage.setItem('dolarfy_prediction_read_key', key);
+    } catch {}
+  }
+};
+
+

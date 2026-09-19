@@ -120,6 +120,42 @@ const getNextBusinessDayName = (rates) => {
   return daysMap[day] || 'Lunes';
 };
 
+/**
+ * Genera una clave única para la predicción publicada actual
+ */
+const getPredictionKey = (rates) => {
+  const bcvNext = rates?.bcv?.nextDay;
+  if (!bcvNext || !bcvNext.published || !bcvNext.value) return null;
+  return `pred_${bcvNext.date || ''}_${bcvNext.value}`;
+};
+
+/**
+ * Verfica si el usuario ya vio/leyó el aviso rojo de la predicción actual
+ */
+const isPredictionRead = (rates) => {
+  const key = getPredictionKey(rates);
+  if (!key) return true;
+  try {
+    const readKey = localStorage.getItem('dolarfy_prediction_read_key');
+    return readKey === key;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Marca la predicción actual como leída para ocultar el punto rojo y guardar el estado en caché
+ */
+const markPredictionRead = (rates) => {
+  const key = getPredictionKey(rates);
+  if (key) {
+    try {
+      localStorage.setItem('dolarfy_prediction_read_key', key);
+    } catch {}
+  }
+};
+
+
 
 
   // --- js/utils/mathEval.js ---
@@ -1859,6 +1895,8 @@ class DashboardView {
     const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
 
     const hasNextDay = this.hasNextDayRate(rates);
+    const showRedDot = hasNextDay && !isPredictionRead(rates);
+
     if (!hasNextDay && this.selectedDay === 'manana') {
       this.selectedDay = 'hoy';
     }
@@ -1939,8 +1977,8 @@ class DashboardView {
                 Hoy
               </button>
               <button type="button" data-day="manana" ${!hasNextDay ? 'disabled="disabled"' : ''} class="dash-day-btn relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${!hasNextDay ? 'opacity-40 cursor-not-allowed text-gray-500 bg-transparent' : (this.selectedDay === 'manana' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm cursor-pointer' : 'text-gray-400 hover:text-white cursor-pointer')}">
-                ${hasNextDay ? `
-                  <span class="relative flex h-2 w-2">
+                ${showRedDot ? `
+                  <span id="dash-red-dot" class="relative flex h-2 w-2">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                   </span>
@@ -2123,13 +2161,19 @@ class DashboardView {
 
   attachEventListeners() {
     const dayBtns = this.container.querySelectorAll('.dash-day-btn');
+    const rates = mockEngine.getRates();
     dayBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.hasAttribute('disabled') || btn.disabled) return;
         const day = btn.getAttribute('data-day');
-        if (day && day !== this.selectedDay) {
-          this.selectedDay = day;
-          this.render();
+        if (day) {
+          if (day === 'manana') {
+            markPredictionRead(rates);
+          }
+          if (day !== this.selectedDay) {
+            this.selectedDay = day;
+            this.render();
+          }
         }
       });
     });
@@ -2312,8 +2356,8 @@ class CalculatorView {
                 Hoy
               </button>
               <button type="button" data-calcday="prediccion" ${!hasNextDay ? 'disabled="disabled"' : ''} class="calc-day-btn relative px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${!hasNextDay ? 'opacity-40 cursor-not-allowed text-gray-500 bg-transparent' : (this.selectedDay === 'prediccion' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm cursor-pointer' : 'text-gray-400 hover:text-white cursor-pointer')}">
-                ${hasNextDay ? `
-                  <span class="relative flex h-2 w-2">
+                ${(hasNextDay && !isPredictionRead(rates)) ? `
+                  <span id="calc-red-dot" class="relative flex h-2 w-2">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                   </span>
@@ -2416,13 +2460,19 @@ class CalculatorView {
 
     // Selector Hoy / Predicción (Día Siguiente)
     const dayBtns = document.querySelectorAll('.calc-day-btn');
+    const rates = this.currentCountry?.rates;
     dayBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.hasAttribute('disabled') || btn.disabled) return;
         const day = btn.getAttribute('data-calcday');
-        if (day && day !== this.selectedDay) {
-          this.selectedDay = day;
-          this.render();
+        if (day) {
+          if (day === 'prediccion') {
+            markPredictionRead(rates);
+          }
+          if (day !== this.selectedDay) {
+            this.selectedDay = day;
+            this.render();
+          }
         }
       });
     });

@@ -1,5 +1,5 @@
 import { mockEngine } from '../mockData.js';
-import { formatCurrency, getNextBusinessDayName } from '../utils/formatters.js';
+import { formatCurrency, getNextBusinessDayName, isPredictionRead, markPredictionRead } from '../utils/formatters.js';
 import { calcHistoryService } from '../calcHistoryService.js';
 import { evaluateMath } from '../utils/mathEval.js';
 
@@ -156,8 +156,8 @@ export class CalculatorView {
                 Hoy
               </button>
               <button type="button" data-calcday="prediccion" ${!hasNextDay ? 'disabled="disabled"' : ''} class="calc-day-btn relative px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${!hasNextDay ? 'opacity-40 cursor-not-allowed text-gray-500 bg-transparent' : (this.selectedDay === 'prediccion' ? 'bg-cyan-500/20 text-emerald-400 border border-cyan-500/40 shadow-sm cursor-pointer' : 'text-gray-400 hover:text-white cursor-pointer')}">
-                ${hasNextDay ? `
-                  <span class="relative flex h-2 w-2">
+                ${(hasNextDay && !isPredictionRead(rates)) ? `
+                  <span id="calc-red-dot" class="relative flex h-2 w-2">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                   </span>
@@ -260,13 +260,19 @@ export class CalculatorView {
 
     // Selector Hoy / Predicción (Día Siguiente)
     const dayBtns = document.querySelectorAll('.calc-day-btn');
+    const rates = this.currentCountry?.rates;
     dayBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.hasAttribute('disabled') || btn.disabled) return;
         const day = btn.getAttribute('data-calcday');
-        if (day && day !== this.selectedDay) {
-          this.selectedDay = day;
-          this.render();
+        if (day) {
+          if (day === 'prediccion') {
+            markPredictionRead(rates);
+          }
+          if (day !== this.selectedDay) {
+            this.selectedDay = day;
+            this.render();
+          }
         }
       });
     });
