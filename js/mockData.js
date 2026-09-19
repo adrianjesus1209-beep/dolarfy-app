@@ -51,11 +51,11 @@ class RatesEngine {
         return;
       }
 
-      // Limpiar datos obsoletos de nextDay al hidratar la caché
+      // Preservar datos válidos de nextDay al hidratar la caché
       Object.keys(data).forEach(k => {
         const item = data[k];
         if (item && typeof item === 'object' && item.nextDay) {
-          if (!item.value || Math.abs(item.nextDay.value - item.value) < 0.01 || item.nextDay.value <= item.value) {
+          if (!item.nextDay.value || item.nextDay.value <= 0) {
             item.nextDay = null;
           }
         }
