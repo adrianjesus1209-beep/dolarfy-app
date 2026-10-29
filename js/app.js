@@ -7,6 +7,7 @@ import { countryModal } from './components/countryModal.js';
 import { notificationService } from './notificationService.js';
 import { mockEngine } from './mockData.js';
 import { themeService } from './themeService.js';
+import { showToast } from './utils/toast.js';
 
 class App {
   constructor() {
@@ -22,6 +23,7 @@ class App {
     this.bindNavigation();
     this.bindNotificationBell();
     this.bindCountryButton();
+    this.bindRefreshButton();
     this.updateHeaderBellUI();
     this.navigateTo(this.activeTab);
 
@@ -66,6 +68,28 @@ class App {
         e.preventDefault();
         e.stopPropagation();
         countryModal.open();
+      }
+    });
+  }
+
+  bindRefreshButton() {
+    document.addEventListener('click', async (e) => {
+      const refreshBtn = e.target.closest('#header-refresh-btn');
+      if (refreshBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const icon = refreshBtn.querySelector('i');
+        if (icon) icon.classList.add('animate-spin');
+        try {
+          await mockEngine.syncRealRates(true);
+          showToast('Tasas actualizadas en tiempo real', 'Sincronizado', 'check-circle');
+        } catch (err) {
+          showToast('No se pudo conectar a los servidores en vivo', 'Error de Conexión', 'alert-circle');
+        } finally {
+          setTimeout(() => {
+            if (icon) icon.classList.remove('animate-spin');
+          }, 600);
+        }
       }
     });
   }

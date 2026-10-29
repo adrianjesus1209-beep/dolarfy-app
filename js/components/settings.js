@@ -24,6 +24,7 @@ export class SettingsView {
   render() {
     const isNotifEnabled = notificationService.isEnabled();
     const isNextDayDef = this.isNextDayDefault();
+    const isDarkTheme = themeService.getTheme() === 'dark';
 
     this.container.innerHTML = `
       <div class="space-y-4 pb-24 animate-fade-in max-w-md mx-auto">
@@ -83,6 +84,21 @@ export class SettingsView {
         <!-- Sección General -->
         <div class="space-y-2">
           <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">General</h3>
+
+          <!-- Tema Oscuro / Claro -->
+          <div class="glass-card rounded-2xl p-4 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
+            <div class="flex items-center space-x-3 pr-2">
+              <i data-lucide="${isDarkTheme ? 'moon' : 'sun'}" class="w-5 h-5 text-cyan-400 shrink-0"></i>
+              <div>
+                <h4 class="text-xs font-bold text-white">Tema de la Interfaz</h4>
+                <p class="text-[10px] text-gray-400 mt-0.5">${isDarkTheme ? 'Modo Oscuro (Predeterminado)' : 'Modo Claro'}</p>
+              </div>
+            </div>
+
+            <button id="settings-theme-toggle" type="button" aria-label="Cambiar Tema" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${isDarkTheme ? 'bg-cyan-500' : 'bg-gray-500'}">
+              <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${isDarkTheme ? 'translate-x-5' : 'translate-x-0'}"></span>
+            </button>
+          </div>
 
           <!-- Notificaciones -->
           <div class="glass-card rounded-2xl p-4 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
@@ -183,6 +199,7 @@ export class SettingsView {
   }
 
   attachEvents() {
+    const themeToggle = document.getElementById('settings-theme-toggle');
     const notifToggle = document.getElementById('settings-notif-toggle');
     const nextdayToggle = document.getElementById('settings-nextday-toggle');
     const proBtn = document.getElementById('settings-pro-btn');
@@ -190,6 +207,16 @@ export class SettingsView {
     const shareBtn = document.getElementById('settings-share-btn');
     const rateBtn = document.getElementById('settings-rate-btn');
     const aboutBtn = document.getElementById('settings-about-btn');
+
+    themeToggle?.addEventListener('click', () => {
+      themeService.toggleTheme();
+      this.render();
+      showToast(
+        themeService.getTheme() === 'dark' ? 'Modo Oscuro activado' : 'Modo Claro activado',
+        'Tema',
+        themeService.getTheme() === 'dark' ? 'moon' : 'sun'
+      );
+    });
 
     notifToggle?.addEventListener('click', async () => {
       await notificationService.toggleNotifications();

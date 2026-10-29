@@ -48,5 +48,20 @@ for (const file of files) {
 bundleContent += '})();\n';
 
 const outPath = path.join(root, 'js/app.bundle.js');
-fs.writeFileSync(outPath, bundleContent, 'utf8');
+
+function writeWithRetry(targetPath, data, attempts = 5) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      fs.writeFileSync(targetPath, data, 'utf8');
+      return;
+    } catch (err) {
+      if (i === attempts - 1) throw err;
+      const wait = 250 * (i + 1);
+      const end = Date.now() + wait;
+      while (Date.now() < end) {}
+    }
+  }
+}
+
+writeWithRetry(outPath, bundleContent);
 console.log('==> Bundle JS creado:', outPath, `(${(bundleContent.length / 1024).toFixed(1)} KB)`);

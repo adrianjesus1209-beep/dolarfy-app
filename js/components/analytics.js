@@ -100,7 +100,7 @@ export class AnalyticsView {
     if (!historicalData || historicalData.length === 0) return null;
 
     let data = [...historicalData];
-    const maxPoints = { '1W': 7, '1M': 30, '3M': 30, '1Y': 24 };
+    const maxPoints = { '1W': 7, '1M': 30, '3M': 45, '1Y': 52 };
     const targetPoints = maxPoints[period] || 30;
 
     if (data.length > targetPoints) {
@@ -115,13 +115,12 @@ export class AnalyticsView {
       data = sampled;
     }
 
-    const labels = data.map(d => {
-      const date = new Date(d.date + 'T12:00:00');
-      return date.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-    });
+    const points = data.map(d => ({
+      x: new Date(d.date + 'T12:00:00').getTime(),
+      y: d.value
+    }));
 
-    const values = data.map(d => d.value);
-    return { labels, values, rawData: data };
+    return { points, rawData: data };
   }
 
   render() {
@@ -305,13 +304,10 @@ export class AnalyticsView {
         }
       }
 
-      if (chartData) {
-        if (categories.length === 0) {
-          categories = chartData.labels;
-        }
+      if (chartData && chartData.points.length > 0) {
         seriesData.push({
           name: rateObj.name,
-          data: chartData.values,
+          data: chartData.points,
           color: colorMap[key] || '#8B5CF6'
         });
       }
@@ -369,15 +365,19 @@ export class AnalyticsView {
       dataLabels: { enabled: false },
       stroke: { curve: 'smooth', width: 2.5 },
       xaxis: {
-        categories: categories,
-        labels: { style: { colors: themeService.getTheme() === 'light' ? '#64748B' : '#9CA3AF', fontSize: '9px', fontWeight: 600 } },
+        type: 'datetime',
+        labels: {
+          datetimeUTC: false,
+          format: this.selectedPeriod === '1Y' ? 'MMM yy' : 'dd MMM',
+          style: { colors: themeService.getTheme() === 'light' ? '#64748B' : '#9CA3AF', fontSize: '9px', fontWeight: 600 }
+        },
         axisBorder: { show: false },
         axisTicks: { show: false }
       },
       yaxis: {
         labels: {
           style: { colors: themeService.getTheme() === 'light' ? '#64748B' : '#9CA3AF', fontSize: '9px', fontWeight: 600 },
-          formatter: (val) => val.toFixed(val < 10 ? 2 : 0)
+          formatter: (val) => val ? val.toFixed(val < 10 ? 2 : 0) : ''
         }
       },
       grid: {
@@ -393,7 +393,7 @@ export class AnalyticsView {
       },
       tooltip: {
         theme: themeService.getTheme() === 'light' ? 'light' : 'dark',
-        x: { show: true },
+        x: { format: 'dd MMM yyyy' },
         y: {
           formatter: (val) => formatCurrency(val, currentCountry.currency.code, val < 10 ? 4 : 2)
         }

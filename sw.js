@@ -1,6 +1,7 @@
-/* Service Worker Dolarfy - Cache en runtime (network-first) */
-const VERSION = 'dolarfy-sw-v1.4.0';
+/* Service Worker Dolarfy - Cache en runtime (network-first con offline fallback) */
+const VERSION = 'dolarfy-sw-v2.0.0';
 const CACHE_NAME = VERSION;
+
 const APP_SHELL = [
   './',
   './index.html',
@@ -14,12 +15,9 @@ const APP_SHELL = [
   './assets/vendor/tailwind.js',
   './assets/vendor/lucide.min.js',
   './assets/vendor/apexcharts.min.js',
-  './assets/vendor/capacitor/core/dist/index.js',
-  './assets/vendor/capacitor/local-notifications/esm/index.js',
-  './assets/vendor/capacitor/local-notifications/esm/web.js',
-  './assets/vendor/capacitor/local-notifications/esm/definitions.js',
   './js/app.bundle.js',
   './js/app.js',
+  './js/constants.js',
   './js/mockData.js',
   './js/apiService.js',
   './js/themeService.js',
@@ -28,17 +26,31 @@ const APP_SHELL = [
   './js/calcHistoryService.js',
   './js/utils/formatters.js',
   './js/utils/mathEval.js',
+  './js/utils/toast.js',
   './js/components/dashboard.js',
   './js/components/calculator.js',
   './js/components/analytics.js',
   './js/components/settings.js',
+  './js/components/countryModal.js',
+  './js/components/aboutModal.js',
   './js/components/notificationModal.js'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then(async (cache) => {
+        // Caching resiliente: almacena cada recurso individualmente para evitar fallos globales
+        await Promise.allSettled(
+          APP_SHELL.map((url) =>
+            fetch(url)
+              .then((res) => {
+                if (res.ok) return cache.put(url, res);
+              })
+              .catch(() => {})
+          )
+        );
+      })
       .then(() => self.skipWaiting())
   );
 });
@@ -57,13 +69,20 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
+
+  // No interceptar peticiones de backend/proxy PHP en runtime
+  if (url.pathname.includes('/api/proxy.php')) return;
+
+  // Solo cachear recursos del mismo origen
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
     fetch(request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+        if (response && response.status === 200) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+        }
         return response;
       })
       .catch(() => caches.match(request).then((cached) => cached || caches.match('./index.html')))

@@ -106,7 +106,10 @@ export class DashboardView {
     this._lastHasNextDay = hasNextDay;
     const showRedDot = hasNextDay && !isPredictionRead(rates);
 
-    if (!hasNextDay && this.selectedDay === 'manana') {
+    const isNextDayDef = typeof localStorage !== 'undefined' && localStorage.getItem('dolarfy_next_day_default') === 'true';
+    if (!this._userSelectedDay && isNextDayDef && hasNextDay) {
+      this.selectedDay = 'manana';
+    } else if (!hasNextDay && this.selectedDay === 'manana') {
       this.selectedDay = 'hoy';
     }
 
@@ -344,6 +347,7 @@ export class DashboardView {
         if (btn.hasAttribute('disabled') || btn.disabled) return;
         const day = btn.getAttribute('data-day');
         if (day) {
+          this._userSelectedDay = true;
           if (day === 'manana') {
             markPredictionRead(rates);
           }

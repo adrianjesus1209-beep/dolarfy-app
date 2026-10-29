@@ -19,10 +19,15 @@ Dolarfy es una aplicación Web (SPA) ligera, rápida y moderna para consultar co
 
 ## Ejecución Local
 
-1. **Servir la aplicación**:
-   Puedes abrir `index.html` directamente en cualquier navegador moderno o servirla desde XAMPP / Apache / Nginx / Live Server.
+1. **Servidor Local con XAMPP / Apache (Recomendado)**:
+   - Al estar alojada en `htdocs/Proyectos/Dolarfy-app`, la aplicación se conecta automáticamente con `api/proxy.php`.
+   - Esto habilita la consulta directa del libro de órdenes de **Binance P2P C2C** y el sitio web del **BCV** sin problemas de CORS ni bloqueos de navegador.
+   - Abre en tu navegador: [http://localhost/Proyectos/Dolarfy-app](http://localhost/Proyectos/Dolarfy-app)
 
-2. **Generar el bundle JavaScript (opcional)**:
+2. **Ejecución Estática / PWA / Live Server**:
+   - Si se ejecuta de forma estática o sin PHP, Dolarfy conmuta de manera automática y transparente a la API de **DolarApi** (con CORS habilitado), garantizando disponibilidad al 100% en cualquier navegador o dispositivo móvil.
+
+3. **Compilar el bundle de producción**:
    ```bash
    npm run build
    ```

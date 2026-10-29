@@ -102,7 +102,10 @@ export class CalculatorView {
 
     const hasNextDay = this.hasNextDayRate(rates);
     this._lastHasNextDay = hasNextDay;
-    if (!hasNextDay && this.selectedDay === 'prediccion') {
+    const isNextDayDef = typeof localStorage !== 'undefined' && localStorage.getItem('dolarfy_next_day_default') === 'true';
+    if (!this._userSelectedDay && isNextDayDef && hasNextDay) {
+      this.selectedDay = 'prediccion';
+    } else if (!hasNextDay && this.selectedDay === 'prediccion') {
       this.selectedDay = 'hoy';
     }
 
@@ -270,6 +273,7 @@ export class CalculatorView {
         if (btn.hasAttribute('disabled') || btn.disabled) return;
         const day = btn.getAttribute('data-calcday');
         if (day) {
+          this._userSelectedDay = true;
           if (day === 'prediccion') {
             markPredictionRead(rates);
           }
