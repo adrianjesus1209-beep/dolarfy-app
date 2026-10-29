@@ -10,4 +10,6 @@ Thumbs.db
 
 # Web build artifacts
 dist/
+www/
+build-output/
 scratch/

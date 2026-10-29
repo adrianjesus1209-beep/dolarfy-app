@@ -1,0 +1,85 @@
+name: Build Android APK and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build APK and Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web assets and sync Capacitor
+        run: npm run cap:sync
+
+      - name: Make Gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build Release APK
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare APK artifact
+        run: |
+          mkdir -p build-output
+          cp android/app/build/outputs/apk/release/app-release.apk build-output/Dolarfy-v1.0.0.apk
+          echo "APK generado con éxito:"
+          ls -lh build-output/Dolarfy-v1.0.0.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dolarfy-APK
+          path: build-output/Dolarfy-v1.0.0.apk
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: "Dolarfy v1.0.0 - Android APK"
+          draft: false
+          prerelease: false
+          body: |
+            ## 📱 Dolarfy Android v1.0.0
+
+            Aplicación oficial de **Dolarfy** para dispositivos Android.
+
+            ### 🚀 Características:
+            - **Dólar y Euro Oficial (BCV)**: Tasas oficiales en tiempo real y Fecha Valor del siguiente día hábil.
+            - **USDT Binance P2P**: Monitoreo 24/7 del mercado de criptodivisas en Venezuela.
+            - **Calculadora Financiera**: Conversiones instantáneas con soporte para tasas del día o pronóstico, historial y copiado rápido.
+            - **Modo Oscuro y Claro**: Selector de temas integrado.
+            - **Tendencias de Mercado**: Gráficos interactivos de cotizaciones históricas.
+
+            ### 📥 Instrucciones de Instalación:
+            1. Descarga el archivo adjunto **`Dolarfy-v1.0.0.apk`** en tu teléfono Android.
+            2. Abre la descarga e instala la aplicación (habilita la opción de *Instalar aplicaciones de fuentes desconocidas* si tu teléfono lo solicita).
+            3. ¡Listo! Abre Dolarfy y consulta las tasas de cambio al instante.
+          files: build-output/Dolarfy-v1.0.0.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

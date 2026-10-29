@@ -4,7 +4,8 @@
   "description": "Calculadora y conversor de divisas con cotizaciones del dólar en tiempo real",
   "main": "index.html",
   "scripts": {
-    "build": "node scripts/bundle.js"
+    "build": "node scripts/bundle.js && node scripts/copy-www.js",
+    "cap:sync": "npm run build && npx cap sync android"
   },
   "keywords": [
     "dolar",
@@ -14,5 +15,10 @@
     "web"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
+  }
 }

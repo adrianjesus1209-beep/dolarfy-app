@@ -1,0 +1,12 @@
+{
+  "appId": "com.dolarfy.app",
+  "appName": "Dolarfy",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
