@@ -1,5 +1,5 @@
 /* Service Worker Dolarfy - Cache en runtime (network-first con offline fallback) */
-const VERSION = 'dolarfy-sw-v2.0.0';
+const VERSION = 'dolarfy-sw-v2.1.0';
 const CACHE_NAME = VERSION;
 
 const APP_SHELL = [
@@ -10,6 +10,12 @@ const APP_SHELL = [
   './assets/fonts/fonts.css',
   './assets/fonts/plus-jakarta-sans-latin.woff2',
   './assets/img/logo.webp',
+  './assets/img/logo-sin-fondo.webp',
+  './assets/img/logo-apk.webp',
+  './assets/img/logo-mark.webp',
+  './assets/icons/favicon-16.png',
+  './assets/icons/favicon-32.png',
+  './assets/icons/apple-touch-icon.png',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/vendor/tailwind.js',

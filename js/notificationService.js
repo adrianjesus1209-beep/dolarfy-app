@@ -98,7 +98,7 @@ class NotificationService {
         try {
           new Notification('Nueva Tasa del Día · Dolarfy', {
             body: `${entry.rateName}: ${entry.formattedValue}`,
-            icon: entry.flagUrl || 'assets/img/logo.webp'
+            icon: entry.flagUrl || 'assets/icons/icon-192.png'
           });
         } catch (e) {
           console.warn('Error mostrando notificación Web:', e);

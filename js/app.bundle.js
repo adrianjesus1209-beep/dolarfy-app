@@ -1253,7 +1253,7 @@ class NotificationService {
         try {
           new Notification('Nueva Tasa del Día · Dolarfy', {
             body: `${entry.rateName}: ${entry.formattedValue}`,
-            icon: entry.flagUrl || 'assets/img/logo.webp'
+            icon: entry.flagUrl || 'assets/icons/icon-192.png'
           });
         } catch (e) {
           console.warn('Error mostrando notificación Web:', e);
@@ -1962,8 +1962,12 @@ class AboutModal {
         <div class="w-full max-w-sm bg-[#111622] border border-cyan-500/20 rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-scale-up">
           
           <!-- Header -->
-          <div class="p-5 pb-3">
-            <h3 class="text-xl font-extrabold text-white tracking-tight">Acerca de la app</h3>
+          <div class="p-5 pb-3 flex items-center space-x-3">
+            <img src="assets/img/logo-sin-fondo.webp" alt="Dolarfy Logo" class="w-8 h-8 object-contain">
+            <div>
+              <h3 class="text-xl font-extrabold text-white tracking-tight">Acerca de la app</h3>
+              <span class="text-[10px] text-gray-400 font-semibold">Dolarfy Mobile</span>
+            </div>
           </div>
 
           <!-- Content -->
