@@ -12,13 +12,13 @@ async function generateAll() {
   const trimmedGraphicBuffer = await sharp(logoSinFondoPath).trim().png().toBuffer();
   console.log('✅ Gráfico del logo recortado y optimizado');
 
-  // 1. Iconos Web y PWA con el logo expandido y centrado sobre el fondo de marca
+  // 1. Iconos Web y PWA con suficiente margen y aire (alejado y estético)
   const webIcons = [
-    { file: 'assets/icons/favicon-16.png', size: 16, fillRatio: 0.84 },
-    { file: 'assets/icons/favicon-32.png', size: 32, fillRatio: 0.82 },
-    { file: 'assets/icons/apple-touch-icon.png', size: 180, fillRatio: 0.78 },
-    { file: 'assets/icons/icon-192.png', size: 192, fillRatio: 0.78 },
-    { file: 'assets/icons/icon-512.png', size: 512, fillRatio: 0.78 }
+    { file: 'assets/icons/favicon-16.png', size: 16, fillRatio: 0.70 },
+    { file: 'assets/icons/favicon-32.png', size: 32, fillRatio: 0.65 },
+    { file: 'assets/icons/apple-touch-icon.png', size: 180, fillRatio: 0.58 },
+    { file: 'assets/icons/icon-192.png', size: 192, fillRatio: 0.58 },
+    { file: 'assets/icons/icon-512.png', size: 512, fillRatio: 0.58 }
   ];
 
   for (const icon of webIcons) {
@@ -43,7 +43,7 @@ async function generateAll() {
       .png()
       .toFile(path.join(root, icon.file));
   }
-  console.log('✅ Web icons generados (expandidos y nítidos)');
+  console.log('✅ Web icons generados con márgenes equilibrados');
 
   // 2. Android Mipmaps (Legacy, Round y Foreground Adaptativo)
   const densities = [
@@ -58,8 +58,8 @@ async function generateAll() {
     const dir = path.join(root, 'android/app/src/main/res', d.name);
     fs.mkdirSync(dir, { recursive: true });
 
-    // A) ic_launcher.png (Icono cuadrado estándar para instalador y escáneres Android)
-    const legacyGraphicSize = Math.round(d.size * 0.78);
+    // A) ic_launcher.png (Legacy square con margen amplio, limpio y elegante)
+    const legacyGraphicSize = Math.round(d.size * 0.58);
     const legacyGraphic = await sharp(trimmedGraphicBuffer)
       .resize(legacyGraphicSize, legacyGraphicSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
@@ -79,11 +79,11 @@ async function generateAll() {
       .png()
       .toFile(path.join(dir, 'ic_launcher.png'));
 
-    // B) ic_launcher_round.png (Icono circular enmascarado)
+    // B) ic_launcher_round.png (Circular con margen seguro)
     const circleSvg = Buffer.from(
       `<svg width="${d.size}" height="${d.size}"><circle cx="${d.size/2}" cy="${d.size/2}" r="${d.size/2}" fill="#fff"/></svg>`
     );
-    const roundGraphicSize = Math.round(d.size * 0.72);
+    const roundGraphicSize = Math.round(d.size * 0.54);
     const roundGraphic = await sharp(trimmedGraphicBuffer)
       .resize(roundGraphicSize, roundGraphicSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
@@ -106,8 +106,8 @@ async function generateAll() {
       .png()
       .toFile(path.join(dir, 'ic_launcher_round.png'));
 
-    // C) ic_launcher_foreground.png (Capa frontal adaptativa: aprovecha al máximo la zona segura del 70%)
-    const foreGraphicSize = Math.round(d.foreSize * 0.70);
+    // C) ic_launcher_foreground.png (Capa frontal adaptativa: 40% del lienzo total de 108dp, con perfecto aire y sin cortes en squircle/círculo)
+    const foreGraphicSize = Math.round(d.foreSize * 0.40);
     const foreGraphic = await sharp(trimmedGraphicBuffer)
       .resize(foreGraphicSize, foreGraphicSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
@@ -127,7 +127,7 @@ async function generateAll() {
       .png()
       .toFile(path.join(dir, 'ic_launcher_foreground.png'));
   }
-  console.log('✅ Android mipmaps generados con gráfico expandido');
+  console.log('✅ Android mipmaps generados con logo alejado y proporcionado');
 
   // 3. Splash Screens
   const splashes = [
@@ -147,7 +147,7 @@ async function generateAll() {
   for (const s of splashes) {
     const sDir = path.join(root, 'android/app/src/main/res', s.dir);
     fs.mkdirSync(sDir, { recursive: true });
-    const markSize = Math.min(s.w, s.h) * 0.40;
+    const markSize = Math.min(s.w, s.h) * 0.28;
     const markBuffer = await sharp(trimmedGraphicBuffer)
       .resize(Math.round(markSize), Math.round(markSize), { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
