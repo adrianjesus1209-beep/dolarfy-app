@@ -1,5 +1,5 @@
 /* Service Worker Dolarfy - Cache en runtime (network-first con offline fallback) */
-const VERSION = 'dolarfy-sw-v2.1.2';
+const VERSION = 'dolarfy-sw-v2.1.3';
 const CACHE_NAME = VERSION;
 
 const APP_SHELL = [

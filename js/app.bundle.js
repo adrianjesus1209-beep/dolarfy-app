@@ -7,7 +7,7 @@
  * Constantes globales de Dolarfy
  */
 
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 
 // Clave de caché de tasas en localStorage. v2: purga nextDay fabricados de versiones previas.
 const RATES_CACHE_VERSION = 'v3';
