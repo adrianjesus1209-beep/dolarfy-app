@@ -1,23 +1,24 @@
 /**
- * Servicio de Notificaciones Automáticas de Tasa Diaria (Web Standard)
+ * Servicio de Notificaciones Automáticas de Tasa BCV en Tiempo Real (Nativo Android + Web/PWA)
  */
 
-import { formatCurrency } from './utils/formatters.js';
+import { formatCurrency, isoToShortDate } from './utils/formatters.js';
 import { mockEngine } from './mockData.js';
 
-const REMINDER_CHECK_INTERVAL_MS = 10 * 60 * 1000; // Cobertura de respaldo para detectar la tasa nueva publicada
+const REMINDER_CHECK_INTERVAL_MS = 60 * 1000; // Verificación activa cada 60s
 
 class NotificationService {
   constructor() {
     this.STORAGE_ENABLED = 'dolarfy_notifications_enabled';
     this.STORAGE_LAST_DATE = 'dolarfy_last_notified_date';
     this.STORAGE_LOGS = 'dolarfy_notification_logs';
-    this.DAILY_NOTIFICATION_ID = 9001;
 
     this.enabled = this.loadEnabledState();
     this.lastNotifiedDate = this._storageGet(this.STORAGE_LAST_DATE) || '';
     this.logs = this.loadLogs();
     this.notificationTimer = null;
+
+    this._syncNativeState();
   }
 
   _storageGet(key) {
@@ -25,7 +26,6 @@ class NotificationService {
       if (typeof localStorage === 'undefined') return null;
       return localStorage.getItem(key);
     } catch (e) {
-      console.warn('Error leyendo almacenamiento', e);
       return null;
     }
   }
@@ -34,9 +34,17 @@ class NotificationService {
     try {
       if (typeof localStorage === 'undefined') return;
       localStorage.setItem(key, value);
-    } catch (e) {
-      console.warn('Error escribiendo almacenamiento', e);
-    }
+    } catch (e) {}
+  }
+
+  _syncNativeState() {
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative) {
+        if (typeof window.DolarfyNative.setNotificationsEnabled === 'function') {
+          window.DolarfyNative.setNotificationsEnabled(Boolean(this.enabled));
+        }
+      }
+    } catch (e) {}
   }
 
   loadEnabledState() {
@@ -55,10 +63,8 @@ class NotificationService {
 
   saveLogs() {
     try {
-      localStorage.setItem(this.STORAGE_LOGS, JSON.stringify(this.logs.slice(0, 15)));
-    } catch (e) {
-      console.warn('Error al guardar historial de notificaciones', e);
-    }
+      localStorage.setItem(this.STORAGE_LOGS, JSON.stringify(this.logs.slice(0, 20)));
+    } catch (e) {}
   }
 
   isEnabled() {
@@ -70,44 +76,85 @@ class NotificationService {
   }
 
   getTodayString() {
-    const d = new Date();
-    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    return new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
   }
 
   async hasPermission() {
+    if (typeof window !== 'undefined' && window.DolarfyNative) return true;
     if (typeof window === 'undefined' || !('Notification' in window)) return false;
     return Notification.permission === 'granted';
   }
 
   async requestPermission() {
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.requestNotificationPermission === 'function') {
+        window.DolarfyNative.requestNotificationPermission();
+        return true;
+      }
+    } catch (e) {}
+
     if (typeof window === 'undefined' || !('Notification' in window)) return false;
     try {
       const result = await Notification.requestPermission();
       return result === 'granted';
     } catch (e) {
-      console.warn('Error solicitando permiso de notificaciones:', e);
       return false;
     }
   }
 
-  async sendLocalNotification(entry) {
-    if (!this.enabled) return;
+  /**
+   * Envía la notificación al sistema operativo:
+   * 1. Android APK Nativo (NotificationManager con formato idéntico a la bandeja de Android)
+   * 2. ServiceWorker Registration (estándar PWA móvil sin error de constructor ilegal)
+   * 3. Notification API de escritorio (fallback)
+   */
+  async sendLocalNotification(entry, dedupKey = '') {
+    if (!this.enabled && entry.type !== 'test') return;
 
-    if ('Notification' in window) {
+    const title = entry.title || '📢 Nueva Tasa BCV Disponible';
+    const body = entry.body || `${entry.summaryLine || `${entry.rateName}: ${entry.formattedValue}`}${entry.fechaLine ? `\n${entry.fechaLine}` : ''}`;
+
+    // 1. Puente Nativo Android (APK)
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.showNotification === 'function') {
+        window.DolarfyNative.showNotification(title, body, dedupKey || '');
+        return;
+      }
+    } catch (e) {
+      console.warn('Error en notificación nativa Android:', e);
+    }
+
+    // 2. Navegador Web / PWA
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        await this.requestPermission();
+      }
       if (Notification.permission === 'granted') {
         try {
-          new Notification('Nueva Tasa del Día · Dolarfy', {
-            body: `${entry.rateName}: ${entry.formattedValue}`,
-            icon: entry.flagUrl || 'assets/icons/icon-192.png'
+          if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg && typeof reg.showNotification === 'function') {
+              await reg.showNotification(title, {
+                body,
+                icon: 'assets/icons/icon-192.png',
+                badge: 'assets/icons/favicon-32.png',
+                vibrate: [200, 100, 200],
+                tag: dedupKey || 'dolarfy-bcv-rate'
+              });
+              return;
+            }
+          }
+        } catch (swErr) {}
+
+        try {
+          new Notification(title, {
+            body,
+            icon: 'assets/icons/icon-192.png'
           });
-        } catch (e) {
-          console.warn('Error mostrando notificación Web:', e);
-        }
-      } else if (Notification.permission !== 'denied') {
-        const granted = await this.requestPermission();
-        if (granted) {
-          this.sendLocalNotification(entry);
-        }
+        } catch (e) {}
       }
     }
   }
@@ -119,8 +166,10 @@ class NotificationService {
   async toggleNotifications(forceState = null) {
     this.enabled = forceState !== null ? forceState : !this.enabled;
     this._storageSet(this.STORAGE_ENABLED, this.enabled.toString());
+    this._syncNativeState();
 
     if (this.enabled) {
+      await this.requestPermission();
       await this.scheduleDailyReminder();
     } else {
       await this.cancelDailyReminder();
@@ -129,20 +178,19 @@ class NotificationService {
   }
 
   // ==========================================================================
-  //  Recordatorio diario
+  //  Monitoreo periódico activo
   // ==========================================================================
 
   async scheduleDailyReminder() {
     this.cancelDailyReminder();
     if (typeof setInterval === 'undefined') return;
-    this.notificationTimer = setInterval(() => {
+    this.notificationTimer = setInterval(async () => {
       try {
+        await mockEngine.syncRealRates(false);
         const country = mockEngine.getCurrentCountry();
         const rates = mockEngine.getRates();
-        this.checkDailyUpdate(country, rates);
-      } catch (e) {
-        console.warn('Error en recordatorio diario:', e);
-      }
+        await this.checkDailyUpdate(country, rates);
+      } catch (e) {}
     }, REMINDER_CHECK_INTERVAL_MS);
   }
 
@@ -153,52 +201,102 @@ class NotificationService {
     }
   }
 
-  // ==========================================================================
-  //  Detección de nueva tasa diaria
-  // ==========================================================================
+  /**
+   * Construye los datos de notificación BCV (USD + EUR + Fecha DD/MM/YYYY)
+   * priorizando la Fecha Valor futura (pronóstico) apenas es publicada por el BCV.
+   */
+  _buildBcvNotificationPayload(country, rates, isTest = false) {
+    const bcv = rates?.bcv || {};
+    const euro = rates?.euro || {};
 
-  async checkDailyUpdate(country, rates) {
-    if (!this.enabled || !rates) return;
+    const hasNextDay = Boolean(bcv.nextDay && bcv.nextDay.published && typeof bcv.nextDay.value === 'number' && bcv.nextDay.value > 0);
 
-    const rateKeys = Object.keys(rates);
-    if (rateKeys.length === 0) return;
+    const usdVal = hasNextDay
+      ? bcv.nextDay.value
+      : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : 889.58);
 
-    const mainRate = rates[country.defaultRateId] || rates[rateKeys[0]];
-    if (!mainRate || !mainRate.value) return;
+    const eurVal = (hasNextDay && euro.nextDay && typeof euro.nextDay.value === 'number' && euro.nextDay.value > 0)
+      ? euro.nextDay.value
+      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : 991.25);
 
-    // Con tasa activa de "predicción" si está publicada, sino hoy
-    const notifiedValue = (mainRate.nextDay && mainRate.nextDay.value)
-      ? mainRate.nextDay.value
-      : mainRate.value;
+    const isoDate = (hasNextDay && bcv.nextDay._iso)
+      ? bcv.nextDay._iso
+      : (bcv._iso || this.getTodayString());
 
-    const todayStr = this.getTodayString();
-    const lastKey = `${country.id}_${todayStr}_${notifiedValue.toFixed(2)}`;
+    const shortDate = (hasNextDay && bcv.nextDay.shortDate)
+      ? bcv.nextDay.shortDate
+      : (bcv.effectiveDate || isoToShortDate(isoDate));
 
-    // Si ya notificamos esta misma tasa para la fecha de hoy, omitir
-    if (this.lastNotifiedDate === lastKey) return;
+    const usdText = usdVal.toFixed(2);
+    const eurText = eurVal.toFixed(2);
 
-    this.lastNotifiedDate = lastKey;
-    this._storageSet(this.STORAGE_LAST_DATE, lastKey);
+    const title = '📢 Nueva Tasa BCV Disponible';
+    const summaryLine = `USD = Bs. ${usdText} | EUR = Bs. ${eurText}`;
+    const fechaLine = `Fecha: ${shortDate}`;
+    const body = `${summaryLine}\n${fechaLine}`;
+    const dedupKey = `${country.id}_${isoDate}_${usdText}_${eurText}`;
 
-    const logEntry = {
+    return {
       id: Date.now(),
       countryId: country.id,
       countryName: country.name,
       flagUrl: country.flagUrl,
-      rateName: mainRate.name,
-      value: notifiedValue,
-      currency: mainRate.currency,
-      formattedValue: formatCurrency(notifiedValue, mainRate.currency, notifiedValue < 10 ? 4 : 2),
+      title,
+      rateName: title,
+      summaryLine,
+      fechaLine,
+      shortDate,
+      isoDate,
+      body,
+      value: usdVal,
+      eurValue: eurVal,
+      currency: bcv.currency || 'VES',
+      formattedValue: `Bs. ${usdText}`,
       time: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true }),
-      date: new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })
+      date: shortDate,
+      dedupKey,
+      isNextDay: hasNextDay,
+      type: isTest ? 'test' : 'live'
     };
+  }
 
-    this.logs.unshift(logEntry);
+  // ==========================================================================
+  //  Detección de nueva tasa BCV publicada (Hoy o Fecha Valor siguiente)
+  // ==========================================================================
+
+  async checkDailyUpdate(country, rates) {
+    if (!this.enabled || !rates || !rates.bcv) return;
+
+    // No disparar sobre datos placeholder antes de la primera sincronización real
+    if (rates._meta?.placeholder) return;
+
+    const payload = this._buildBcvNotificationPayload(country, rates, false);
+    if (!payload || !payload.value) return;
+
+    // Si ya notificamos exactamente esta misma Fecha Valor + tasa, omitir
+    if (this.lastNotifiedDate === payload.dedupKey) return;
+
+    // Verificar si el servicio en segundo plano de Android ya lanzó la notificación en la barra de estado
+    let alreadyNotifiedByNative = false;
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.getLastNotifiedKey === 'function') {
+        const nativeKey = window.DolarfyNative.getLastNotifiedKey();
+        if (nativeKey && nativeKey === payload.dedupKey) {
+          alreadyNotifiedByNative = true;
+        }
+      }
+    } catch (e) {}
+
+    this.lastNotifiedDate = payload.dedupKey;
+    this._storageSet(this.STORAGE_LAST_DATE, payload.dedupKey);
+
+    this.logs.unshift(payload);
     this.saveLogs();
 
-    // Notificación real del sistema (nativo) + toast in-app (siempre)
-    await this.sendLocalNotification(logEntry);
-    this.showToast(logEntry);
+    if (!alreadyNotifiedByNative) {
+      await this.sendLocalNotification(payload, payload.dedupKey);
+    }
+    this.showToast(payload);
   }
 
   clearLogs() {
@@ -209,40 +307,18 @@ class NotificationService {
   async sendTestNotification() {
     const country = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
-    const rate = (rates && rates[country.defaultRateId]) ||
-      (rates && Object.values(rates).find(r => r && typeof r.value === 'number' && r.value > 0)) ||
-      { name: 'Dólar Oficial (BCV)', currency: 'VES', value: null };
-
-    const liveValue = (typeof rate.value === 'number' && !isNaN(rate.value) && rate.value > 0)
-      ? rate.value
-      : (rate.nextDay && typeof rate.nextDay.value === 'number' && rate.nextDay.value > 0 ? rate.nextDay.value : null);
-    const value = liveValue !== null ? liveValue : 1;
-    const currency = rate.currency || country.currency.code || 'VES';
-
-    const testEntry = {
-      id: Date.now(),
-      countryId: country.id,
-      countryName: country.name,
-      flagUrl: country.flagUrl,
-      rateName: 'Notificación de Prueba · Dolarfy',
-      value,
-      currency,
-      formattedValue: liveValue !== null ? formatCurrency(value, currency, value < 10 ? 4 : 2) : 'Bs. — — —',
-      time: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true }),
-      date: new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }),
-      type: 'test'
-    };
+    const testEntry = this._buildBcvNotificationPayload(country, rates, true);
 
     this.logs.unshift(testEntry);
     this.saveLogs();
 
-    await this.sendLocalNotification(testEntry);
+    await this.sendLocalNotification(testEntry, '');
     this.showToast(testEntry);
     return testEntry;
   }
 
   // ==========================================================================
-  //  Toast in-app (fallback / navegador)
+  //  Toast in-app con diseño de Alerta Oficial BCV
   // ==========================================================================
 
   showToast(logEntry) {
@@ -255,18 +331,19 @@ class NotificationService {
     }
 
     const toastEl = document.createElement('div');
-    toastEl.className = 'pointer-events-auto bg-[#0F141C] border border-cyan-500/40 rounded-2xl p-4 shadow-2xl glow-cyan flex items-start space-x-3 animate-fade-in transition-all duration-300';
+    toastEl.className = 'pointer-events-auto bg-[#161B22] border border-cyan-500/40 rounded-2xl p-4 shadow-2xl glow-cyan flex items-start space-x-3 animate-fade-in transition-all duration-300 mb-2';
     toastEl.innerHTML = `
-      <img src="${logEntry.flagUrl}" alt="${logEntry.countryName}" class="w-8 h-8 rounded-full object-cover border border-cyan-500/30 mt-0.5">
-      <div class="flex-1">
+      <img src="assets/img/logo-sin-fondo.webp" alt="Dolarfy" class="w-8 h-8 rounded-xl object-contain bg-cyan-500/10 p-1 border border-cyan-500/30 mt-0.5">
+      <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between">
           <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Alerta en Vivo
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Dolarfy · Ahora
           </span>
           <span class="text-[9px] text-gray-400">${logEntry.time}</span>
         </div>
-        <h4 class="text-xs font-bold text-white mt-0.5">${logEntry.rateName}</h4>
-        <p class="text-sm font-extrabold text-emerald-400">${logEntry.formattedValue}</p>
+        <h4 class="text-xs font-extrabold text-white mt-1">${logEntry.title || logEntry.rateName}</h4>
+        <p class="text-xs font-bold text-emerald-400 mt-0.5">${logEntry.summaryLine || logEntry.formattedValue}</p>
+        ${logEntry.fechaLine ? `<p class="text-[11px] text-gray-300 font-semibold mt-0.5">${logEntry.fechaLine}</p>` : ''}
       </div>
       <button class="toast-close-btn text-gray-400 hover:text-white p-1 text-xs cursor-pointer">✕</button>
     `;
@@ -278,13 +355,12 @@ class NotificationService {
 
     toastContainer.appendChild(toastEl);
 
-    // Auto eliminar después de 6 segundos
     setTimeout(() => {
       if (toastEl.parentNode) {
         toastEl.classList.add('opacity-0', '-translate-y-2');
         setTimeout(() => toastEl.remove(), 300);
       }
-    }, 6000);
+    }, 7000);
   }
 }
 

@@ -64,17 +64,43 @@ export const escapeHtml = (value) => {
     .replace(/'/g, '&#39;');
 };
 
+export const parseSpanishDateToIso = (text) => {
+  if (!text) return null;
+  const months = {
+    enero: '01', febrero: '02', marzo: '03', abril: '04',
+    mayo: '05', junio: '06', julio: '07', agosto: '08',
+    septiembre: '09', setiembre: '09', octubre: '10', noviembre: '11', diciembre: '12'
+  };
+  const m = String(text).match(/(\d{1,2})\s+(?:de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})/i);
+  if (!m) return null;
+  const day = m[1].padStart(2, '0');
+  const month = months[m[2].toLowerCase()];
+  const year = m[3];
+  return `${year}-${month}-${day}`;
+};
+
+export const isoToShortDate = (iso) => {
+  if (!iso) return '';
+  const parts = String(iso).slice(0, 10).split('-');
+  if (parts.length !== 3) return String(iso);
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
 /**
- * Calcula dinámicamente el nombre del próximo día hábil bancario según la fecha actual en VET (UTC-4).
- * Viernes, Sábado y Domingo -> 'Lunes'
- * Lunes -> 'Martes'
- * Martes -> 'Miércoles'
- * Miércoles -> 'Jueves'
- * Jueves -> 'Viernes'
+ * Calcula dinámicamente el nombre del próximo día hábil bancario según la fecha actual en VET (UTC-4)
+ * o la Fecha Valor publicada por el BCV.
  */
 export const getNextBusinessDayName = (rates) => {
   if (rates && typeof rates === 'object') {
     const rateObj = rates.bcv || rates.euro || Object.values(rates).find(r => r && r.nextDay && r.nextDay.published);
+    if (rateObj?.nextDay?._iso) {
+      const parts = String(rateObj.nextDay._iso).slice(0, 10).split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+        const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        if (dayNames[d.getDay()]) return dayNames[d.getDay()];
+      }
+    }
     if (rateObj?.nextDay?.date) {
       const rawDate = rateObj.nextDay.date.toLowerCase();
       if (rawDate.includes('lunes')) return 'Lunes';

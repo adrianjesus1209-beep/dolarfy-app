@@ -15,8 +15,17 @@ class RatesEngine {
     this.listeners = [];
     this._timer = null;
     this._hydrateCacheSync();
-    this.syncRealRates();
+    this._bindNativeBridge();
+    this.syncRealRates(true);
     this._startPolling();
+  }
+
+  _bindNativeBridge() {
+    if (typeof window !== 'undefined') {
+      window.__onDolarfyNativeSync = () => {
+        this.syncRealRates(false);
+      };
+    }
   }
 
   _hydrateCacheSync() {
@@ -90,6 +99,7 @@ class RatesEngine {
 
   hasRatesChanged(oldRates, newRates) {
     if (!oldRates || !newRates) return true;
+    if ((oldRates._meta?.source || '') !== (newRates._meta?.source || '')) return true;
     const keys = ['bcv', 'paralelo', 'euro'];
     for (const k of keys) {
       const o = oldRates[k];
@@ -99,6 +109,9 @@ class RatesEngine {
       const oNext = o.nextDay ? o.nextDay.value : null;
       const nNext = n.nextDay ? n.nextDay.value : null;
       if (oNext !== nNext) return true;
+      const oIso = o.nextDay ? o.nextDay._iso : null;
+      const nIso = n.nextDay ? n.nextDay._iso : null;
+      if (oIso !== nIso) return true;
     }
     return false;
   }
@@ -139,7 +152,7 @@ class RatesEngine {
 
   _startPollTimer() {
     if (this._timer) return;
-    this._timer = setInterval(() => this.syncRealRates(true), POLL_INTERVAL_MS);
+    this._timer = setInterval(() => this.syncRealRates(false), POLL_INTERVAL_MS);
   }
 
   _stopPollTimer() {

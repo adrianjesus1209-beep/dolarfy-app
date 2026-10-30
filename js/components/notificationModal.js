@@ -113,15 +113,15 @@ export class NotificationModal {
               ` : `
                 <div class="space-y-2">
                   ${logs.map(log => `
-                    <div class="glass-card rounded-xl p-3 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
-                      <div class="flex items-center space-x-3">
-                        <img src="${log.flagUrl}" alt="${log.countryName}" class="w-6 h-6 rounded-full object-cover border border-white/10">
+                    <div class="glass-card rounded-xl p-3 flex items-start justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
+                      <div class="flex items-start space-x-3">
+                        <img src="${log.flagUrl}" alt="${log.countryName}" class="w-6 h-6 rounded-full object-cover border border-white/10 mt-0.5">
                         <div>
-                          <h5 class="text-xs font-bold text-white">${log.rateName}</h5>
-                          <p class="text-[10px] text-gray-400">${log.date} a las ${log.time}</p>
+                          <h5 class="text-xs font-extrabold text-white">${log.title || log.rateName}</h5>
+                          <p class="text-[11px] font-bold text-emerald-400 mt-0.5">${log.summaryLine || log.formattedValue}</p>
+                          <p class="text-[10px] text-gray-400 mt-0.5">${log.fechaLine || `Fecha: ${log.date}`} · ${log.time}</p>
                         </div>
                       </div>
-                      <span class="text-sm font-extrabold text-emerald-400">${log.formattedValue}</span>
                     </div>
                   `).join('')}
                 </div>

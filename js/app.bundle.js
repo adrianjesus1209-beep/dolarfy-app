@@ -7,10 +7,10 @@
  * Constantes globales de Dolarfy
  */
 
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.0.5';
 
-// Clave de caché de tasas en localStorage. v2: purga nextDay fabricados de versiones previas.
-const RATES_CACHE_VERSION = 'v3';
+// Clave de caché de tasas en localStorage. v4: soporte directo BCV en vivo + notificaciones exactas.
+const RATES_CACHE_VERSION = 'v4';
 const RATES_CACHE_KEY_PREFIX = `dolarfy_rates_cache_${RATES_CACHE_VERSION}`;
 
   // --- js/utils/formatters.js ---
@@ -80,17 +80,43 @@ const escapeHtml = (value) => {
     .replace(/'/g, '&#39;');
 };
 
+const parseSpanishDateToIso = (text) => {
+  if (!text) return null;
+  const months = {
+    enero: '01', febrero: '02', marzo: '03', abril: '04',
+    mayo: '05', junio: '06', julio: '07', agosto: '08',
+    septiembre: '09', setiembre: '09', octubre: '10', noviembre: '11', diciembre: '12'
+  };
+  const m = String(text).match(/(\d{1,2})\s+(?:de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})/i);
+  if (!m) return null;
+  const day = m[1].padStart(2, '0');
+  const month = months[m[2].toLowerCase()];
+  const year = m[3];
+  return `${year}-${month}-${day}`;
+};
+
+const isoToShortDate = (iso) => {
+  if (!iso) return '';
+  const parts = String(iso).slice(0, 10).split('-');
+  if (parts.length !== 3) return String(iso);
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
 /**
- * Calcula dinámicamente el nombre del próximo día hábil bancario según la fecha actual en VET (UTC-4).
- * Viernes, Sábado y Domingo -> 'Lunes'
- * Lunes -> 'Martes'
- * Martes -> 'Miércoles'
- * Miércoles -> 'Jueves'
- * Jueves -> 'Viernes'
+ * Calcula dinámicamente el nombre del próximo día hábil bancario según la fecha actual en VET (UTC-4)
+ * o la Fecha Valor publicada por el BCV.
  */
 const getNextBusinessDayName = (rates) => {
   if (rates && typeof rates === 'object') {
     const rateObj = rates.bcv || rates.euro || Object.values(rates).find(r => r && r.nextDay && r.nextDay.published);
+    if (rateObj?.nextDay?._iso) {
+      const parts = String(rateObj.nextDay._iso).slice(0, 10).split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+        const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        if (dayNames[d.getDay()]) return dayNames[d.getDay()];
+      }
+    }
     if (rateObj?.nextDay?.date) {
       const rawDate = rateObj.nextDay.date.toLowerCase();
       if (rawDate.includes('lunes')) return 'Lunes';
@@ -560,21 +586,21 @@ const calcHistoryService = new CalcHistoryService();
   // --- js/apiService.js ---
 /**
  * Servicio de tasas de cambio reales para Dolarfy
- * Fuentes:
- * 1. Proxy backend local XAMPP (api/proxy.php) para Binance P2P C2C y BCV sin restricciones CORS.
- * 2. DolarApi (ve.dolarapi.com) para Oficial BCV, Paralelo EnParaleloVzla y Fechas Valor futuras.
- * 3. DolarApi Históricos para detección autoritativa de la Fecha Valor del siguiente día hábil.
+ * Fuentes en Tiempo Real:
+ * 1. Puente Nativo Android (window.DolarfyNative) para conexión directa a bcv.org.ve y Binance P2P sin CORS ni bloqueos SSL.
+ * 2. Lector directo BCV (bcv.org.ve vía Jina/Proxy PHP) para detectar al instante la Fecha Valor apenas se publica (~4:20 PM VET).
+ * 3. DolarApi (ve.dolarapi.com) y DolarApi Históricos para tasa vigente del día e historial oficial.
  */
 
 
 
 
-const REQUEST_TIMEOUT_MS = 6000;
+const REQUEST_TIMEOUT_MS = 7000;
 
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeout || REQUEST_TIMEOUT_MS);
-  const headers = { 'Accept': 'application/json, text/html, */*', ...(options.headers || {}) };
+  const headers = { 'Accept': 'application/json, text/html, text/plain, */*', ...(options.headers || {}) };
 
   try {
     return await fetch(url, { ...options, headers, signal: controller.signal });
@@ -583,27 +609,88 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
-// Cadencia por fuente (evita saturar peticiones)
+/**
+ * Extrae USD, EUR, Fecha Valor ISO y fecha corta DD/MM/YYYY desde HTML crudo de bcv.org.ve o Markdown de lector directo
+ */
+function parseBcvPayload(rawText) {
+  if (!rawText || typeof rawText !== 'string') return null;
+  const toNum = (s) => {
+    if (!s) return null;
+    const cleaned = String(s).trim().replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(cleaned);
+    return !isNaN(n) && n > 0 ? parseFloat(n.toFixed(2)) : null;
+  };
+
+  // 1. Formato HTML directo de bcv.org.ve
+  const htmlUsd = rawText.match(/id="dolar"[\s\S]{0,800}?<strong[^>]*>\s*([\d.,]+)\s*<\/strong>/i);
+  const htmlEur = rawText.match(/id="euro"[\s\S]{0,800}?<strong[^>]*>\s*([\d.,]+)\s*<\/strong>/i);
+  const htmlIso = rawText.match(/Fecha\s+Valor[\s\S]{0,500}?content="(\d{4}-\d{2}-\d{2})/i);
+  const htmlFechaText = rawText.match(/Fecha\s+Valor[\s\S]{0,500}?<span[^>]*>([^<]+)<\/span>/i);
+
+  if (htmlUsd) {
+    const usd = toNum(htmlUsd[1]);
+    const eur = htmlEur ? toNum(htmlEur[1]) : null;
+    const fechaText = htmlFechaText ? htmlFechaText[1].trim().replace(/\s+/g, ' ') : '';
+    const isoDate = (htmlIso ? htmlIso[1] : null) || parseSpanishDateToIso(fechaText);
+    if (usd) {
+      return {
+        status: 'ok',
+        usd,
+        eur,
+        isoDate,
+        shortDate: isoToShortDate(isoDate),
+        fecha: fechaText || (isoDate ? isoToShortDate(isoDate) : 'Oficial BCV')
+      };
+    }
+  }
+
+  // 2. Formato Markdown de lector en vivo (r.jina.ai/https://www.bcv.org.ve/)
+  const mdUsd = rawText.match(/\bUSD\b[\s\S]{0,120}?\*\*([\d.,]+)\*\*/i);
+  const mdEur = rawText.match(/\bEUR\b[\s\S]{0,120}?\*\*([\d.,]+)\*\*/i);
+  const mdFecha = rawText.match(/Fecha\s+Valor\s*:\s*([^\n\r*]+)/i);
+
+  if (mdUsd) {
+    const usd = toNum(mdUsd[1]);
+    const eur = mdEur ? toNum(mdEur[1]) : null;
+    const fechaText = mdFecha ? mdFecha[1].trim().replace(/\s+/g, ' ') : '';
+    const isoDate = parseSpanishDateToIso(fechaText);
+    if (usd) {
+      return {
+        status: 'ok',
+        usd,
+        eur,
+        isoDate,
+        shortDate: isoToShortDate(isoDate),
+        fecha: fechaText || (isoDate ? isoToShortDate(isoDate) : 'Oficial BCV')
+      };
+    }
+  }
+
+  return null;
+}
+
+// Cadencia por fuente (evita saturar peticiones pero garantiza detección en tiempo real)
 const API_SOURCE_CONFIG = {
   proxy: { ttlMs: 15 * 1000 },
-  binance: { ttlMs: 30 * 1000 },
-  dolarapi: { ttlMs: 45 * 1000 },
-  histDolarapi: { ttlMs: 5 * 60 * 1000 }
+  bcvDirect: { ttlMs: 25 * 1000 },
+  binance: { ttlMs: 25 * 1000 },
+  dolarapi: { ttlMs: 30 * 1000 },
+  histDolarapi: { ttlMs: 60 * 1000 }
 };
 
 const BACKOFF_BASE_MS = 5 * 1000;
-const BACKOFF_MAX_MS = 2 * 60 * 1000;
+const BACKOFF_MAX_MS = 60 * 1000;
 
 class ApiService {
   constructor() {
-    this.CACHE_TTL_MS = 60 * 1000;                     // 60s
+    this.CACHE_TTL_MS = 30 * 1000;                      // 30s
     this.STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 días máximo
     this.isSyncing = false;
     this._inflightPromise = null;
     this._lastRates = null;
     this._lastFetchedAt = 0;
     this._sourceState = {};
-    this._hasPhpProxy = null;                          // null: no probado, true/false: verificado
+    this._hasPhpProxy = null;                           // null: no probado, true/false: verificado
   }
 
   _fetch(url, options = {}) {
@@ -615,7 +702,8 @@ class ApiService {
     return rates;
   }
 
-  _shouldFetchSource(source) {
+  _shouldFetchSource(source, force = false) {
+    if (force) return true;
     const cfg = API_SOURCE_CONFIG[source];
     if (!cfg) return true;
     const state = this._sourceState[source];
@@ -639,8 +727,8 @@ class ApiService {
     }
   }
 
-  async _request({ source, url, options = {}, parse = 'json' }) {
-    if (!this._shouldFetchSource(source)) return { status: 'skip', data: null };
+  async _request({ source, url, options = {}, parse = 'json', force = false }) {
+    if (!this._shouldFetchSource(source, force)) return { status: 'skip', data: null };
     try {
       const res = await this._fetch(url, options);
       if (!res.ok) return { status: 'fail', data: null };
@@ -657,8 +745,7 @@ class ApiService {
   async checkPhpProxy() {
     if (this._hasPhpProxy !== null) return this._hasPhpProxy;
 
-    // Si estamos en protocolo file:, no hay servidor PHP activo
-    if (typeof location !== 'undefined' && location.protocol === 'file:') {
+    if (typeof location !== 'undefined' && (location.protocol === 'file:' || location.hostname === 'localhost' && window.DolarfyNative)) {
       this._hasPhpProxy = false;
       return false;
     }
@@ -670,18 +757,39 @@ class ApiService {
         this._hasPhpProxy = Boolean(json && json.proxy === 'active');
         return this._hasPhpProxy;
       }
-    } catch (e) {
-      // Ignorar fallo silenciosamente
-    }
+    } catch (e) {}
 
     this._hasPhpProxy = false;
     return false;
   }
 
   /**
+   * Consulta al puente nativo de Android (window.DolarfyNative) si está disponible en la APK
+   */
+  _fetchFromAndroidNative(force = false) {
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative) {
+        if (typeof window.DolarfyNative.requestLiveSync === 'function') {
+          window.DolarfyNative.requestLiveSync(Boolean(force));
+        }
+        if (typeof window.DolarfyNative.getCachedLivePayload === 'function') {
+          const raw = window.DolarfyNative.getCachedLivePayload();
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && (parsed.bcv || parsed.binance)) {
+              return parsed;
+            }
+          }
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /**
    * Consulta directa al proxy PHP local si existe (Binance P2P + BCV Oficial sin CORS)
    */
-  async _fetchFromPhpProxy() {
+  async _fetchFromPhpProxy(force = false) {
     const hasProxy = await this.checkPhpProxy();
     if (!hasProxy) return null;
 
@@ -689,7 +797,8 @@ class ApiService {
       const res = await this._request({
         source: 'proxy',
         url: 'api/proxy.php?action=all',
-        options: { timeout: 4000 }
+        options: { timeout: 4500 },
+        force
       });
 
       if (res.status === 'ok' && res.data) {
@@ -703,10 +812,38 @@ class ApiService {
   }
 
   /**
-   * Intenta consultar Binance P2P directamente (funciona en entornos sin restricción CORS estricta)
+   * Consulta directa en tiempo real al portal oficial del BCV (bcv.org.ve)
+   * Funciona en navegadores y WebViews sin depender de que DolarApi actualice su base de datos.
    */
-  async _fetchBinanceDirect() {
-    if (!this._shouldFetchSource('binance')) return { status: 'skip', prices: [] };
+  async _fetchBcvDirectWeb(force = false) {
+    if (!this._shouldFetchSource('bcvDirect', force)) {
+      return { status: 'skip', bcv: null };
+    }
+
+    try {
+      const cb = Math.floor(Date.now() / 15000);
+      const res = await this._fetch(`https://r.jina.ai/https://www.bcv.org.ve/?_cb=${cb}`, {
+        timeout: 6500
+      });
+      if (res.ok) {
+        const text = await res.text();
+        const parsed = parseBcvPayload(text);
+        if (parsed && parsed.usd > 0) {
+          this._markSource('bcvDirect', true);
+          return { status: 'ok', bcv: parsed };
+        }
+      }
+    } catch (e) {}
+
+    this._markSource('bcvDirect', false);
+    return { status: 'fail', bcv: null };
+  }
+
+  /**
+   * Intenta consultar Binance P2P directamente
+   */
+  async _fetchBinanceDirect(force = false) {
+    if (!this._shouldFetchSource('binance', force)) return { status: 'skip', prices: [] };
 
     const r = await this._request({
       source: 'binance',
@@ -717,8 +854,9 @@ class ApiService {
         body: JSON.stringify({
           fiat: 'VES', page: 1, rows: 10, tradeType: 'BUY', asset: 'USDT', countries: [], payTypes: []
         }),
-        timeout: 4000
-      }
+        timeout: 4500
+      },
+      force
     });
 
     if (r.status !== 'ok' || !r.data?.data || !Array.isArray(r.data.data) || r.data.data.length === 0) {
@@ -745,17 +883,17 @@ class ApiService {
   /**
    * Consulta DolarApi para tasas vigentes de Dólar y Euro (Oficial y Paralelo)
    */
-  async _fetchDolarApi() {
-    if (!this._shouldFetchSource('dolarapi')) {
-      return { status: 'skip', bcvUsd: null, euroValue: null, paraleloUsd: null, paraleloEuro: null };
+  async _fetchDolarApi(force = false) {
+    if (!this._shouldFetchSource('dolarapi', force)) {
+      return { status: 'skip', bcvUsd: null, bcvIso: null, euroValue: null, euroIso: null, paraleloUsd: null, paraleloEuro: null };
     }
 
     const [usdRes, eurRes] = await Promise.all([
-      this._request({ source: 'dolarapi', url: 'https://ve.dolarapi.com/v1/dolares' }),
-      this._request({ source: 'dolarapi', url: 'https://ve.dolarapi.com/v1/euros' })
+      this._request({ source: 'dolarapi', url: 'https://ve.dolarapi.com/v1/dolares', force }),
+      this._request({ source: 'dolarapi', url: 'https://ve.dolarapi.com/v1/euros', force })
     ]);
 
-    const out = { bcvUsd: null, euroValue: null, paraleloUsd: null, paraleloEuro: null };
+    const out = { bcvUsd: null, bcvIso: null, euroValue: null, euroIso: null, paraleloUsd: null, paraleloEuro: null };
     let ok = false;
 
     if (usdRes.status === 'ok' && Array.isArray(usdRes.data)) {
@@ -763,6 +901,9 @@ class ApiService {
       const paraleloItem = usdRes.data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
       if (bcvItem?.promedio) {
         out.bcvUsd = parseFloat(parseFloat(bcvItem.promedio).toFixed(2));
+        if (bcvItem.fechaActualizacion) {
+          out.bcvIso = String(bcvItem.fechaActualizacion).split('T')[0];
+        }
         ok = true;
       }
       if (paraleloItem?.promedio) {
@@ -776,6 +917,9 @@ class ApiService {
       const paraleloItem = eurRes.data.find(d => d.fuente === 'paralelo' || d.casa === 'paralelo');
       if (oficialItem?.promedio) {
         out.euroValue = parseFloat(parseFloat(oficialItem.promedio).toFixed(2));
+        if (oficialItem.fechaActualizacion) {
+          out.euroIso = String(oficialItem.fechaActualizacion).split('T')[0];
+        }
         ok = true;
       }
       if (paraleloItem?.promedio) {
@@ -811,16 +955,16 @@ class ApiService {
   }
 
   /**
-   * Consulta históricos de DolarApi para detectar la Fecha Valor del siguiente día hábil
+   * Consulta históricos de DolarApi para obtener tasa vigente de hoy y eventuales Fechas Valor futuras
    */
-  async _fetchDolarApiHistorics() {
-    if (!this._shouldFetchSource('histDolarapi')) {
+  async _fetchDolarApiHistorics(force = false) {
+    if (!this._shouldFetchSource('histDolarapi', force)) {
       return { status: 'skip', nextUsd: null, hoyUsd: null, nextEur: null, hoyEur: null };
     }
 
     const [usdRes, eurRes] = await Promise.all([
-      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial' }),
-      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/euros' })
+      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial', force }),
+      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/euros', force })
     ]);
 
     const today = this.getTodayIsoVet();
@@ -869,32 +1013,34 @@ class ApiService {
     if (!force) {
       const cached = this.getCache(cacheKey);
       if (cached) {
-        this.fetchFreshRates(country, cacheKey).catch(() => {});
+        this.fetchFreshRates(country, cacheKey, false).catch(() => {});
         return cached;
       }
 
       const stale = this.getCacheStale(cacheKey);
       if (stale) {
-        this.fetchFreshRates(country, cacheKey).catch(() => {});
+        this.fetchFreshRates(country, cacheKey, false).catch(() => {});
         return stale;
       }
     }
 
-    return await this.fetchFreshRates(country, cacheKey);
+    return await this.fetchFreshRates(country, cacheKey, force);
   }
 
-  async fetchFreshRates(country, cacheKey) {
-    if (this.isSyncing && this._inflightPromise) {
+  async fetchFreshRates(country, cacheKey, force = false) {
+    if (this.isSyncing && this._inflightPromise && !force) {
       return this._inflightPromise;
     }
 
     this.isSyncing = true;
-    this._inflightPromise = this.fetchVenezuelaRates(country, cacheKey)
+    this._inflightPromise = this.fetchVenezuelaRates(country, cacheKey, force)
       .then(rates => {
         if (rates && rates._meta) {
           this._lastRates = JSON.parse(JSON.stringify(rates));
           delete this._lastRates._meta;
-          this._lastFetchedAt = rates._meta.fetchedAt || Date.now();
+          if (rates._meta.source === 'live') {
+            this._lastFetchedAt = rates._meta.fetchedAt || Date.now();
+          }
         }
         return rates;
       })
@@ -911,9 +1057,12 @@ class ApiService {
     }
   }
 
-  async fetchVenezuelaRates(country, cacheKey) {
-    const rates = JSON.parse(JSON.stringify(country.rates));
+  async fetchVenezuelaRates(country, cacheKey, force = false) {
+    // Partir del último estado vivo conocido para preservar nextDay cuando alguna fuente salta por TTL
+    const baseRates = this._lastRates || country.rates;
+    const rates = JSON.parse(JSON.stringify(baseRates));
     const fetched = {};
+    let anySkipped = false;
 
     // Valores previos para cálculo de variación
     const prevValues = {};
@@ -924,87 +1073,136 @@ class ApiService {
       }
     });
 
-    // Ejecución paralela de alta velocidad
-    const [proxyData, binanceRes, dolarApiRes, histRes] = await Promise.allSettled([
-      this._fetchFromPhpProxy(),
-      this._fetchBinanceDirect(),
-      this._fetchDolarApi(),
-      this._fetchDolarApiHistorics()
+    const nativeData = this._fetchFromAndroidNative(force);
+
+    // Ejecución paralela de alta velocidad incluyendo scraping directo BCV en vivo
+    const [proxyData, bcvDirectRes, binanceRes, dolarApiRes, histRes] = await Promise.allSettled([
+      this._fetchFromPhpProxy(force),
+      this._fetchBcvDirectWeb(force),
+      this._fetchBinanceDirect(force),
+      this._fetchDolarApi(force),
+      this._fetchDolarApiHistorics(force)
     ]);
 
-    // 1. Si el Proxy PHP respondió con éxito (Binance P2P y BCV directo)
-    if (proxyData.status === 'fulfilled' && proxyData.value) {
-      const p = proxyData.value;
-      if (p.binance?.status === 'ok' && Array.isArray(p.binance.prices) && p.binance.prices.length > 0) {
-        const topPrices = p.binance.prices.slice(0, Math.min(3, p.binance.prices.length));
-        rates.paralelo.value = parseFloat((topPrices.reduce((a, b) => a + b, 0) / topPrices.length).toFixed(2));
-        fetched.binanceP2p = true;
-      }
-      if (p.bcv?.status === 'ok' && p.bcv.usd > 0) {
-        this.processBcvRates(rates, p.bcv);
-        fetched.bcvSite = true;
-      }
-    }
-
-    // 2. Binance directo si no tuvimos proxy PHP
-    if (!fetched.binanceP2p && binanceRes.status === 'fulfilled' && binanceRes.value.status === 'ok' && binanceRes.value.prices.length > 0) {
-      const topPrices = binanceRes.value.prices.slice(0, Math.min(3, binanceRes.value.prices.length));
-      rates.paralelo.value = parseFloat((topPrices.reduce((a, b) => a + b, 0) / topPrices.length).toFixed(2));
-      fetched.binanceP2p = true;
-    }
-
-    // 3. DolarApi (Oficial BCV + Paralelo)
-    if (dolarApiRes.status === 'fulfilled' && dolarApiRes.value.status === 'ok') {
-      const r = dolarApiRes.value;
-      if (r.bcvUsd && (!rates.bcv.value || rates.bcv.value === country.rates.bcv.value)) {
-        rates.bcv.value = r.bcvUsd;
-        fetched.dolarapi = true;
-      }
-      if (!fetched.binanceP2p && r.paraleloUsd) {
-        rates.paralelo.value = r.paraleloUsd;
-        fetched.dolarapiParalelo = true;
-      }
-      if (r.euroValue && (!rates.euro.value || rates.euro.value === country.rates.euro.value)) {
-        rates.euro.value = r.euroValue;
-        fetched.dolarapiEuro = true;
-      }
-    }
-
-    // 4. Pronóstico Oficial (Fecha Valor) desde DolarApi Históricos
     const todayIso = this.getTodayIsoVet();
+
+    // Detectar si las fuentes omitieron petición por TTL activo
+    if (bcvDirectRes.status === 'fulfilled' && bcvDirectRes.value.status === 'skip') anySkipped = true;
+    if (binanceRes.status === 'fulfilled' && binanceRes.value.status === 'skip') anySkipped = true;
+    if (dolarApiRes.status === 'fulfilled' && dolarApiRes.value.status === 'skip') anySkipped = true;
+    if (histRes.status === 'fulfilled' && histRes.value.status === 'skip') anySkipped = true;
+
+    // 1. DolarApi Históricos (Base autoritativa para la tasa vigente de HOY cuando BCV ya publicó mañana/lunes)
     if (histRes.status === 'fulfilled' && histRes.value.status === 'ok') {
       const h = histRes.value;
+      if (h.hoyUsd && h.hoyUsd.value > 0) {
+        rates.bcv.value = h.hoyUsd.value;
+        rates.bcv._iso = h.hoyUsd.date || todayIso;
+        rates.bcv.effectiveDate = isoToShortDate(rates.bcv._iso);
+        fetched.dolarapiHistHoy = true;
+      }
+      if (h.hoyEur && rates.euro && h.hoyEur.value > 0) {
+        rates.euro.value = h.hoyEur.value;
+        rates.euro._iso = h.hoyEur.date || todayIso;
+        rates.euro.effectiveDate = isoToShortDate(rates.euro._iso);
+        fetched.dolarapiHistEuroHoy = true;
+      }
       if (h.nextUsd && String(h.nextUsd.date) > todayIso) {
-        const curUsd = (typeof rates.bcv.value === 'number' && rates.bcv.value > 0)
-          ? rates.bcv.value
-          : (h.hoyUsd ? h.hoyUsd.value : h.nextUsd.value);
+        const curUsd = rates.bcv.value || h.nextUsd.value;
         const changeUsd = curUsd > 0
           ? parseFloat((((h.nextUsd.value - curUsd) / curUsd) * 100).toFixed(2))
           : 0;
         rates.bcv.nextDay = {
           published: true, isOfficial: true, value: h.nextUsd.value, change: changeUsd,
-          date: this._formatFechaValor(h.nextUsd.date), _iso: h.nextUsd.date,
+          date: this._formatFechaValor(h.nextUsd.date),
+          shortDate: isoToShortDate(h.nextUsd.date),
+          _iso: h.nextUsd.date,
           scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
         };
-        fetched.dolarapiHist = true;
-      } else if (h.hoyUsd && (!rates.bcv.value || rates.bcv.value === country.rates.bcv.value)) {
-        rates.bcv.value = h.hoyUsd.value;
+        fetched.dolarapiHistNext = true;
       }
-
       if (h.nextEur && rates.euro && String(h.nextEur.date) > todayIso) {
-        const curEur = (typeof rates.euro.value === 'number' && rates.euro.value > 0)
-          ? rates.euro.value
-          : (h.hoyEur ? h.hoyEur.value : h.nextEur.value);
+        const curEur = rates.euro.value || h.nextEur.value;
         const changeEur = curEur > 0
           ? parseFloat((((h.nextEur.value - curEur) / curEur) * 100).toFixed(2))
           : 0;
         rates.euro.nextDay = {
           published: true, isOfficial: true, value: h.nextEur.value, change: changeEur,
-          date: this._formatFechaValor(h.nextEur.date), _iso: h.nextEur.date,
+          date: this._formatFechaValor(h.nextEur.date),
+          shortDate: isoToShortDate(h.nextEur.date),
+          _iso: h.nextEur.date,
           scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
         };
-        fetched.dolarapiHistEuro = true;
+        fetched.dolarapiHistEuroNext = true;
       }
+    }
+
+    // 2. DolarApi en vivo (Oficial y Paralelo de respaldo)
+    if (dolarApiRes.status === 'fulfilled' && dolarApiRes.value.status === 'ok') {
+      const r = dolarApiRes.value;
+      if (r.bcvUsd) {
+        if (r.bcvIso && r.bcvIso > todayIso) {
+          this.processBcvRates(rates, {
+            usd: r.bcvUsd,
+            eur: r.euroValue,
+            isoDate: r.bcvIso,
+            shortDate: isoToShortDate(r.bcvIso),
+            fecha: this._formatFechaValor(r.bcvIso)
+          }, todayIso);
+        } else {
+          rates.bcv.value = r.bcvUsd;
+          rates.bcv._iso = r.bcvIso || todayIso;
+          rates.bcv.effectiveDate = isoToShortDate(rates.bcv._iso);
+        }
+        fetched.dolarapi = true;
+      }
+      if (r.euroValue && rates.euro) {
+        if (!r.euroIso || r.euroIso <= todayIso) {
+          rates.euro.value = r.euroValue;
+          rates.euro._iso = r.euroIso || todayIso;
+          rates.euro.effectiveDate = isoToShortDate(rates.euro._iso);
+        }
+        fetched.dolarapiEuro = true;
+      }
+      if (r.paraleloUsd) {
+        rates.paralelo.value = r.paraleloUsd;
+        fetched.dolarapiParalelo = true;
+      }
+    }
+
+    // 3. BCV Oficial en Tiempo Real (Prioridad máxima: Android Nativo -> Proxy PHP -> Lector Directo bcv.org.ve)
+    let liveBcv = null;
+    if (nativeData?.bcv?.status === 'ok' && nativeData.bcv.usd > 0) {
+      liveBcv = nativeData.bcv;
+      fetched.nativeBcv = true;
+    } else if (proxyData.status === 'fulfilled' && proxyData.value?.bcv?.status === 'ok' && proxyData.value.bcv.usd > 0) {
+      liveBcv = proxyData.value.bcv;
+      fetched.phpBcv = true;
+    } else if (bcvDirectRes.status === 'fulfilled' && bcvDirectRes.value?.status === 'ok' && bcvDirectRes.value.bcv?.usd > 0) {
+      liveBcv = bcvDirectRes.value.bcv;
+      fetched.webBcvDirect = true;
+    }
+
+    if (liveBcv) {
+      this.processBcvRates(rates, liveBcv, todayIso);
+    }
+
+    // 4. Binance P2P USDT en Tiempo Real (Prioridad: Android Nativo -> Proxy PHP -> Directo)
+    let binancePrices = null;
+    if (nativeData?.binance?.status === 'ok' && Array.isArray(nativeData.binance.prices) && nativeData.binance.prices.length > 0) {
+      binancePrices = nativeData.binance.prices;
+      fetched.nativeBinance = true;
+    } else if (proxyData.status === 'fulfilled' && proxyData.value?.binance?.status === 'ok' && Array.isArray(proxyData.value.binance.prices) && proxyData.value.binance.prices.length > 0) {
+      binancePrices = proxyData.value.binance.prices;
+      fetched.phpBinance = true;
+    } else if (binanceRes.status === 'fulfilled' && binanceRes.value?.status === 'ok' && binanceRes.value.prices.length > 0) {
+      binancePrices = binanceRes.value.prices;
+      fetched.directBinance = true;
+    }
+
+    if (binancePrices && binancePrices.length > 0) {
+      const topPrices = binancePrices.slice(0, Math.min(3, binancePrices.length));
+      rates.paralelo.value = parseFloat((topPrices.reduce((a, b) => a + b, 0) / topPrices.length).toFixed(2));
     }
 
     // Sanitizar pronósticos expirados
@@ -1027,9 +1225,11 @@ class ApiService {
     });
 
     const succeeded = Object.values(fetched).some(Boolean);
-    const sourceLabel = succeeded ? 'live' : 'cache';
+    const hasRecentLive = this._lastFetchedAt > 0 && (Date.now() - this._lastFetchedAt) < 3 * 60 * 1000;
+    const sourceLabel = (succeeded || (anySkipped && hasRecentLive)) ? 'live' : 'cache';
 
     if (succeeded) {
+      this._lastFetchedAt = Date.now();
       const stored = JSON.parse(JSON.stringify(rates));
       delete stored._meta;
       this.setCache(cacheKey, stored);
@@ -1042,9 +1242,10 @@ class ApiService {
     });
   }
 
-  processBcvRates(rates, bcvData) {
+  processBcvRates(rates, bcvData, todayIso = null) {
     if (!bcvData || typeof bcvData.usd !== 'number' || isNaN(bcvData.usd) || bcvData.usd <= 0) return;
 
+    const today = todayIso || this.getTodayIsoVet();
     const bcvUsd = parseFloat(bcvData.usd.toFixed(2));
     const bcvEur = bcvData.eur ? parseFloat(bcvData.eur.toFixed(2)) : null;
     const rawFecha = (bcvData.fecha || '').toLowerCase();
@@ -1052,33 +1253,57 @@ class ApiService {
       ? bcvData.fecha.replace(/^Fecha\s+Valor\s*:?\s*/i, '').trim()
       : 'Oficial BCV';
 
-    const targetDayName = getNextBusinessDayName().toLowerCase();
-    let isNextDay = false;
+    const isoDate = bcvData.isoDate || parseSpanishDateToIso(cleanDate);
+    const shortDate = bcvData.shortDate || (isoDate ? isoToShortDate(isoDate) : '');
 
-    if (rawFecha.includes(targetDayName)) {
-      isNextDay = true;
+    let isNextDay = false;
+    if (isoDate) {
+      isNextDay = String(isoDate) > String(today);
+    } else {
+      const targetDayName = getNextBusinessDayName().toLowerCase();
+      if (rawFecha.includes(targetDayName)) {
+        isNextDay = true;
+      }
     }
 
     if (isNextDay) {
-      const currentUsd = rates.bcv.value || bcvUsd;
+      const currentUsd = (typeof rates.bcv.value === 'number' && rates.bcv.value > 0) ? rates.bcv.value : bcvUsd;
       const changeUsd = currentUsd > 0 ? parseFloat((((bcvUsd - currentUsd) / currentUsd) * 100).toFixed(2)) : 0;
+      const formattedDate = isoDate ? this._formatFechaValor(isoDate) : cleanDate;
+
       rates.bcv.nextDay = {
-        published: true, isOfficial: true, value: bcvUsd, change: changeUsd,
-        date: cleanDate, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
+        published: true,
+        isOfficial: true,
+        value: bcvUsd,
+        change: changeUsd,
+        date: formattedDate,
+        shortDate: shortDate || cleanDate,
+        _iso: isoDate || null,
+        scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
       };
 
       if (bcvEur && rates.euro) {
-        const currentEur = rates.euro.value || bcvEur;
+        const currentEur = (typeof rates.euro.value === 'number' && rates.euro.value > 0) ? rates.euro.value : bcvEur;
         const changeEur = currentEur > 0 ? parseFloat((((bcvEur - currentEur) / currentEur) * 100).toFixed(2)) : 0;
         rates.euro.nextDay = {
-          published: true, isOfficial: true, value: bcvEur, change: changeEur,
-          date: cleanDate, scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
+          published: true,
+          isOfficial: true,
+          value: bcvEur,
+          change: changeEur,
+          date: formattedDate,
+          shortDate: shortDate || cleanDate,
+          _iso: isoDate || null,
+          scheduleText: 'Banco Central de Venezuela (bcv.org.ve)'
         };
       }
     } else {
       rates.bcv.value = bcvUsd;
+      rates.bcv._iso = isoDate || today;
+      rates.bcv.effectiveDate = shortDate || isoToShortDate(today);
       if (bcvEur && rates.euro) {
         rates.euro.value = bcvEur;
+        rates.euro._iso = isoDate || today;
+        rates.euro.effectiveDate = shortDate || isoToShortDate(today);
       }
     }
   }
@@ -1154,25 +1379,26 @@ const apiService = new ApiService();
 
   // --- js/notificationService.js ---
 /**
- * Servicio de Notificaciones Automáticas de Tasa Diaria (Web Standard)
+ * Servicio de Notificaciones Automáticas de Tasa BCV en Tiempo Real (Nativo Android + Web/PWA)
  */
 
 
 
 
-const REMINDER_CHECK_INTERVAL_MS = 10 * 60 * 1000; // Cobertura de respaldo para detectar la tasa nueva publicada
+const REMINDER_CHECK_INTERVAL_MS = 60 * 1000; // Verificación activa cada 60s
 
 class NotificationService {
   constructor() {
     this.STORAGE_ENABLED = 'dolarfy_notifications_enabled';
     this.STORAGE_LAST_DATE = 'dolarfy_last_notified_date';
     this.STORAGE_LOGS = 'dolarfy_notification_logs';
-    this.DAILY_NOTIFICATION_ID = 9001;
 
     this.enabled = this.loadEnabledState();
     this.lastNotifiedDate = this._storageGet(this.STORAGE_LAST_DATE) || '';
     this.logs = this.loadLogs();
     this.notificationTimer = null;
+
+    this._syncNativeState();
   }
 
   _storageGet(key) {
@@ -1180,7 +1406,6 @@ class NotificationService {
       if (typeof localStorage === 'undefined') return null;
       return localStorage.getItem(key);
     } catch (e) {
-      console.warn('Error leyendo almacenamiento', e);
       return null;
     }
   }
@@ -1189,9 +1414,17 @@ class NotificationService {
     try {
       if (typeof localStorage === 'undefined') return;
       localStorage.setItem(key, value);
-    } catch (e) {
-      console.warn('Error escribiendo almacenamiento', e);
-    }
+    } catch (e) {}
+  }
+
+  _syncNativeState() {
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative) {
+        if (typeof window.DolarfyNative.setNotificationsEnabled === 'function') {
+          window.DolarfyNative.setNotificationsEnabled(Boolean(this.enabled));
+        }
+      }
+    } catch (e) {}
   }
 
   loadEnabledState() {
@@ -1210,10 +1443,8 @@ class NotificationService {
 
   saveLogs() {
     try {
-      localStorage.setItem(this.STORAGE_LOGS, JSON.stringify(this.logs.slice(0, 15)));
-    } catch (e) {
-      console.warn('Error al guardar historial de notificaciones', e);
-    }
+      localStorage.setItem(this.STORAGE_LOGS, JSON.stringify(this.logs.slice(0, 20)));
+    } catch (e) {}
   }
 
   isEnabled() {
@@ -1225,44 +1456,85 @@ class NotificationService {
   }
 
   getTodayString() {
-    const d = new Date();
-    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    return new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
   }
 
   async hasPermission() {
+    if (typeof window !== 'undefined' && window.DolarfyNative) return true;
     if (typeof window === 'undefined' || !('Notification' in window)) return false;
     return Notification.permission === 'granted';
   }
 
   async requestPermission() {
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.requestNotificationPermission === 'function') {
+        window.DolarfyNative.requestNotificationPermission();
+        return true;
+      }
+    } catch (e) {}
+
     if (typeof window === 'undefined' || !('Notification' in window)) return false;
     try {
       const result = await Notification.requestPermission();
       return result === 'granted';
     } catch (e) {
-      console.warn('Error solicitando permiso de notificaciones:', e);
       return false;
     }
   }
 
-  async sendLocalNotification(entry) {
-    if (!this.enabled) return;
+  /**
+   * Envía la notificación al sistema operativo:
+   * 1. Android APK Nativo (NotificationManager con formato idéntico a la bandeja de Android)
+   * 2. ServiceWorker Registration (estándar PWA móvil sin error de constructor ilegal)
+   * 3. Notification API de escritorio (fallback)
+   */
+  async sendLocalNotification(entry, dedupKey = '') {
+    if (!this.enabled && entry.type !== 'test') return;
 
-    if ('Notification' in window) {
+    const title = entry.title || '📢 Nueva Tasa BCV Disponible';
+    const body = entry.body || `${entry.summaryLine || `${entry.rateName}: ${entry.formattedValue}`}${entry.fechaLine ? `\n${entry.fechaLine}` : ''}`;
+
+    // 1. Puente Nativo Android (APK)
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.showNotification === 'function') {
+        window.DolarfyNative.showNotification(title, body, dedupKey || '');
+        return;
+      }
+    } catch (e) {
+      console.warn('Error en notificación nativa Android:', e);
+    }
+
+    // 2. Navegador Web / PWA
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        await this.requestPermission();
+      }
       if (Notification.permission === 'granted') {
         try {
-          new Notification('Nueva Tasa del Día · Dolarfy', {
-            body: `${entry.rateName}: ${entry.formattedValue}`,
-            icon: entry.flagUrl || 'assets/icons/icon-192.png'
+          if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg && typeof reg.showNotification === 'function') {
+              await reg.showNotification(title, {
+                body,
+                icon: 'assets/icons/icon-192.png',
+                badge: 'assets/icons/favicon-32.png',
+                vibrate: [200, 100, 200],
+                tag: dedupKey || 'dolarfy-bcv-rate'
+              });
+              return;
+            }
+          }
+        } catch (swErr) {}
+
+        try {
+          new Notification(title, {
+            body,
+            icon: 'assets/icons/icon-192.png'
           });
-        } catch (e) {
-          console.warn('Error mostrando notificación Web:', e);
-        }
-      } else if (Notification.permission !== 'denied') {
-        const granted = await this.requestPermission();
-        if (granted) {
-          this.sendLocalNotification(entry);
-        }
+        } catch (e) {}
       }
     }
   }
@@ -1274,8 +1546,10 @@ class NotificationService {
   async toggleNotifications(forceState = null) {
     this.enabled = forceState !== null ? forceState : !this.enabled;
     this._storageSet(this.STORAGE_ENABLED, this.enabled.toString());
+    this._syncNativeState();
 
     if (this.enabled) {
+      await this.requestPermission();
       await this.scheduleDailyReminder();
     } else {
       await this.cancelDailyReminder();
@@ -1284,20 +1558,19 @@ class NotificationService {
   }
 
   // ==========================================================================
-  //  Recordatorio diario
+  //  Monitoreo periódico activo
   // ==========================================================================
 
   async scheduleDailyReminder() {
     this.cancelDailyReminder();
     if (typeof setInterval === 'undefined') return;
-    this.notificationTimer = setInterval(() => {
+    this.notificationTimer = setInterval(async () => {
       try {
+        await mockEngine.syncRealRates(false);
         const country = mockEngine.getCurrentCountry();
         const rates = mockEngine.getRates();
-        this.checkDailyUpdate(country, rates);
-      } catch (e) {
-        console.warn('Error en recordatorio diario:', e);
-      }
+        await this.checkDailyUpdate(country, rates);
+      } catch (e) {}
     }, REMINDER_CHECK_INTERVAL_MS);
   }
 
@@ -1308,52 +1581,102 @@ class NotificationService {
     }
   }
 
-  // ==========================================================================
-  //  Detección de nueva tasa diaria
-  // ==========================================================================
+  /**
+   * Construye los datos de notificación BCV (USD + EUR + Fecha DD/MM/YYYY)
+   * priorizando la Fecha Valor futura (pronóstico) apenas es publicada por el BCV.
+   */
+  _buildBcvNotificationPayload(country, rates, isTest = false) {
+    const bcv = rates?.bcv || {};
+    const euro = rates?.euro || {};
 
-  async checkDailyUpdate(country, rates) {
-    if (!this.enabled || !rates) return;
+    const hasNextDay = Boolean(bcv.nextDay && bcv.nextDay.published && typeof bcv.nextDay.value === 'number' && bcv.nextDay.value > 0);
 
-    const rateKeys = Object.keys(rates);
-    if (rateKeys.length === 0) return;
+    const usdVal = hasNextDay
+      ? bcv.nextDay.value
+      : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : 889.58);
 
-    const mainRate = rates[country.defaultRateId] || rates[rateKeys[0]];
-    if (!mainRate || !mainRate.value) return;
+    const eurVal = (hasNextDay && euro.nextDay && typeof euro.nextDay.value === 'number' && euro.nextDay.value > 0)
+      ? euro.nextDay.value
+      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : 991.25);
 
-    // Con tasa activa de "predicción" si está publicada, sino hoy
-    const notifiedValue = (mainRate.nextDay && mainRate.nextDay.value)
-      ? mainRate.nextDay.value
-      : mainRate.value;
+    const isoDate = (hasNextDay && bcv.nextDay._iso)
+      ? bcv.nextDay._iso
+      : (bcv._iso || this.getTodayString());
 
-    const todayStr = this.getTodayString();
-    const lastKey = `${country.id}_${todayStr}_${notifiedValue.toFixed(2)}`;
+    const shortDate = (hasNextDay && bcv.nextDay.shortDate)
+      ? bcv.nextDay.shortDate
+      : (bcv.effectiveDate || isoToShortDate(isoDate));
 
-    // Si ya notificamos esta misma tasa para la fecha de hoy, omitir
-    if (this.lastNotifiedDate === lastKey) return;
+    const usdText = usdVal.toFixed(2);
+    const eurText = eurVal.toFixed(2);
 
-    this.lastNotifiedDate = lastKey;
-    this._storageSet(this.STORAGE_LAST_DATE, lastKey);
+    const title = '📢 Nueva Tasa BCV Disponible';
+    const summaryLine = `USD = Bs. ${usdText} | EUR = Bs. ${eurText}`;
+    const fechaLine = `Fecha: ${shortDate}`;
+    const body = `${summaryLine}\n${fechaLine}`;
+    const dedupKey = `${country.id}_${isoDate}_${usdText}_${eurText}`;
 
-    const logEntry = {
+    return {
       id: Date.now(),
       countryId: country.id,
       countryName: country.name,
       flagUrl: country.flagUrl,
-      rateName: mainRate.name,
-      value: notifiedValue,
-      currency: mainRate.currency,
-      formattedValue: formatCurrency(notifiedValue, mainRate.currency, notifiedValue < 10 ? 4 : 2),
+      title,
+      rateName: title,
+      summaryLine,
+      fechaLine,
+      shortDate,
+      isoDate,
+      body,
+      value: usdVal,
+      eurValue: eurVal,
+      currency: bcv.currency || 'VES',
+      formattedValue: `Bs. ${usdText}`,
       time: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true }),
-      date: new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })
+      date: shortDate,
+      dedupKey,
+      isNextDay: hasNextDay,
+      type: isTest ? 'test' : 'live'
     };
+  }
 
-    this.logs.unshift(logEntry);
+  // ==========================================================================
+  //  Detección de nueva tasa BCV publicada (Hoy o Fecha Valor siguiente)
+  // ==========================================================================
+
+  async checkDailyUpdate(country, rates) {
+    if (!this.enabled || !rates || !rates.bcv) return;
+
+    // No disparar sobre datos placeholder antes de la primera sincronización real
+    if (rates._meta?.placeholder) return;
+
+    const payload = this._buildBcvNotificationPayload(country, rates, false);
+    if (!payload || !payload.value) return;
+
+    // Si ya notificamos exactamente esta misma Fecha Valor + tasa, omitir
+    if (this.lastNotifiedDate === payload.dedupKey) return;
+
+    // Verificar si el servicio en segundo plano de Android ya lanzó la notificación en la barra de estado
+    let alreadyNotifiedByNative = false;
+    try {
+      if (typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.getLastNotifiedKey === 'function') {
+        const nativeKey = window.DolarfyNative.getLastNotifiedKey();
+        if (nativeKey && nativeKey === payload.dedupKey) {
+          alreadyNotifiedByNative = true;
+        }
+      }
+    } catch (e) {}
+
+    this.lastNotifiedDate = payload.dedupKey;
+    this._storageSet(this.STORAGE_LAST_DATE, payload.dedupKey);
+
+    this.logs.unshift(payload);
     this.saveLogs();
 
-    // Notificación real del sistema (nativo) + toast in-app (siempre)
-    await this.sendLocalNotification(logEntry);
-    this.showToast(logEntry);
+    if (!alreadyNotifiedByNative) {
+      await this.sendLocalNotification(payload, payload.dedupKey);
+    }
+    this.showToast(payload);
   }
 
   clearLogs() {
@@ -1364,40 +1687,18 @@ class NotificationService {
   async sendTestNotification() {
     const country = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
-    const rate = (rates && rates[country.defaultRateId]) ||
-      (rates && Object.values(rates).find(r => r && typeof r.value === 'number' && r.value > 0)) ||
-      { name: 'Dólar Oficial (BCV)', currency: 'VES', value: null };
-
-    const liveValue = (typeof rate.value === 'number' && !isNaN(rate.value) && rate.value > 0)
-      ? rate.value
-      : (rate.nextDay && typeof rate.nextDay.value === 'number' && rate.nextDay.value > 0 ? rate.nextDay.value : null);
-    const value = liveValue !== null ? liveValue : 1;
-    const currency = rate.currency || country.currency.code || 'VES';
-
-    const testEntry = {
-      id: Date.now(),
-      countryId: country.id,
-      countryName: country.name,
-      flagUrl: country.flagUrl,
-      rateName: 'Notificación de Prueba · Dolarfy',
-      value,
-      currency,
-      formattedValue: liveValue !== null ? formatCurrency(value, currency, value < 10 ? 4 : 2) : 'Bs. — — —',
-      time: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true }),
-      date: new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }),
-      type: 'test'
-    };
+    const testEntry = this._buildBcvNotificationPayload(country, rates, true);
 
     this.logs.unshift(testEntry);
     this.saveLogs();
 
-    await this.sendLocalNotification(testEntry);
+    await this.sendLocalNotification(testEntry, '');
     this.showToast(testEntry);
     return testEntry;
   }
 
   // ==========================================================================
-  //  Toast in-app (fallback / navegador)
+  //  Toast in-app con diseño de Alerta Oficial BCV
   // ==========================================================================
 
   showToast(logEntry) {
@@ -1410,18 +1711,19 @@ class NotificationService {
     }
 
     const toastEl = document.createElement('div');
-    toastEl.className = 'pointer-events-auto bg-[#0F141C] border border-cyan-500/40 rounded-2xl p-4 shadow-2xl glow-cyan flex items-start space-x-3 animate-fade-in transition-all duration-300';
+    toastEl.className = 'pointer-events-auto bg-[#161B22] border border-cyan-500/40 rounded-2xl p-4 shadow-2xl glow-cyan flex items-start space-x-3 animate-fade-in transition-all duration-300 mb-2';
     toastEl.innerHTML = `
-      <img src="${logEntry.flagUrl}" alt="${logEntry.countryName}" class="w-8 h-8 rounded-full object-cover border border-cyan-500/30 mt-0.5">
-      <div class="flex-1">
+      <img src="assets/img/logo-sin-fondo.webp" alt="Dolarfy" class="w-8 h-8 rounded-xl object-contain bg-cyan-500/10 p-1 border border-cyan-500/30 mt-0.5">
+      <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between">
           <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Alerta en Vivo
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Dolarfy · Ahora
           </span>
           <span class="text-[9px] text-gray-400">${logEntry.time}</span>
         </div>
-        <h4 class="text-xs font-bold text-white mt-0.5">${logEntry.rateName}</h4>
-        <p class="text-sm font-extrabold text-emerald-400">${logEntry.formattedValue}</p>
+        <h4 class="text-xs font-extrabold text-white mt-1">${logEntry.title || logEntry.rateName}</h4>
+        <p class="text-xs font-bold text-emerald-400 mt-0.5">${logEntry.summaryLine || logEntry.formattedValue}</p>
+        ${logEntry.fechaLine ? `<p class="text-[11px] text-gray-300 font-semibold mt-0.5">${logEntry.fechaLine}</p>` : ''}
       </div>
       <button class="toast-close-btn text-gray-400 hover:text-white p-1 text-xs cursor-pointer">✕</button>
     `;
@@ -1433,17 +1735,17 @@ class NotificationService {
 
     toastContainer.appendChild(toastEl);
 
-    // Auto eliminar después de 6 segundos
     setTimeout(() => {
       if (toastEl.parentNode) {
         toastEl.classList.add('opacity-0', '-translate-y-2');
         setTimeout(() => toastEl.remove(), 300);
       }
-    }, 6000);
+    }, 7000);
   }
 }
 
 const notificationService = new NotificationService();
+
 
   // --- js/mockData.js ---
 /**
@@ -1463,8 +1765,17 @@ class RatesEngine {
     this.listeners = [];
     this._timer = null;
     this._hydrateCacheSync();
-    this.syncRealRates();
+    this._bindNativeBridge();
+    this.syncRealRates(true);
     this._startPolling();
+  }
+
+  _bindNativeBridge() {
+    if (typeof window !== 'undefined') {
+      window.__onDolarfyNativeSync = () => {
+        this.syncRealRates(false);
+      };
+    }
   }
 
   _hydrateCacheSync() {
@@ -1538,6 +1849,7 @@ class RatesEngine {
 
   hasRatesChanged(oldRates, newRates) {
     if (!oldRates || !newRates) return true;
+    if ((oldRates._meta?.source || '') !== (newRates._meta?.source || '')) return true;
     const keys = ['bcv', 'paralelo', 'euro'];
     for (const k of keys) {
       const o = oldRates[k];
@@ -1547,6 +1859,9 @@ class RatesEngine {
       const oNext = o.nextDay ? o.nextDay.value : null;
       const nNext = n.nextDay ? n.nextDay.value : null;
       if (oNext !== nNext) return true;
+      const oIso = o.nextDay ? o.nextDay._iso : null;
+      const nIso = n.nextDay ? n.nextDay._iso : null;
+      if (oIso !== nIso) return true;
     }
     return false;
   }
@@ -1587,7 +1902,7 @@ class RatesEngine {
 
   _startPollTimer() {
     if (this._timer) return;
-    this._timer = setInterval(() => this.syncRealRates(true), POLL_INTERVAL_MS);
+    this._timer = setInterval(() => this.syncRealRates(false), POLL_INTERVAL_MS);
   }
 
   _stopPollTimer() {
@@ -1743,15 +2058,15 @@ class NotificationModal {
               ` : `
                 <div class="space-y-2">
                   ${logs.map(log => `
-                    <div class="glass-card rounded-xl p-3 flex items-center justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
-                      <div class="flex items-center space-x-3">
-                        <img src="${log.flagUrl}" alt="${log.countryName}" class="w-6 h-6 rounded-full object-cover border border-white/10">
+                    <div class="glass-card rounded-xl p-3 flex items-start justify-between border border-white/10 hover:border-cyan-500/30 transition-all">
+                      <div class="flex items-start space-x-3">
+                        <img src="${log.flagUrl}" alt="${log.countryName}" class="w-6 h-6 rounded-full object-cover border border-white/10 mt-0.5">
                         <div>
-                          <h5 class="text-xs font-bold text-white">${log.rateName}</h5>
-                          <p class="text-[10px] text-gray-400">${log.date} a las ${log.time}</p>
+                          <h5 class="text-xs font-extrabold text-white">${log.title || log.rateName}</h5>
+                          <p class="text-[11px] font-bold text-emerald-400 mt-0.5">${log.summaryLine || log.formattedValue}</p>
+                          <p class="text-[10px] text-gray-400 mt-0.5">${log.fechaLine || `Fecha: ${log.date}`} · ${log.time}</p>
                         </div>
                       </div>
-                      <span class="text-sm font-extrabold text-emerald-400">${log.formattedValue}</span>
                     </div>
                   `).join('')}
                 </div>
@@ -2188,9 +2503,12 @@ class DashboardView {
     }
 
     const { bannerTag, bannerText, bannerSub, isManana, nextDayLabel } = this._computeBanner(rates);
+    const nextUsdVal = rates.bcv?.nextDay?.value;
+    const nextEurVal = rates.euro?.nextDay?.value;
+    const nextShortDate = rates.bcv?.nextDay?.shortDate || '';
 
     this.container.innerHTML = `
-      <div class="space-y-6 pb-24 animate-fade-in">
+      <div class="space-y-5 pb-24 animate-fade-in">
         <!-- Header status bar -->
         <div class="flex items-center justify-between bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl p-4">
           <div class="flex items-center space-x-3">
@@ -2219,6 +2537,26 @@ class DashboardView {
             <p id="dash-banner-sub" class="text-xs text-gray-300 mt-1">${bannerSub}</p>
           </div>
         </div>
+
+        ${hasNextDay && !isManana && nextUsdVal ? `
+          <!-- Tarjeta de Pronóstico Oficial Publicado (Fecha Valor Siguiente) -->
+          <div id="dash-forecast-alert" class="glass-card-interactive rounded-2xl p-4 border border-emerald-500/40 bg-emerald-950/20 flex items-center justify-between cursor-pointer shadow-lg">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-extrabold text-white">📢 Nueva Tasa BCV Disponible</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">${nextDayLabel}</span>
+              </div>
+              <p class="text-xs font-black text-emerald-400">
+                USD = Bs. ${nextUsdVal.toFixed(2)}${nextEurVal ? ` | EUR = Bs. ${nextEurVal.toFixed(2)}` : ''}
+              </p>
+              ${nextShortDate ? `<p class="text-[11px] text-gray-300 font-semibold">Fecha: ${nextShortDate}</p>` : ''}
+            </div>
+            <div class="flex items-center space-x-1 text-cyan-400 text-xs font-bold shrink-0 pl-2">
+              <span>Ver</span>
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </div>
+          </div>
+        ` : ''}
 
         <!-- Encabezado de Tasas y Selector 'Hoy' / 'Mañana' -->
         <div>
@@ -2431,6 +2769,14 @@ class DashboardView {
           }
         }
       });
+    });
+
+    const forecastAlert = this.container.querySelector('#dash-forecast-alert');
+    forecastAlert?.addEventListener('click', () => {
+      this._userSelectedDay = true;
+      markPredictionRead(rates);
+      this.selectedDay = 'manana';
+      this.render();
     });
   }
 

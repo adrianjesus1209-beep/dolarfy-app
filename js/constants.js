@@ -2,8 +2,8 @@
  * Constantes globales de Dolarfy
  */
 
-export const APP_VERSION = '1.0.4';
+export const APP_VERSION = '1.0.5';
 
-// Clave de caché de tasas en localStorage. v2: purga nextDay fabricados de versiones previas.
-export const RATES_CACHE_VERSION = 'v3';
+// Clave de caché de tasas en localStorage. v4: soporte directo BCV en vivo + notificaciones exactas.
+export const RATES_CACHE_VERSION = 'v4';
 export const RATES_CACHE_KEY_PREFIX = `dolarfy_rates_cache_${RATES_CACHE_VERSION}`;
