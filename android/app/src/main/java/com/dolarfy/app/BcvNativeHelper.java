@@ -126,13 +126,15 @@ public class BcvNativeHelper {
             result.put("binance", binance);
             result.put("timestamp", System.currentTimeMillis());
 
-            if ("ok".equals(bcv.optString("status"))) {
+            if ("ok".equals(bcv.optString("status")) || "ok".equals(binance.optString("status"))) {
                 String jsonStr = result.toString();
                 memoryPayload = jsonStr;
                 if (context != null) {
                     SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                     prefs.edit().putString(KEY_LAST_PAYLOAD, jsonStr).apply();
-                    checkAndNotifyBcv(context, bcv);
+                    if ("ok".equals(bcv.optString("status"))) {
+                        checkAndNotifyBcv(context, bcv);
+                    }
                 }
             }
         } catch (Exception ignored) {}
@@ -296,6 +298,34 @@ public class BcvNativeHelper {
                 String md = readStream(conn.getInputStream());
                 JSONObject parsed = parseBcvText(md);
                 if (parsed != null) return parsed;
+            }
+        } catch (Exception ignored) {}
+
+        // 3. Respaldo vía DolarApi oficial
+        try {
+            URL url = new URL("https://ve.dolarapi.com/v1/dolares/oficial");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(4000);
+            conn.setReadTimeout(4500);
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+
+            if (conn.getResponseCode() == 200) {
+                String raw = readStream(conn.getInputStream());
+                JSONObject json = new JSONObject(raw);
+                double usd = json.optDouble("promedio", 0);
+                String fechaActualizacion = json.optString("fechaActualizacion", "");
+                if (usd > 0 && !fechaActualizacion.isEmpty()) {
+                    String isoDate = fechaActualizacion.split("T")[0];
+                    JSONObject out = new JSONObject();
+                    out.put("status", "ok");
+                    out.put("usd", Math.round(usd * 100.0) / 100.0);
+                    out.put("isoDate", isoDate);
+                    out.put("shortDate", isoToShortDate(isoDate));
+                    out.put("fecha", isoToShortDate(isoDate));
+                    return out;
+                }
             }
         } catch (Exception ignored) {}
 

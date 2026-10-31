@@ -218,13 +218,17 @@ class NotificationService {
 
     const hasNextDay = Boolean(bcv.nextDay && bcv.nextDay.published && typeof bcv.nextDay.value === 'number' && bcv.nextDay.value > 0);
 
+    const currentCountryRates = mockEngine?.getCurrentCountry?.()?.rates;
+    const fallbackUsd = currentCountryRates?.bcv?.value || 0;
+    const fallbackEur = currentCountryRates?.euro?.value || 0;
+
     const usdVal = hasNextDay
       ? bcv.nextDay.value
-      : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : 889.26);
+      : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : fallbackUsd);
 
     const eurVal = (hasNextDay && euro.nextDay && typeof euro.nextDay.value === 'number' && euro.nextDay.value > 0)
       ? euro.nextDay.value
-      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : 992.80);
+      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : fallbackEur);
 
     const isoDate = (hasNextDay && bcv.nextDay._iso)
       ? bcv.nextDay._iso
