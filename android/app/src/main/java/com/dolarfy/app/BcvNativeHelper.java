@@ -9,6 +9,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.SystemClock;
 
@@ -211,8 +213,13 @@ public class BcvNativeHelper {
 
             String firstLine = body != null && body.contains("\n") ? body.split("\n")[0] : (body != null ? body : "");
 
+            Bitmap largeIcon = null;
+            try {
+                largeIcon = BitmapFactory.decodeResource(context.getResources(), R.drawable.logo_sin_fondo);
+            } catch (Exception ignored) {}
+
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title != null ? title : "📢 Nueva Tasa BCV Disponible")
                 .setContentText(firstLine)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body != null ? body : ""))
@@ -220,6 +227,10 @@ public class BcvNativeHelper {
                 .setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setAutoCancel(true)
                 .setContentIntent(contentIntent);
+
+            if (largeIcon != null) {
+                builder.setLargeIcon(largeIcon);
+            }
 
             nm.notify(NOTIFICATION_ID, builder.build());
             return true;

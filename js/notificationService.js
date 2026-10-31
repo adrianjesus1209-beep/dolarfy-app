@@ -140,8 +140,8 @@ class NotificationService {
             if (reg && typeof reg.showNotification === 'function') {
               await reg.showNotification(title, {
                 body,
-                icon: 'assets/icons/icon-192.png',
-                badge: 'assets/icons/favicon-32.png',
+                icon: 'assets/img/logo-sin-fondo.webp',
+                badge: 'assets/img/logo-sin-fondo.webp',
                 vibrate: [200, 100, 200],
                 tag: dedupKey || 'dolarfy-bcv-rate'
               });
@@ -153,7 +153,7 @@ class NotificationService {
         try {
           new Notification(title, {
             body,
-            icon: 'assets/icons/icon-192.png'
+            icon: 'assets/img/logo-sin-fondo.webp'
           });
         } catch (e) {}
       }
