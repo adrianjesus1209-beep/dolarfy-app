@@ -114,9 +114,6 @@ export class DashboardView {
     }
 
     const { bannerTag, bannerText, bannerSub, isManana, nextDayLabel } = this._computeBanner(rates);
-    const nextUsdVal = rates.bcv?.nextDay?.value;
-    const nextEurVal = rates.euro?.nextDay?.value;
-    const nextShortDate = rates.bcv?.nextDay?.shortDate || '';
 
     this.container.innerHTML = `
       <div class="space-y-5 pb-24 animate-fade-in">
@@ -148,26 +145,6 @@ export class DashboardView {
             <p id="dash-banner-sub" class="text-xs text-gray-300 mt-1">${bannerSub}</p>
           </div>
         </div>
-
-        ${hasNextDay && !isManana && nextUsdVal ? `
-          <!-- Tarjeta de Pronóstico Oficial Publicado (Fecha Valor Siguiente) -->
-          <div id="dash-forecast-alert" class="glass-card-interactive rounded-2xl p-4 border border-emerald-500/40 bg-emerald-950/20 flex items-center justify-between cursor-pointer shadow-lg">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-extrabold text-white">📢 Nueva Tasa BCV Disponible</span>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">${nextDayLabel}</span>
-              </div>
-              <p class="text-xs font-black text-emerald-400">
-                USD = Bs. ${nextUsdVal.toFixed(2)}${nextEurVal ? ` | EUR = Bs. ${nextEurVal.toFixed(2)}` : ''}
-              </p>
-              ${nextShortDate ? `<p class="text-[11px] text-gray-300 font-semibold">Fecha: ${nextShortDate}</p>` : ''}
-            </div>
-            <div class="flex items-center space-x-1 text-cyan-400 text-xs font-bold shrink-0 pl-2">
-              <span>Ver</span>
-              <i data-lucide="chevron-right" class="w-4 h-4"></i>
-            </div>
-          </div>
-        ` : ''}
 
         <!-- Encabezado de Tasas y Selector 'Hoy' / 'Mañana' -->
         <div>
@@ -380,14 +357,6 @@ export class DashboardView {
           }
         }
       });
-    });
-
-    const forecastAlert = this.container.querySelector('#dash-forecast-alert');
-    forecastAlert?.addEventListener('click', () => {
-      this._userSelectedDay = true;
-      markPredictionRead(rates);
-      this.selectedDay = 'manana';
-      this.render();
     });
   }
 
