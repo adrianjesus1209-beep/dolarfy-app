@@ -346,10 +346,11 @@ class ApiService {
   }
 
   getTodayIsoVet() {
-    const now = new Date();
-    const vetOffsetMs = -4 * 60 * 60 * 1000;
-    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
-    return new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+    } catch (e) {
+      return new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().split('T')[0];
+    }
   }
 
   _formatFechaValor(isoDate) {

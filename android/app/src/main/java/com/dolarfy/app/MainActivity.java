@@ -54,6 +54,34 @@ public class MainActivity extends BridgeActivity {
         super.onDestroy();
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1001 && grantResults != null && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            triggerAsyncSync(true);
+        }
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        try {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().evaluateJavascript(
+                    "(function(){ return Boolean(window.__handleAndroidBack && window.__handleAndroidBack()); })()",
+                    value -> {
+                        if (!"true".equals(value)) {
+                            MainActivity.super.onBackPressed();
+                        }
+                    }
+                );
+                return;
+            }
+        } catch (Exception ignored) {}
+        super.onBackPressed();
+    }
+
     private void ensureNotificationPermission() {
         try {
             if (Build.VERSION.SDK_INT >= 33) {
@@ -126,10 +154,10 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void showNotification(String title, String body, String dedupKey) {
-            if (dedupKey != null && !dedupKey.isEmpty()) {
+            boolean shown = BcvNativeHelper.showNativeNotification(getApplicationContext(), title, body);
+            if (shown && dedupKey != null && !dedupKey.isEmpty()) {
                 BcvNativeHelper.setLastNotifiedKey(getApplicationContext(), dedupKey);
             }
-            BcvNativeHelper.showNativeNotification(getApplicationContext(), title, body);
         }
 
         @JavascriptInterface

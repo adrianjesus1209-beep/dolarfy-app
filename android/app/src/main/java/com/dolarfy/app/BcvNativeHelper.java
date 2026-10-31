@@ -1,5 +1,6 @@
 package com.dolarfy.app;
 
+import android.Manifest;
 import android.app.AlarmManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -7,10 +8,12 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.SystemClock;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -134,10 +137,31 @@ public class BcvNativeHelper {
         return result;
     }
 
+    public static boolean canPostNotifications(Context context) {
+        if (context == null) return false;
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    return false;
+                }
+            }
+            NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !nm.areNotificationsEnabled()) {
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static void checkAndNotifyBcv(Context context, JSONObject bcv) {
         if (context == null || bcv == null) return;
         try {
             if (!isNotificationsEnabled(context)) return;
+            if (!canPostNotifications(context)) return;
             if (!"ok".equals(bcv.optString("status"))) return;
 
             double usd = bcv.optDouble("usd", 0);
@@ -153,18 +177,18 @@ public class BcvNativeHelper {
             String lastKey = getLastNotifiedKey(context);
             if (dedupKey.equals(lastKey)) return;
 
-            setLastNotifiedKey(context, dedupKey);
-
-            String title = "📢 Nueva Tasa BCV Disponible";
-            String body = "USD = Bs. " + usdStr + " | EUR = Bs. " + eurStr + "\nFecha: " + shortDate;
-            showNativeNotification(context, title, body);
+            if (showNativeNotification(context, "📢 Nueva Tasa BCV Disponible",
+                    "USD = Bs. " + usdStr + " | EUR = Bs. " + eurStr + "\nFecha: " + shortDate)) {
+                setLastNotifiedKey(context, dedupKey);
+            }
         } catch (Exception ignored) {}
     }
 
-    public static void showNativeNotification(Context context, String title, String body) {
+    public static boolean showNativeNotification(Context context, String title, String body) {
         try {
+            if (!canPostNotifications(context)) return false;
             NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm == null) return;
+            if (nm == null) return false;
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 NotificationChannel channel = new NotificationChannel(
@@ -198,7 +222,10 @@ public class BcvNativeHelper {
                 .setContentIntent(contentIntent);
 
             nm.notify(NOTIFICATION_ID, builder.build());
-        } catch (Exception ignored) {}
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static SSLContext createPermissiveSslContext() throws Exception {

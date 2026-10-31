@@ -1,5 +1,3 @@
-import { mockEngine } from '../mockData.js';
-
 export class CountryModal {
   constructor() {
     this.modalEl = null;

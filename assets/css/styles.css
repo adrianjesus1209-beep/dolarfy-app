@@ -239,11 +239,16 @@ html.light select option {
 
 /* Modales en modo claro */
 html.light #country-modal > div:last-child,
-html.light #notif-modal > div:last-child {
+html.light #notif-modal > div:last-child,
+html.light #country-modal-container > div > div,
+html.light #notification-modal-container > div > div,
+html.light #about-modal-container > div > div,
+html.light #calc-history-modal-container > div > div,
+html.light #dialog-modal-container > div > div {
   background-color: #FFFFFF !important;
-  border-color: rgba(15, 23, 42, 0.1) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
   color: #0F172A !important;
-  box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.15) !important;
 }
 
 /* Calculadora en modo claro */
@@ -288,8 +293,11 @@ html.light .bg-gradient-to-r {
   background-image: linear-gradient(to right, rgba(8, 145, 178, 0.12), rgba(37, 99, 235, 0.10), rgba(168, 85, 247, 0.12)) !important;
 }
 
-/* Modales/toast con fondo oscuro fijo (bg-[#0F141C]) */
-html.light div[class*="bg-[#0F141C]"] {
+/* Modales/toast con fondo oscuro fijo */
+html.light div[class*="bg-[#0F141C]"],
+html.light div[class*="bg-[#111622]"],
+html.light div[class*="bg-[#161B22]"] {
   background-color: #FFFFFF !important;
+  color: #0F172A !important;
 }
 

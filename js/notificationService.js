@@ -76,10 +76,11 @@ class NotificationService {
   }
 
   getTodayString() {
-    const now = new Date();
-    const vetOffsetMs = -4 * 60 * 60 * 1000;
-    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
-    return new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+    } catch (e) {
+      return new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().split('T')[0];
+    }
   }
 
   async hasPermission() {
@@ -112,7 +113,7 @@ class NotificationService {
    * 3. Notification API de escritorio (fallback)
    */
   async sendLocalNotification(entry, dedupKey = '') {
-    if (!this.enabled && entry.type !== 'test') return;
+    if (!this.enabled) return;
 
     const title = entry.title || '📢 Nueva Tasa BCV Disponible';
     const body = entry.body || `${entry.summaryLine || `${entry.rateName}: ${entry.formattedValue}`}${entry.fechaLine ? `\n${entry.fechaLine}` : ''}`;
@@ -171,6 +172,7 @@ class NotificationService {
     if (this.enabled) {
       await this.requestPermission();
       await this.scheduleDailyReminder();
+      await this.checkDailyUpdate(mockEngine.getCurrentCountry(), mockEngine.getRates());
     } else {
       await this.cancelDailyReminder();
     }
@@ -201,11 +203,16 @@ class NotificationService {
     }
   }
 
+  getLiveRateSummary(country, rates) {
+    if (!country || !rates || !rates.bcv) return null;
+    return this._buildBcvNotificationPayload(country, rates);
+  }
+
   /**
    * Construye los datos de notificación BCV (USD + EUR + Fecha DD/MM/YYYY)
    * priorizando la Fecha Valor futura (pronóstico) apenas es publicada por el BCV.
    */
-  _buildBcvNotificationPayload(country, rates, isTest = false) {
+  _buildBcvNotificationPayload(country, rates) {
     const bcv = rates?.bcv || {};
     const euro = rates?.euro || {};
 
@@ -213,11 +220,11 @@ class NotificationService {
 
     const usdVal = hasNextDay
       ? bcv.nextDay.value
-      : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : 889.58);
+      : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : 889.26);
 
     const eurVal = (hasNextDay && euro.nextDay && typeof euro.nextDay.value === 'number' && euro.nextDay.value > 0)
       ? euro.nextDay.value
-      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : 991.25);
+      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : 992.80);
 
     const isoDate = (hasNextDay && bcv.nextDay._iso)
       ? bcv.nextDay._iso
@@ -256,7 +263,7 @@ class NotificationService {
       date: shortDate,
       dedupKey,
       isNextDay: hasNextDay,
-      type: isTest ? 'test' : 'live'
+      type: 'live'
     };
   }
 
@@ -270,7 +277,7 @@ class NotificationService {
     // No disparar sobre datos placeholder antes de la primera sincronización real
     if (rates._meta?.placeholder) return;
 
-    const payload = this._buildBcvNotificationPayload(country, rates, false);
+    const payload = this._buildBcvNotificationPayload(country, rates);
     if (!payload || !payload.value) return;
 
     // Si ya notificamos exactamente esta misma Fecha Valor + tasa, omitir
@@ -302,19 +309,6 @@ class NotificationService {
   clearLogs() {
     this.logs = [];
     this.saveLogs();
-  }
-
-  async sendTestNotification() {
-    const country = mockEngine.getCurrentCountry();
-    const rates = mockEngine.getRates();
-    const testEntry = this._buildBcvNotificationPayload(country, rates, true);
-
-    this.logs.unshift(testEntry);
-    this.saveLogs();
-
-    await this.sendLocalNotification(testEntry, '');
-    this.showToast(testEntry);
-    return testEntry;
   }
 
   // ==========================================================================

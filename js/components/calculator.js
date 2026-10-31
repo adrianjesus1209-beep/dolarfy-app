@@ -135,6 +135,9 @@ export class CalculatorView {
     const fromSym = this.getCurrencySymbol(this.fromCurrency);
     const toSym = this.getCurrencySymbol(this.toCurrency);
     const nextDayLabel = this.getNextDayLabel(rates);
+    const quickAmounts = this.fromCurrency === 'VES'
+      ? [100, 500, 1000, 2000, 5000]
+      : [1, 5, 10, 20, 50, 100];
 
     this.container.innerHTML = `
       <div class="space-y-3 pb-24 animate-fade-in max-w-md mx-auto">
@@ -142,7 +145,7 @@ export class CalculatorView {
         <!-- 1. Barra Superior: Tasas + Selector Hoy/Predicción -->
         <div class="w-full text-xs space-y-2">
           <!-- Píldoras de Tasas del País -->
-          <div class="grid grid-cols-${Math.min(rateKeys.length, 4)} gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="rate-pills-group">
+          <div class="grid gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" style="grid-template-columns: repeat(${Math.min(rateKeys.length, 4)}, minmax(0, 1fr));" id="rate-pills-group">
             ${rateKeys.map(key => {
               const r = rates[key];
               const isSelected = this.selectedRateId === key;
@@ -216,6 +219,16 @@ export class CalculatorView {
 
         </div>
 
+        <!-- 2.5 Carga Rápida de Montos Predefinidos -->
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5" id="calc-quick-amounts">
+          <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider shrink-0 pl-1">Rápido:</span>
+          ${quickAmounts.map(val => `
+            <button data-quick-val="${val}" type="button" class="calc-quick-chip py-1 px-2.5 rounded-xl bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-gray-300 hover:text-cyan-300 text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0">
+              ${fromSym} ${val}
+            </button>
+          `).join('')}
+        </div>
+
         <!-- 3. Teclado Numérico de 5 Filas -->
         <div class="grid grid-cols-4 gap-2 pt-1" id="calc-keypad">
           <!-- Row 1 -->
@@ -260,10 +273,25 @@ export class CalculatorView {
   attachEvents() {
     const ratePills = document.querySelectorAll('.rate-pill-btn');
     const swapBtn = document.getElementById('swap-currency-btn');
-    const shiftBtn = document.getElementById('calc-shift-btn');
     const copyBtn = document.getElementById('copy-result-btn');
     const historyBtn = document.getElementById('calc-history-btn');
     const keypadKeys = document.querySelectorAll('#calc-keypad button');
+    const quickChips = this.container.querySelectorAll('.calc-quick-chip');
+
+    quickChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        const val = chip.getAttribute('data-quick-val');
+        if (val) {
+          this.expression = val;
+          const displayInput = document.getElementById('calc-display-input');
+          const currentSym = this.getCurrencySymbol(this.fromCurrency);
+          if (displayInput) {
+            displayInput.textContent = `${this.expression} ${currentSym}`;
+          }
+          this.calculate();
+        }
+      });
+    });
 
     // Selector Hoy / Predicción (Día Siguiente)
     const dayBtns = document.querySelectorAll('.calc-day-btn');
@@ -433,12 +461,19 @@ export class CalculatorView {
       if (!isNaN(evalResult) && isFinite(evalResult)) {
         this.expression = evalResult.toString().replace(/\./g, ',');
       }
-    } catch (e) {}
+    } catch (e) {
+      if (e.message && e.message.includes('cero')) {
+        this.expression = '0';
+      }
+    }
   }
 
   saveToHistory() {
     const equalityEl = document.getElementById('calc-equality-display');
     if (!equalityEl) return;
+    const resultText = equalityEl.textContent.trim();
+    if (resultText.includes('Indefinido') || this.expression === '0') return;
+
     const rates = this.currentCountry.rates;
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
 
@@ -565,6 +600,13 @@ export class CalculatorView {
         numericAmount = res;
       }
     } catch (e) {
+      if (e.message && e.message.includes('cero')) {
+        const equalityEl = document.getElementById('calc-equality-display');
+        if (equalityEl) {
+          equalityEl.textContent = 'Indefinido (÷ 0)';
+        }
+        return;
+      }
       numericAmount = parseFloat(this.expression.replace(/,/g, '.')) || 0;
     }
 

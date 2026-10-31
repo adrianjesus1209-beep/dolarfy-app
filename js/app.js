@@ -48,6 +48,32 @@ class App {
         this.navigateTo('analytics', true);
       }
     });
+
+    // Manejador global para cerrar modales abiertos con tecla Escape o botón Atrás de Android
+    window.__dolarfyCloseTopModal = () => {
+      const containers = [
+        '#country-modal-container',
+        '#notification-modal-container',
+        '#about-modal-container',
+        '#calc-history-modal-container',
+        '#dialog-modal-container'
+      ];
+      for (const sel of containers) {
+        const el = document.querySelector(sel);
+        if (el && el.innerHTML.trim().length > 0) {
+          el.innerHTML = '';
+          return true;
+        }
+      }
+      return false;
+    };
+    window.__handleAndroidBack = window.__dolarfyCloseTopModal;
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        window.__dolarfyCloseTopModal();
+      }
+    });
   }
 
   bindNotificationBell() {

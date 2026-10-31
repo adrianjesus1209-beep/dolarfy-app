@@ -246,22 +246,26 @@ export class SettingsView {
     });
 
     shareBtn?.addEventListener('click', async () => {
+      const shareUrl = (window.location.protocol === 'http:' && window.location.hostname === 'localhost') || window.location.protocol === 'file:'
+        ? 'https://github.com/adrianjesus1209-beep/dolarfy-app/releases/latest'
+        : window.location.href;
+
       if (navigator.share) {
         try {
           await navigator.share({
             title: 'Dolarfy - Cotizaciones en tiempo real',
             text: 'Calcula y consulta las tasas de cambio de Venezuela en tiempo real con Dolarfy.',
-            url: window.location.href
+            url: shareUrl
           });
         } catch (e) {
           console.warn('Share cancelled or error:', e);
         }
       } else {
         try {
-          await navigator.clipboard.writeText(window.location.href);
+          await navigator.clipboard.writeText(shareUrl);
           showToast('¡Enlace de Dolarfy copiado al portapapeles!', 'Compartir', 'check-circle');
         } catch {
-          showToast(`URL: ${window.location.href}`, 'Comparte Dolarfy', 'share-2');
+          showToast(`URL: ${shareUrl}`, 'Comparte Dolarfy', 'share-2');
         }
       }
     });

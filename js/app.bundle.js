@@ -7,7 +7,7 @@
  * Constantes globales de Dolarfy
  */
 
-const APP_VERSION = '1.0.5';
+const APP_VERSION = '1.0.6';
 
 // Clave de caché de tasas en localStorage. v4: soporte directo BCV en vivo + notificaciones exactas.
 const RATES_CACHE_VERSION = 'v4';
@@ -186,9 +186,9 @@ const markPredictionRead = (rates) => {
 
   // --- js/utils/mathEval.js ---
 /**
- * Evaluador matemático seguro para Dolarfy.
+ * Evaluador matemático seguro y preciso para Dolarfy.
  * Reemplaza el uso de eval() y new Function() en la calculadora.
- * Soporta + - * /, paréntesis, y decimales con coma o punto.
+ * Soporta + - * /, paréntesis, decimales con coma o punto, y previene divisiones por cero.
  */
 
 function tokenize(expr) {
@@ -210,7 +210,7 @@ function tokenize(expr) {
       continue;
     }
 
-    if (ch >= '0' && ch <= '9') {
+    if ((ch >= '0' && ch <= '9') || ch === ',' || ch === '.') {
       let j = i;
       let decimalSeen = false;
       while (j < n) {
@@ -219,15 +219,17 @@ function tokenize(expr) {
           j++;
           continue;
         }
-        if ((c === ',' || c === '.') && !decimalSeen && j + 1 < n && expr[j + 1] >= '0' && expr[j + 1] <= '9') {
+        if ((c === ',' || c === '.') && !decimalSeen) {
           decimalSeen = true;
           j++;
           continue;
         }
         break;
       }
-      const raw = expr.slice(i, j).replace(/,/g, '.');
-      tokens.push({ type: 'num', value: parseFloat(raw) });
+      let raw = expr.slice(i, j).replace(/,/g, '.');
+      if (raw === '.' || raw === '') raw = '0';
+      const num = parseFloat(raw);
+      tokens.push({ type: 'num', value: isNaN(num) ? 0 : num });
       i = j;
       continue;
     }
@@ -239,11 +241,12 @@ function tokenize(expr) {
 }
 
 function evaluateMath(expr) {
-  if (typeof expr !== 'string' || expr.trim() === '') return NaN;
+  if (typeof expr !== 'string' || expr.trim() === '') return 0;
 
-  const tokens = tokenize(expr);
+  const tokens = tokenize(expr.trim());
+  if (tokens.length === 0) return 0;
+
   let pos = 0;
-
   const peek = () => tokens[pos] || null;
   const next = () => tokens[pos++];
 
@@ -259,17 +262,17 @@ function evaluateMath(expr) {
 
   function parseNumber() {
     const t = next();
-    if (!t) throw new Error('Operando esperado');
+    if (!t) return 0;
     if (t.type === 'num') return t.value;
     if (t.type === 'op' && t.value === '(') {
       const value = parseExpr();
       const close = next();
       if (!close || close.type !== 'op' || close.value !== ')') {
-        throw new Error('Paréntesis sin cerrar');
+        return value;
       }
       return value;
     }
-    throw new Error('Operando esperado');
+    return 0;
   }
 
   function parseTerm() {
@@ -279,8 +282,15 @@ function evaluateMath(expr) {
       if (t && t.type === 'op' && (t.value === '*' || t.value === '/')) {
         next();
         const rhs = parseUnary();
-        if (t.value === '*') value *= rhs;
-        else value /= rhs;
+        if (t.value === '*') {
+          value = value * rhs;
+        } else {
+          if (rhs === 0) {
+            throw new Error('División entre cero');
+          }
+          value = value / rhs;
+        }
+        value = Math.round((value + Number.EPSILON) * 1e8) / 1e8;
       } else {
         break;
       }
@@ -295,8 +305,9 @@ function evaluateMath(expr) {
       if (t && t.type === 'op' && (t.value === '+' || t.value === '-')) {
         next();
         const rhs = parseTerm();
-        if (t.value === '+') value += rhs;
-        else value -= rhs;
+        if (t.value === '+') value = value + rhs;
+        else value = value - rhs;
+        value = Math.round((value + Number.EPSILON) * 1e8) / 1e8;
       } else {
         break;
       }
@@ -304,8 +315,10 @@ function evaluateMath(expr) {
     return value;
   }
 
-  return parseExpr();
+  const result = parseExpr();
+  return isFinite(result) ? result : 0;
 }
+
 
   // --- js/utils/toast.js ---
 function showToast(message, title = 'Dolarfy', icon = 'info') {
@@ -932,10 +945,11 @@ class ApiService {
   }
 
   getTodayIsoVet() {
-    const now = new Date();
-    const vetOffsetMs = -4 * 60 * 60 * 1000;
-    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
-    return new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+    } catch (e) {
+      return new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().split('T')[0];
+    }
   }
 
   _formatFechaValor(isoDate) {
@@ -1456,10 +1470,11 @@ class NotificationService {
   }
 
   getTodayString() {
-    const now = new Date();
-    const vetOffsetMs = -4 * 60 * 60 * 1000;
-    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
-    return new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+    } catch (e) {
+      return new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().split('T')[0];
+    }
   }
 
   async hasPermission() {
@@ -1492,7 +1507,7 @@ class NotificationService {
    * 3. Notification API de escritorio (fallback)
    */
   async sendLocalNotification(entry, dedupKey = '') {
-    if (!this.enabled && entry.type !== 'test') return;
+    if (!this.enabled) return;
 
     const title = entry.title || '📢 Nueva Tasa BCV Disponible';
     const body = entry.body || `${entry.summaryLine || `${entry.rateName}: ${entry.formattedValue}`}${entry.fechaLine ? `\n${entry.fechaLine}` : ''}`;
@@ -1551,6 +1566,7 @@ class NotificationService {
     if (this.enabled) {
       await this.requestPermission();
       await this.scheduleDailyReminder();
+      await this.checkDailyUpdate(mockEngine.getCurrentCountry(), mockEngine.getRates());
     } else {
       await this.cancelDailyReminder();
     }
@@ -1581,11 +1597,16 @@ class NotificationService {
     }
   }
 
+  getLiveRateSummary(country, rates) {
+    if (!country || !rates || !rates.bcv) return null;
+    return this._buildBcvNotificationPayload(country, rates);
+  }
+
   /**
    * Construye los datos de notificación BCV (USD + EUR + Fecha DD/MM/YYYY)
    * priorizando la Fecha Valor futura (pronóstico) apenas es publicada por el BCV.
    */
-  _buildBcvNotificationPayload(country, rates, isTest = false) {
+  _buildBcvNotificationPayload(country, rates) {
     const bcv = rates?.bcv || {};
     const euro = rates?.euro || {};
 
@@ -1593,11 +1614,11 @@ class NotificationService {
 
     const usdVal = hasNextDay
       ? bcv.nextDay.value
-      : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : 889.58);
+      : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : 889.26);
 
     const eurVal = (hasNextDay && euro.nextDay && typeof euro.nextDay.value === 'number' && euro.nextDay.value > 0)
       ? euro.nextDay.value
-      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : 991.25);
+      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : 992.80);
 
     const isoDate = (hasNextDay && bcv.nextDay._iso)
       ? bcv.nextDay._iso
@@ -1636,7 +1657,7 @@ class NotificationService {
       date: shortDate,
       dedupKey,
       isNextDay: hasNextDay,
-      type: isTest ? 'test' : 'live'
+      type: 'live'
     };
   }
 
@@ -1650,7 +1671,7 @@ class NotificationService {
     // No disparar sobre datos placeholder antes de la primera sincronización real
     if (rates._meta?.placeholder) return;
 
-    const payload = this._buildBcvNotificationPayload(country, rates, false);
+    const payload = this._buildBcvNotificationPayload(country, rates);
     if (!payload || !payload.value) return;
 
     // Si ya notificamos exactamente esta misma Fecha Valor + tasa, omitir
@@ -1682,19 +1703,6 @@ class NotificationService {
   clearLogs() {
     this.logs = [];
     this.saveLogs();
-  }
-
-  async sendTestNotification() {
-    const country = mockEngine.getCurrentCountry();
-    const rates = mockEngine.getRates();
-    const testEntry = this._buildBcvNotificationPayload(country, rates, true);
-
-    this.logs.unshift(testEntry);
-    this.saveLogs();
-
-    await this.sendLocalNotification(testEntry, '');
-    this.showToast(testEntry);
-    return testEntry;
   }
 
   // ==========================================================================
@@ -1977,6 +1985,8 @@ class NotificationModal {
     const isEnabled = notificationService.isEnabled();
     const logs = notificationService.getLogs();
     const currentCountry = mockEngine.getCurrentCountry();
+    const rates = mockEngine.getRates();
+    const livePreview = notificationService.getLiveRateSummary(currentCountry, rates);
 
     this.modalEl.innerHTML = `
       <div id="notification-modal-backdrop" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-fade-in">
@@ -1990,7 +2000,7 @@ class NotificationModal {
               </div>
               <div>
                 <h3 class="text-base font-extrabold text-white leading-tight">Centro de Alertas</h3>
-                <p class="text-[10px] text-cyan-400 font-semibold">Notificaciones Financieras en Tiempo Real</p>
+                <p class="text-[10px] text-cyan-400 font-semibold">Monitoreo BCV en Tiempo Real</p>
               </div>
             </div>
             <button id="close-notif-modal-btn" type="button" class="p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all active:scale-95 cursor-pointer">
@@ -2005,11 +2015,11 @@ class NotificationModal {
             <div class="glass-card rounded-2xl p-4 flex items-center justify-between border border-cyan-500/30 bg-gradient-to-r from-cyan-950/20 to-blue-950/20">
               <div class="pr-3">
                 <h4 class="text-xs font-extrabold text-white flex items-center gap-1.5">
-                  <span>Alertas Automáticas de Tasa</span>
+                  <span>Alertas Automáticas BCV</span>
                   ${isEnabled ? `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>` : ''}
                 </h4>
                 <p class="text-[11px] text-gray-400 mt-1 leading-snug">
-                  Recibe avisos inmediatos en tu dispositivo apenas el BCV o Binance actualicen sus tasas oficiales.
+                  Recibe una notificación inmediata en tu dispositivo cada vez que el BCV publique una nueva tasa oficial o Fecha Valor.
                 </p>
               </div>
 
@@ -2018,41 +2028,47 @@ class NotificationModal {
               </button>
             </div>
 
-            <!-- Action Bar Buttons (Test & Clear) -->
-            <div class="grid grid-cols-2 gap-2">
-              <button id="test-notif-btn" type="button" class="py-2.5 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-bold transition-all flex items-center justify-center space-x-1.5 active:scale-95 cursor-pointer">
-                <i data-lucide="send" class="w-3.5 h-3.5"></i>
-                <span>Probar Notificación</span>
-              </button>
-
-              <button id="clear-notif-btn" type="button" class="py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-red-400 text-xs font-bold transition-all flex items-center justify-center space-x-1.5 active:scale-95 cursor-pointer">
-                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                <span>Limpiar Historial</span>
-              </button>
-            </div>
-
-            <!-- Current Country Info Tip -->
-            <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center space-x-3 text-xs">
-              <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-6 h-6 rounded-full object-cover border border-cyan-500/30">
-              <div>
-                <p class="font-bold text-gray-200">País Activo: ${currentCountry.name}</p>
-                <p class="text-[10px] text-gray-400">Monitoreando aperturas y cierres bancarios del BCV.</p>
+            <!-- Estado actual de la tasa BCV detectada en vivo -->
+            ${livePreview ? `
+              <div class="bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-3.5 flex items-start justify-between">
+                <div class="flex items-start space-x-3">
+                  <img src="${currentCountry.flagUrl}" alt="${currentCountry.name}" class="w-6 h-6 rounded-full object-cover border border-emerald-500/40 mt-0.5">
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <p class="text-[11px] font-extrabold text-white">Última Tasa Oficial BCV Detectada</p>
+                    </div>
+                    <p class="text-xs font-black text-emerald-400 mt-1">${livePreview.summaryLine}</p>
+                    <p class="text-[10px] text-gray-300 font-semibold mt-0.5">${livePreview.fechaLine}</p>
+                  </div>
+                </div>
+                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                  ${livePreview.isNextDay ? 'Pronóstico' : 'Vigente'}
+                </span>
               </div>
-            </div>
+            ` : ''}
 
             <!-- Log History Section -->
             <div>
               <div class="flex justify-between items-center mb-3">
-                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Historial Reciente</h4>
-                <span class="text-[10px] text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">${logs.length} registros</span>
+                <div class="flex items-center gap-2">
+                  <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Historial de Alertas</h4>
+                  <span class="text-[10px] text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">${logs.length}</span>
+                </div>
+                ${logs.length > 0 ? `
+                  <button id="clear-notif-btn" type="button" class="py-1 px-2.5 rounded-lg bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-gray-400 hover:text-red-400 text-[11px] font-bold transition-all flex items-center space-x-1 active:scale-95 cursor-pointer">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i>
+                    <span>Limpiar Historial</span>
+                  </button>
+                ` : ''}
               </div>
 
               ${logs.length === 0 ? `
                 <div class="text-center py-8 bg-black/20 rounded-2xl border border-white/5 space-y-2">
-                  <i data-lucide="bell-off" class="w-8 h-8 text-gray-600 mx-auto"></i>
+                  <i data-lucide="bell-ring" class="w-8 h-8 text-gray-600 mx-auto"></i>
                   <p class="text-xs text-gray-400 font-semibold">Sin alertas registradas aún</p>
                   <p class="text-[10px] text-gray-500 max-w-xs mx-auto">
-                    Presiona "Probar Notificación" arriba para ver una simulación en vivo o espera a la próxima actualización del mercado.
+                    Recibirás una alerta automática aquí y en la barra de tu dispositivo apenas el BCV publique una nueva actualización oficial.
                   </p>
                 </div>
               ` : `
@@ -2101,16 +2117,6 @@ class NotificationModal {
       document.dispatchEvent(event);
     });
 
-    const testBtn = document.getElementById('test-notif-btn');
-    testBtn?.addEventListener('click', async () => {
-      await notificationService.sendTestNotification();
-      this.render();
-      if (window.lucide) window.lucide.createIcons();
-
-      const event = new CustomEvent('dolarfy:notification_toggled');
-      document.dispatchEvent(event);
-    });
-
     const clearBtn = document.getElementById('clear-notif-btn');
     clearBtn?.addEventListener('click', () => {
       notificationService.clearLogs();
@@ -2125,8 +2131,6 @@ class NotificationModal {
 
 
   // --- js/components/countryModal.js ---
-
-
 class CountryModal {
   constructor() {
     this.modalEl = null;
@@ -3019,6 +3023,9 @@ class CalculatorView {
     const fromSym = this.getCurrencySymbol(this.fromCurrency);
     const toSym = this.getCurrencySymbol(this.toCurrency);
     const nextDayLabel = this.getNextDayLabel(rates);
+    const quickAmounts = this.fromCurrency === 'VES'
+      ? [100, 500, 1000, 2000, 5000]
+      : [1, 5, 10, 20, 50, 100];
 
     this.container.innerHTML = `
       <div class="space-y-3 pb-24 animate-fade-in max-w-md mx-auto">
@@ -3026,7 +3033,7 @@ class CalculatorView {
         <!-- 1. Barra Superior: Tasas + Selector Hoy/Predicción -->
         <div class="w-full text-xs space-y-2">
           <!-- Píldoras de Tasas del País -->
-          <div class="grid grid-cols-${Math.min(rateKeys.length, 4)} gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" id="rate-pills-group">
+          <div class="grid gap-1 bg-black/40 p-1 rounded-2xl border border-white/10 w-full items-center" style="grid-template-columns: repeat(${Math.min(rateKeys.length, 4)}, minmax(0, 1fr));" id="rate-pills-group">
             ${rateKeys.map(key => {
               const r = rates[key];
               const isSelected = this.selectedRateId === key;
@@ -3100,6 +3107,16 @@ class CalculatorView {
 
         </div>
 
+        <!-- 2.5 Carga Rápida de Montos Predefinidos -->
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5" id="calc-quick-amounts">
+          <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider shrink-0 pl-1">Rápido:</span>
+          ${quickAmounts.map(val => `
+            <button data-quick-val="${val}" type="button" class="calc-quick-chip py-1 px-2.5 rounded-xl bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-gray-300 hover:text-cyan-300 text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0">
+              ${fromSym} ${val}
+            </button>
+          `).join('')}
+        </div>
+
         <!-- 3. Teclado Numérico de 5 Filas -->
         <div class="grid grid-cols-4 gap-2 pt-1" id="calc-keypad">
           <!-- Row 1 -->
@@ -3144,10 +3161,25 @@ class CalculatorView {
   attachEvents() {
     const ratePills = document.querySelectorAll('.rate-pill-btn');
     const swapBtn = document.getElementById('swap-currency-btn');
-    const shiftBtn = document.getElementById('calc-shift-btn');
     const copyBtn = document.getElementById('copy-result-btn');
     const historyBtn = document.getElementById('calc-history-btn');
     const keypadKeys = document.querySelectorAll('#calc-keypad button');
+    const quickChips = this.container.querySelectorAll('.calc-quick-chip');
+
+    quickChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        const val = chip.getAttribute('data-quick-val');
+        if (val) {
+          this.expression = val;
+          const displayInput = document.getElementById('calc-display-input');
+          const currentSym = this.getCurrencySymbol(this.fromCurrency);
+          if (displayInput) {
+            displayInput.textContent = `${this.expression} ${currentSym}`;
+          }
+          this.calculate();
+        }
+      });
+    });
 
     // Selector Hoy / Predicción (Día Siguiente)
     const dayBtns = document.querySelectorAll('.calc-day-btn');
@@ -3317,12 +3349,19 @@ class CalculatorView {
       if (!isNaN(evalResult) && isFinite(evalResult)) {
         this.expression = evalResult.toString().replace(/\./g, ',');
       }
-    } catch (e) {}
+    } catch (e) {
+      if (e.message && e.message.includes('cero')) {
+        this.expression = '0';
+      }
+    }
   }
 
   saveToHistory() {
     const equalityEl = document.getElementById('calc-equality-display');
     if (!equalityEl) return;
+    const resultText = equalityEl.textContent.trim();
+    if (resultText.includes('Indefinido') || this.expression === '0') return;
+
     const rates = this.currentCountry.rates;
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
 
@@ -3449,6 +3488,13 @@ class CalculatorView {
         numericAmount = res;
       }
     } catch (e) {
+      if (e.message && e.message.includes('cero')) {
+        const equalityEl = document.getElementById('calc-equality-display');
+        if (equalityEl) {
+          equalityEl.textContent = 'Indefinido (÷ 0)';
+        }
+        return;
+      }
       numericAmount = parseFloat(this.expression.replace(/,/g, '.')) || 0;
     }
 
@@ -4261,22 +4307,26 @@ class SettingsView {
     });
 
     shareBtn?.addEventListener('click', async () => {
+      const shareUrl = (window.location.protocol === 'http:' && window.location.hostname === 'localhost') || window.location.protocol === 'file:'
+        ? 'https://github.com/adrianjesus1209-beep/dolarfy-app/releases/latest'
+        : window.location.href;
+
       if (navigator.share) {
         try {
           await navigator.share({
             title: 'Dolarfy - Cotizaciones en tiempo real',
             text: 'Calcula y consulta las tasas de cambio de Venezuela en tiempo real con Dolarfy.',
-            url: window.location.href
+            url: shareUrl
           });
         } catch (e) {
           console.warn('Share cancelled or error:', e);
         }
       } else {
         try {
-          await navigator.clipboard.writeText(window.location.href);
+          await navigator.clipboard.writeText(shareUrl);
           showToast('¡Enlace de Dolarfy copiado al portapapeles!', 'Compartir', 'check-circle');
         } catch {
-          showToast(`URL: ${window.location.href}`, 'Comparte Dolarfy', 'share-2');
+          showToast(`URL: ${shareUrl}`, 'Comparte Dolarfy', 'share-2');
         }
       }
     });
@@ -4352,6 +4402,32 @@ class App {
     document.addEventListener('dolarfy:theme_changed', () => {
       if (this.activeTab === 'analytics' && this.currentView) {
         this.navigateTo('analytics', true);
+      }
+    });
+
+    // Manejador global para cerrar modales abiertos con tecla Escape o botón Atrás de Android
+    window.__dolarfyCloseTopModal = () => {
+      const containers = [
+        '#country-modal-container',
+        '#notification-modal-container',
+        '#about-modal-container',
+        '#calc-history-modal-container',
+        '#dialog-modal-container'
+      ];
+      for (const sel of containers) {
+        const el = document.querySelector(sel);
+        if (el && el.innerHTML.trim().length > 0) {
+          el.innerHTML = '';
+          return true;
+        }
+      }
+      return false;
+    };
+    window.__handleAndroidBack = window.__dolarfyCloseTopModal;
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        window.__dolarfyCloseTopModal();
       }
     });
   }

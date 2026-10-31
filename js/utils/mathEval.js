@@ -1,7 +1,7 @@
 /**
- * Evaluador matemático seguro para Dolarfy.
+ * Evaluador matemático seguro y preciso para Dolarfy.
  * Reemplaza el uso de eval() y new Function() en la calculadora.
- * Soporta + - * /, paréntesis, y decimales con coma o punto.
+ * Soporta + - * /, paréntesis, decimales con coma o punto, y previene divisiones por cero.
  */
 
 function tokenize(expr) {
@@ -23,7 +23,7 @@ function tokenize(expr) {
       continue;
     }
 
-    if (ch >= '0' && ch <= '9') {
+    if ((ch >= '0' && ch <= '9') || ch === ',' || ch === '.') {
       let j = i;
       let decimalSeen = false;
       while (j < n) {
@@ -32,15 +32,17 @@ function tokenize(expr) {
           j++;
           continue;
         }
-        if ((c === ',' || c === '.') && !decimalSeen && j + 1 < n && expr[j + 1] >= '0' && expr[j + 1] <= '9') {
+        if ((c === ',' || c === '.') && !decimalSeen) {
           decimalSeen = true;
           j++;
           continue;
         }
         break;
       }
-      const raw = expr.slice(i, j).replace(/,/g, '.');
-      tokens.push({ type: 'num', value: parseFloat(raw) });
+      let raw = expr.slice(i, j).replace(/,/g, '.');
+      if (raw === '.' || raw === '') raw = '0';
+      const num = parseFloat(raw);
+      tokens.push({ type: 'num', value: isNaN(num) ? 0 : num });
       i = j;
       continue;
     }
@@ -52,11 +54,12 @@ function tokenize(expr) {
 }
 
 export function evaluateMath(expr) {
-  if (typeof expr !== 'string' || expr.trim() === '') return NaN;
+  if (typeof expr !== 'string' || expr.trim() === '') return 0;
 
-  const tokens = tokenize(expr);
+  const tokens = tokenize(expr.trim());
+  if (tokens.length === 0) return 0;
+
   let pos = 0;
-
   const peek = () => tokens[pos] || null;
   const next = () => tokens[pos++];
 
@@ -72,17 +75,17 @@ export function evaluateMath(expr) {
 
   function parseNumber() {
     const t = next();
-    if (!t) throw new Error('Operando esperado');
+    if (!t) return 0;
     if (t.type === 'num') return t.value;
     if (t.type === 'op' && t.value === '(') {
       const value = parseExpr();
       const close = next();
       if (!close || close.type !== 'op' || close.value !== ')') {
-        throw new Error('Paréntesis sin cerrar');
+        return value;
       }
       return value;
     }
-    throw new Error('Operando esperado');
+    return 0;
   }
 
   function parseTerm() {
@@ -92,8 +95,15 @@ export function evaluateMath(expr) {
       if (t && t.type === 'op' && (t.value === '*' || t.value === '/')) {
         next();
         const rhs = parseUnary();
-        if (t.value === '*') value *= rhs;
-        else value /= rhs;
+        if (t.value === '*') {
+          value = value * rhs;
+        } else {
+          if (rhs === 0) {
+            throw new Error('División entre cero');
+          }
+          value = value / rhs;
+        }
+        value = Math.round((value + Number.EPSILON) * 1e8) / 1e8;
       } else {
         break;
       }
@@ -108,8 +118,9 @@ export function evaluateMath(expr) {
       if (t && t.type === 'op' && (t.value === '+' || t.value === '-')) {
         next();
         const rhs = parseTerm();
-        if (t.value === '+') value += rhs;
-        else value -= rhs;
+        if (t.value === '+') value = value + rhs;
+        else value = value - rhs;
+        value = Math.round((value + Number.EPSILON) * 1e8) / 1e8;
       } else {
         break;
       }
@@ -117,5 +128,6 @@ export function evaluateMath(expr) {
     return value;
   }
 
-  return parseExpr();
+  const result = parseExpr();
+  return isFinite(result) ? result : 0;
 }
