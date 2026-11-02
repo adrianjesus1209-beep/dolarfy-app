@@ -30,11 +30,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -96,10 +98,34 @@ public class BcvNativeHelper {
         } catch (Exception ignored) {}
     }
 
-    public static void scheduleRepeatingAlarm(Context context) {
+    public static long getNextCheckDelayMs() {
+        try {
+            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("America/Caracas"));
+            int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
+            int hour = cal.get(Calendar.HOUR_OF_DAY);
+            int minute = cal.get(Calendar.MINUTE);
+
+            boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
+            // Ventana crítica de publicación oficial del BCV: 15:45 (3:45 PM) a 18:00 (6:00 PM) VET
+            boolean isBcvWindow = isWeekday && (
+                (hour == 15 && minute >= 45) ||
+                (hour == 16) ||
+                (hour == 17)
+            );
+
+            if (isBcvWindow) {
+                return 5 * 60 * 1000L; // Cada 5 minutos durante la ventana crítica
+            }
+        } catch (Exception ignored) {}
+        return 15 * 60 * 1000L; // Cada 15 minutos en horario regular
+    }
+
+    public static void scheduleNextAlarm(Context context) {
+        if (context == null) return;
         try {
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (am == null) return;
+
             Intent intent = new Intent(context, BcvCheckReceiver.class);
             intent.setAction("com.dolarfy.app.ACTION_CHECK_BCV");
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
@@ -107,14 +133,29 @@ public class BcvNativeHelper {
                 flags |= PendingIntent.FLAG_IMMUTABLE;
             }
             PendingIntent pi = PendingIntent.getBroadcast(context, 7001, intent, flags);
-            long intervalMs = 15 * 60 * 1000L; // Cada 15 minutos en segundo plano
-            am.setInexactRepeating(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + 2 * 60 * 1000L,
-                intervalMs,
-                pi
-            );
+
+            long delayMs = getNextCheckDelayMs();
+            long triggerAt = SystemClock.elapsedRealtime() + delayMs;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (am.canScheduleExactAlarms()) {
+                        am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                    } else {
+                        am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                    }
+                } else {
+                    am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                }
+            } else {
+                am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+            }
         } catch (Exception ignored) {}
+    }
+
+    public static void scheduleRepeatingAlarm(Context context) {
+        scheduleNextAlarm(context);
+        BcvSyncWorker.enqueuePeriodicSync(context);
     }
 
     public static JSONObject syncLiveAll(Context context) {
@@ -213,26 +254,18 @@ public class BcvNativeHelper {
             }
             PendingIntent contentIntent = PendingIntent.getActivity(context, 0, launchIntent, piFlags);
 
-            String firstLine = body != null && body.contains("\n") ? body.split("\n")[0] : (body != null ? body : "");
-
-            Bitmap largeIcon = null;
-            try {
-                largeIcon = BitmapFactory.decodeResource(context.getResources(), R.drawable.logo_sin_fondo);
-            } catch (Exception ignored) {}
+            String collapsedText = body != null ? body.replace("\n", " ") : "";
+            String expandedText = body != null ? body : "";
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title != null ? title : "📢 Nueva Tasa BCV Disponible")
-                .setContentText(firstLine)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(body != null ? body : ""))
+                .setContentText(collapsedText)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(expandedText))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setAutoCancel(true)
                 .setContentIntent(contentIntent);
-
-            if (largeIcon != null) {
-                builder.setLargeIcon(largeIcon);
-            }
 
             nm.notify(NOTIFICATION_ID, builder.build());
             return true;

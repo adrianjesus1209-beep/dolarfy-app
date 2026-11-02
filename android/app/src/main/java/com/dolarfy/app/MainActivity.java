@@ -1,9 +1,14 @@
 package com.dolarfy.app;
 
 import android.Manifest;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -28,6 +33,7 @@ public class MainActivity extends BridgeActivity {
 
         ensureNotificationPermission();
         BcvNativeHelper.scheduleRepeatingAlarm(getApplicationContext());
+        BcvSyncWorker.enqueuePeriodicSync(getApplicationContext());
 
         try {
             if (getBridge() != null && getBridge().getWebView() != null) {
@@ -173,6 +179,40 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void requestNotificationPermission() {
             runOnUiThread(MainActivity.this::ensureNotificationPermission);
+        }
+
+        @JavascriptInterface
+        public boolean isIgnoringBatteryOptimizations() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null) {
+                    return pm.isIgnoringBatteryOptimizations(getPackageName());
+                }
+            }
+            return true;
+        }
+
+        @JavascriptInterface
+        public void requestBatteryOptimizationExemption() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                        if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                            intent.setData(Uri.parse("package:" + getPackageName()));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        }
+                    } catch (Exception e) {
+                        try {
+                            Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            });
         }
     }
 }
