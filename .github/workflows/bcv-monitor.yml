@@ -1,0 +1,39 @@
+name: BCV Realtime Monitor & Push Notifications
+
+on:
+  schedule:
+    # Lunes a Viernes entre 19:40 UTC y 22:15 UTC (3:40 PM a 6:15 PM hora Venezuela) cada 5 minutos
+    - cron: '*/5 19-22 * * 1-5'
+  workflow_dispatch: # Permite probarlo manualmente desde GitHub
+
+jobs:
+  check-and-notify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install firebase-admin
+
+      - name: Check BCV and Push Notification
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/bcv-cloud-monitor.js
+
+      - name: Commit updated state if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n $(git status -s state/last_bcv.json) ]]; then
+            git add state/last_bcv.json
+            git commit -m "chore(sync): actualizar estado de tasa BCV notificada [skip ci]"
+            git push origin main
+          fi

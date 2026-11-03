@@ -36,6 +36,10 @@ public class MainActivity extends BridgeActivity {
         BcvSyncWorker.enqueuePeriodicSync(getApplicationContext());
 
         try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("bcv_rates");
+        } catch (Exception ignored) {}
+
+        try {
             if (getBridge() != null && getBridge().getWebView() != null) {
                 WebView webView = getBridge().getWebView();
                 webView.addJavascriptInterface(new DolarfyBridge(), "DolarfyNative");
