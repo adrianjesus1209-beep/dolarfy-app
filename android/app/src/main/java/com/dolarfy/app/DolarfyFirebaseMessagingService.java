@@ -43,12 +43,13 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
                 String shortDate = data.get("shortDate");
                 String isoDate = data.get("isoDate");
                 String expanded = data.get("expandedText");
+                boolean isForce = "true".equalsIgnoreCase(data.get("force")) || "true".equalsIgnoreCase(data.get("test"));
 
                 if (body == null && usdStr != null) {
                     body = "USD = Bs. " + usdStr + " | EUR = Bs. " + (eurStr != null ? eurStr : "0.00") + " Fecha: " + (shortDate != null ? shortDate : "");
                 }
 
-                if (usdStr != null && isoDate != null) {
+                if (!isForce && usdStr != null && isoDate != null) {
                     String dedupKey = "VE_" + isoDate + "_" + usdStr + "_" + (eurStr != null ? eurStr : "0.00");
                     String lastKey = BcvNativeHelper.getLastNotifiedKey(context);
                     if (dedupKey.equals(lastKey)) return;

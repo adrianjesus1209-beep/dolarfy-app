@@ -7,7 +7,7 @@
  * Constantes globales de Dolarfy
  */
 
-const APP_VERSION = '1.0.13';
+const APP_VERSION = '1.0.14';
 
 // Clave de caché de tasas en localStorage. v4: soporte directo BCV en vivo + notificaciones exactas.
 const RATES_CACHE_VERSION = 'v4';
@@ -1991,8 +1991,6 @@ class NotificationModal {
     const currentCountry = mockEngine.getCurrentCountry();
     const rates = mockEngine.getRates();
     const livePreview = notificationService.getLiveRateSummary(currentCountry, rates);
-    const hasNativeBatteryCheck = typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.isIgnoringBatteryOptimizations === 'function';
-    const needsBatteryPermission = hasNativeBatteryCheck ? !window.DolarfyNative.isIgnoringBatteryOptimizations() : false;
 
     this.modalEl.innerHTML = `
       <div id="notification-modal-backdrop" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-fade-in">
@@ -2033,24 +2031,6 @@ class NotificationModal {
                 <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${isEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
               </button>
             </div>
-
-            <!-- Aviso de Ahorro de Batería en Android (Permite alertar a las 4:30 PM sin abrir la app) -->
-            ${needsBatteryPermission ? `
-              <div class="bg-amber-950/20 border border-amber-500/30 rounded-2xl p-3.5 flex items-center justify-between">
-                <div class="pr-3">
-                  <h5 class="text-xs font-extrabold text-amber-300 flex items-center gap-1.5">
-                    <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i>
-                    <span>Monitoreo en Segundo Plano</span>
-                  </h5>
-                  <p class="text-[11px] text-gray-300 mt-0.5 leading-snug">
-                    Desactiva el ahorro de batería para que Dolarfy detecte la nueva tasa apenas suba a las 4:30 PM sin tener que abrir la app.
-                  </p>
-                </div>
-                <button id="btn-battery-opt" type="button" class="px-3 py-1.5 text-xs font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl hover:bg-amber-500/30 transition-all active:scale-95 cursor-pointer shrink-0">
-                  Activar
-                </button>
-              </div>
-            ` : ''}
 
             <!-- Estado actual de la tasa BCV detectada en vivo -->
             ${livePreview ? `
@@ -2149,13 +2129,6 @@ class NotificationModal {
 
       const event = new CustomEvent('dolarfy:notification_toggled');
       document.dispatchEvent(event);
-    });
-
-    const batteryBtn = document.getElementById('btn-battery-opt');
-    batteryBtn?.addEventListener('click', () => {
-      if (typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.requestBatteryOptimizationExemption === 'function') {
-        window.DolarfyNative.requestBatteryOptimizationExemption();
-      }
     });
   }
 }
