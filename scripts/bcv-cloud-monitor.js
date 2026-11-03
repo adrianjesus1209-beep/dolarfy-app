@@ -47,7 +47,7 @@ async function fetchCurrentBcv() {
     const cb = Math.floor(Date.now() / 15000);
     const res = await fetchWithTimeout(`https://r.jina.ai/https://www.bcv.org.ve/?_cb=${cb}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-    }, 7000);
+    }, 12000);
 
     if (res.ok) {
       const text = await res.text();
@@ -81,8 +81,8 @@ async function fetchCurrentBcv() {
   // 2. Respaldo vía DolarApi Históricos (detecta la Fecha Valor oficial)
   try {
     const [usdRes, eurRes] = await Promise.all([
-      fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/dolares/oficial', {}, 5000),
-      fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/euros', {}, 5000)
+      fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/dolares/oficial', {}, 6000),
+      fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/euros/oficial', {}, 6000)
     ]);
 
     if (usdRes.ok) {
@@ -188,7 +188,9 @@ async function sendFirebasePush(rateData) {
     },
     android: {
       priority: 'high',
+      collapseKey: 'dolarfy_bcv_rate',
       notification: {
+        tag: 'dolarfy_bcv_alert',
         channelId: 'dolarfy_bcv_alerts',
         icon: 'ic_notification',
         color: '#10b981',
@@ -207,13 +209,13 @@ async function sendFirebasePush(rateData) {
   }
 }
 
-async function main() {
+async function checkOnce() {
   console.log('🔍 Consultando tasas oficiales del BCV en tiempo real...');
   const current = await fetchCurrentBcv();
 
   if (!current) {
-    console.log('⚠️ No se pudo obtener la tasa oficial del BCV en esta ejecución.');
-    return;
+    console.log('⚠️ No se pudo obtener la tasa oficial del BCV en este intento.');
+    return false;
   }
 
   console.log(`📊 Tasa detectada: USD = Bs. ${current.usd} | EUR = Bs. ${current.eur} | Fecha: ${current.isoDate} (${current.source})`);
@@ -223,8 +225,8 @@ async function main() {
   const lastKey = lastState ? `${lastState.isoDate}_${Number(lastState.usd).toFixed(2)}_${Number(lastState.eur).toFixed(2)}` : '';
 
   if (currentKey === lastKey) {
-    console.log(`ℹ️ La tasa actual (${currentKey}) ya fue notificada previamente. No se enviará duplicado.`);
-    return;
+    console.log(`ℹ️ La tasa actual (${currentKey}) ya fue notificada previamente.`);
+    return false;
   }
 
   console.log(`🚨 ¡NUEVA TASA DETECTADA! Anterior: ${lastKey || 'ninguna'} => Nueva: ${currentKey}`);
@@ -243,6 +245,35 @@ async function main() {
 
   saveState(newState);
   console.log('💾 Estado guardado en state/last_bcv.json.');
+  return true;
+}
+
+async function main() {
+  const isWatch = process.argv.includes('--watch');
+  if (!isWatch) {
+    await checkOnce();
+    return;
+  }
+
+  const MAX_MINUTES = 35;
+  const INTERVAL_MS = 25000; // cada 25 segundos
+  const startTime = Date.now();
+  console.log(`👀 Modo Vigilancia Activa iniciado (hasta ${MAX_MINUTES} minutos, revisión cada ${INTERVAL_MS / 1000}s)...`);
+
+  while (Date.now() - startTime < MAX_MINUTES * 60 * 1000) {
+    try {
+      const notified = await checkOnce();
+      if (notified) {
+        console.log('🎉 Nueva tasa notificada con éxito. Vigilancia finalizada.');
+        return;
+      }
+    } catch (e) {
+      console.warn('Error en ciclo de vigilancia:', e.message);
+    }
+    await new Promise(r => setTimeout(r, INTERVAL_MS));
+  }
+
+  console.log('⏱️ Tiempo máximo de vigilancia cumplido sin nueva tasa.');
 }
 
 main().catch(err => {

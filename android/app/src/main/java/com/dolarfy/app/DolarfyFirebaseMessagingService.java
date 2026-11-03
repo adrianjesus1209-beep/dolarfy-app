@@ -29,7 +29,8 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
             String title = "📢 Nueva Tasa BCV Disponible";
             String body = null;
 
-            if (remoteMessage.getNotification() != null) {
+            boolean hasSystemNotification = (remoteMessage.getNotification() != null);
+            if (hasSystemNotification) {
                 if (remoteMessage.getNotification().getTitle() != null) {
                     title = remoteMessage.getNotification().getTitle();
                 }
@@ -61,7 +62,9 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
                 }
             }
 
-            if (body != null) {
+            // Si ya traía notificación del sistema Google, Google Play Services la muestra directamente.
+            // Solo creamos la notificación local si es un mensaje data-only para evitar duplicados.
+            if (!hasSystemNotification && body != null) {
                 BcvNativeHelper.showNativeNotification(context, title, body);
             }
         } catch (Exception ignored) {}
