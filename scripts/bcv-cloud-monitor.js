@@ -133,25 +133,37 @@ function saveState(data) {
 }
 
 async function sendFirebasePush(rateData) {
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!serviceAccountJson) {
+    // Buscar archivo local para tests
+    const localKeys = fs.readdirSync(path.join(__dirname, '..')).filter(f => f.includes('firebase-adminsdk') && f.endsWith('.json'));
+    if (localKeys.length > 0) {
+      serviceAccountJson = fs.readFileSync(path.join(__dirname, '..', localKeys[0]), 'utf8');
+    }
+  }
+
   if (!serviceAccountJson) {
     console.log('⚠️ Secret FIREBASE_SERVICE_ACCOUNT no configurado. Push omitido.');
     return false;
   }
 
   const admin = require('firebase-admin');
-  if (admin.apps.length === 0) {
+  const { getMessaging } = require('firebase-admin/messaging');
+  let app;
+  if (admin.getApps().length === 0) {
     let serviceAccount;
     try {
-      serviceAccount = JSON.parse(serviceAccountJson);
+      serviceAccount = typeof serviceAccountJson === 'object' ? serviceAccountJson : JSON.parse(serviceAccountJson);
     } catch (e) {
       console.error('Error al parsear FIREBASE_SERVICE_ACCOUNT JSON:', e.message);
       return false;
     }
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+    app = admin.initializeApp({
+      credential: admin.cert(serviceAccount)
     });
+  } else {
+    app = admin.getApp();
   }
 
   const usdStr = rateData.usd.toFixed(2);
@@ -186,7 +198,7 @@ async function sendFirebasePush(rateData) {
   };
 
   try {
-    const response = await admin.messaging().send(message);
+    const response = await getMessaging(app).send(message);
     console.log('✅ Notificación Push enviada exitosamente vía Firebase:', response);
     return true;
   } catch (err) {
@@ -201,7 +213,7 @@ async function main() {
 
   if (!current) {
     console.log('⚠️ No se pudo obtener la tasa oficial del BCV en esta ejecución.');
-    process.exit(0);
+    return;
   }
 
   console.log(`📊 Tasa detectada: USD = Bs. ${current.usd} | EUR = Bs. ${current.eur} | Fecha: ${current.isoDate} (${current.source})`);
@@ -212,7 +224,7 @@ async function main() {
 
   if (currentKey === lastKey) {
     console.log(`ℹ️ La tasa actual (${currentKey}) ya fue notificada previamente. No se enviará duplicado.`);
-    process.exit(0);
+    return;
   }
 
   console.log(`🚨 ¡NUEVA TASA DETECTADA! Anterior: ${lastKey || 'ninguna'} => Nueva: ${currentKey}`);

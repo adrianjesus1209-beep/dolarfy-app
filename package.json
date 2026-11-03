@@ -1,6 +1,6 @@
 {
   "name": "dolarfy-app",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Calculadora y conversor de divisas con cotizaciones del dólar en tiempo real",
   "main": "index.html",
   "scripts": {
@@ -21,5 +21,8 @@
     "@capacitor/cli": "^8.6.0",
     "@capacitor/core": "^8.6.0",
     "sharp": "^0.35.5"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0"
   }
 }

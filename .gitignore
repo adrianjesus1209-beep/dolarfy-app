@@ -13,3 +13,8 @@ dist/
 www/
 build-output/
 scratch/
+
+# Firebase & Secret Keys
+*firebase-adminsdk*.json
+google-services.json
+
