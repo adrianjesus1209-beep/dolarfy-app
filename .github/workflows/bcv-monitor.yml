@@ -2,12 +2,16 @@ name: BCV Realtime Monitor & Push Notifications
 
 on:
   schedule:
-    # Lunes a Viernes: vigilancia activa continua durante la ventana del BCV (hora Venezuela / UTC-4)
-    # 20:10 UTC = 4:10 PM VET (vigila activamente 35 min cada 25s hasta las 4:45 PM)
-    # 20:45 UTC = 4:45 PM VET (vigila activamente 35 min cada 25s hasta las 5:20 PM)
-    # 21:20 UTC = 5:20 PM VET (vigila activamente 35 min cada 25s hasta las 5:55 PM)
-    - cron: '10 20 * * 1-5'
+    # Lunes a Viernes: vigilancia activa continua durante la ventana crítica del BCV (hora Venezuela / UTC-4)
+    # 20:20 UTC = 4:20 PM VET (vigilancia activa en tiempo real de 35 min cada 25s)
+    # 20:30 UTC = 4:30 PM VET
+    # 20:45 UTC = 4:45 PM VET
+    # 21:00 UTC = 5:00 PM VET
+    # 21:20 UTC = 5:20 PM VET
+    - cron: '20 20 * * 1-5'
+    - cron: '30 20 * * 1-5'
     - cron: '45 20 * * 1-5'
+    - cron: '0 21 * * 1-5'
     - cron: '20 21 * * 1-5'
   workflow_dispatch: # Permite probarlo manualmente desde GitHub o dispararlo vía webhook API
 

@@ -98,6 +98,24 @@ public class BcvNativeHelper {
         } catch (Exception ignored) {}
     }
 
+    public static boolean isBcvWindowActive() {
+        try {
+            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("America/Caracas"));
+            int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
+            int hour = cal.get(Calendar.HOUR_OF_DAY);
+            int minute = cal.get(Calendar.MINUTE);
+
+            boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
+            // Ventana activa de publicación oficial del BCV: 16:15 a 17:30 (4:15 PM a 5:30 PM VET)
+            return isWeekday && (
+                (hour == 16 && minute >= 15) ||
+                (hour == 17 && minute <= 30)
+            );
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     public static long getNextCheckDelayMs() {
         try {
             Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("America/Caracas"));
@@ -106,18 +124,22 @@ public class BcvNativeHelper {
             int minute = cal.get(Calendar.MINUTE);
 
             boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
-            // Ventana crítica de publicación oficial del BCV: 15:45 (3:45 PM) a 18:00 (6:00 PM) VET
-            boolean isBcvWindow = isWeekday && (
-                (hour == 15 && minute >= 45) ||
-                (hour == 16) ||
-                (hour == 17)
-            );
-
-            if (isBcvWindow) {
-                return 5 * 60 * 1000L; // Cada 5 minutos durante la ventana crítica
+            if (isWeekday) {
+                // 16:15 a 17:30: Ventana crítica de publicación del BCV -> Cada 2 minutos
+                if ((hour == 16 && minute >= 15) || (hour == 17 && minute <= 30)) {
+                    return 2 * 60 * 1000L;
+                }
+                // 15:45 a 16:15: Pre-ventana -> Cada 5 minutos
+                if (hour == 15 && minute >= 45) {
+                    return 5 * 60 * 1000L;
+                }
+                // 17:30 a 18:30: Post-ventana -> Cada 10 minutos
+                if (hour == 17 || hour == 18) {
+                    return 10 * 60 * 1000L;
+                }
             }
         } catch (Exception ignored) {}
-        return 15 * 60 * 1000L; // Cada 15 minutos en horario regular
+        return 20 * 60 * 1000L; // 20 minutos en horario regular
     }
 
     public static void scheduleNextAlarm(Context context) {
@@ -135,9 +157,16 @@ public class BcvNativeHelper {
             PendingIntent pi = PendingIntent.getBroadcast(context, 7001, intent, flags);
 
             long delayMs = getNextCheckDelayMs();
-            long triggerAt = SystemClock.elapsedRealtime() + delayMs;
+            boolean isCriticalWindow = isBcvWindowActive();
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (isCriticalWindow && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                // En la ventana crítica usamos setAlarmClock:
+                // Es inmune a Doze Mode, App Standby y optimizaciones de batería de fabricantes.
+                // Despierta la CPU en el milisegundo exacto para detectar la tasa al segundo que sube.
+                long triggerWallClock = System.currentTimeMillis() + delayMs;
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerWallClock, pi), pi);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                long triggerAt = SystemClock.elapsedRealtime() + delayMs;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     if (am.canScheduleExactAlarms()) {
                         am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
@@ -148,6 +177,7 @@ public class BcvNativeHelper {
                     am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
                 }
             } else {
+                long triggerAt = SystemClock.elapsedRealtime() + delayMs;
                 am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
             }
         } catch (Exception ignored) {}

@@ -41,8 +41,57 @@ function isoToShortDate(iso) {
   return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
 }
 
+function fetchBcvDirectHttps() {
+  return new Promise((resolve) => {
+    const https = require('https');
+    const req = https.get('https://www.bcv.org.ve/', {
+      rejectUnauthorized: false,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 7000
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const mUsd = data.match(/id="dolar"[\s\S]{0,800}?<strong[^>]*>\s*([\d.,]+)\s*<\/strong>/i);
+          const mEur = data.match(/id="euro"[\s\S]{0,800}?<strong[^>]*>\s*([\d.,]+)\s*<\/strong>/i);
+          const mFecha = data.match(/Fecha\s+Valor[\s\S]{0,500}?<span[^>]*>([^<]+)<\/span>/i);
+          if (mUsd) {
+            const usd = parseFloat(mUsd[1].trim().replace(/\./g, '').replace(',', '.'));
+            let eur = mEur ? parseFloat(mEur[1].trim().replace(/\./g, '').replace(',', '.')) : 0;
+            const fechaText = mFecha ? mFecha[1].trim().replace(/\s+/g, ' ') : '';
+            const isoDate = parseSpanishDateToIso(fechaText);
+            if (usd > 0 && isoDate) {
+              return resolve({
+                status: 'ok',
+                usd: parseFloat(usd.toFixed(2)),
+                eur: parseFloat(eur.toFixed(2)),
+                isoDate,
+                shortDate: isoToShortDate(isoDate),
+                fecha: fechaText,
+                source: 'bcv_direct_https'
+              });
+            }
+          }
+        } catch (e) {}
+        resolve(null);
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
 async function fetchCurrentBcv() {
-  // 1. Scraping directo de bcv.org.ve vía Jina Reader
+  // 1. Scraping ultra-rápido directo a bcv.org.ve vía HTTPS nativo (1.5 segundos)
+  try {
+    const direct = await fetchBcvDirectHttps();
+    if (direct) return direct;
+  } catch (e) {}
+
+  // 2. Scraping de respaldo vía Jina Reader
   try {
     const cb = Math.floor(Date.now() / 15000);
     const res = await fetchWithTimeout(`https://r.jina.ai/https://www.bcv.org.ve/?_cb=${cb}`, {
@@ -94,7 +143,10 @@ async function fetchCurrentBcv() {
         const lastEur = Array.isArray(eurList) && eurList.length > 0 ? eurList[eurList.length - 1] : null;
 
         const usd = parseFloat(parseFloat(lastUsd.promedio).toFixed(2));
-        const eur = lastEur ? parseFloat(parseFloat(lastEur.promedio).toFixed(2)) : 0;
+        let eur = lastEur ? parseFloat(parseFloat(lastEur.promedio).toFixed(2)) : 0;
+        if (eur > 0 && eur < 100 && usd > 100) {
+          eur = parseFloat((eur * 1000).toFixed(2));
+        }
         const isoDate = String(lastUsd.fecha).slice(0, 10);
 
         if (usd > 0 && isoDate) {
