@@ -159,26 +159,51 @@ public class BcvNativeHelper {
             long delayMs = getNextCheckDelayMs();
             boolean isCriticalWindow = isBcvWindowActive();
 
+            boolean alarmScheduled = false;
+
             if (isCriticalWindow && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 // En la ventana crítica usamos setAlarmClock:
-                // Es inmune a Doze Mode, App Standby y optimizaciones de batería de fabricantes.
-                // Despierta la CPU en el milisegundo exacto para detectar la tasa al segundo que sube.
-                long triggerWallClock = System.currentTimeMillis() + delayMs;
-                am.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerWallClock, pi), pi);
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // Es inmune a Doze Mode, App Standby y optimizaciones agresivas de batería.
+                // NOTA CRÍTICA AOSP: showIntent DEBE ser un PendingIntent de Activity (no Broadcast).
+                try {
+                    Intent showIntent = new Intent(context, MainActivity.class);
+                    showIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    PendingIntent showPi = PendingIntent.getActivity(context, 7002, showIntent, flags);
+
+                    long triggerWallClock = System.currentTimeMillis() + delayMs;
+                    am.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerWallClock, showPi), pi);
+                    alarmScheduled = true;
+                } catch (Throwable t) {
+                    // Fallback inmediato si el fabricante restringe setAlarmClock
+                }
+            }
+
+            if (!alarmScheduled) {
                 long triggerAt = SystemClock.elapsedRealtime() + delayMs;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (am.canScheduleExactAlarms()) {
-                        am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        try {
+                            if (am.canScheduleExactAlarms()) {
+                                am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                                alarmScheduled = true;
+                            }
+                        } catch (Throwable ignored) {}
                     } else {
-                        am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                        try {
+                            am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                            alarmScheduled = true;
+                        } catch (Throwable ignored) {}
+                    }
+
+                    if (!alarmScheduled) {
+                        try {
+                            am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                            alarmScheduled = true;
+                        } catch (Throwable ignored) {}
                     }
                 } else {
-                    am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                    am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
                 }
-            } else {
-                long triggerAt = SystemClock.elapsedRealtime() + delayMs;
-                am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
             }
         } catch (Exception ignored) {}
     }
@@ -364,26 +389,43 @@ public class BcvNativeHelper {
             }
         } catch (Exception ignored) {}
 
-        // 3. Respaldo vía DolarApi oficial
+        // 3. Respaldo vía DolarApi oficial (USD y EUR)
         try {
-            URL url = new URL("https://ve.dolarapi.com/v1/dolares/oficial");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(4000);
-            conn.setReadTimeout(4500);
-            conn.setRequestProperty("Accept", "application/json");
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            URL urlUsd = new URL("https://ve.dolarapi.com/v1/dolares/oficial");
+            HttpURLConnection connUsd = (HttpURLConnection) urlUsd.openConnection();
+            connUsd.setConnectTimeout(4000);
+            connUsd.setReadTimeout(4500);
+            connUsd.setRequestProperty("Accept", "application/json");
+            connUsd.setRequestProperty("User-Agent", "Mozilla/5.0");
 
-            if (conn.getResponseCode() == 200) {
-                String raw = readStream(conn.getInputStream());
-                JSONObject json = new JSONObject(raw);
-                double usd = json.optDouble("promedio", 0);
-                String fechaActualizacion = json.optString("fechaActualizacion", "");
+            if (connUsd.getResponseCode() == 200) {
+                String rawUsd = readStream(connUsd.getInputStream());
+                JSONObject jsonUsd = new JSONObject(rawUsd);
+                double usd = jsonUsd.optDouble("promedio", 0);
+                String fechaActualizacion = jsonUsd.optString("fechaActualizacion", "");
                 if (usd > 0 && !fechaActualizacion.isEmpty()) {
                     String isoDate = fechaActualizacion.split("T")[0];
+                    double eur = 0;
+                    try {
+                        URL urlEur = new URL("https://ve.dolarapi.com/v1/euros/oficial");
+                        HttpURLConnection connEur = (HttpURLConnection) urlEur.openConnection();
+                        connEur.setConnectTimeout(3500);
+                        connEur.setReadTimeout(4000);
+                        connEur.setRequestProperty("Accept", "application/json");
+                        connEur.setRequestProperty("User-Agent", "Mozilla/5.0");
+                        if (connEur.getResponseCode() == 200) {
+                            JSONObject jsonEur = new JSONObject(readStream(connEur.getInputStream()));
+                            eur = jsonEur.optDouble("promedio", 0);
+                            if (eur > 0 && eur < 100 && usd > 100) {
+                                eur = eur * 1000.0;
+                            }
+                        }
+                    } catch (Exception ignored) {}
+
                     JSONObject out = new JSONObject();
                     out.put("status", "ok");
                     out.put("usd", Math.round(usd * 100.0) / 100.0);
+                    if (eur > 0) out.put("eur", Math.round(eur * 100.0) / 100.0);
                     out.put("isoDate", isoDate);
                     out.put("shortDate", isoToShortDate(isoDate));
                     out.put("fecha", isoToShortDate(isoDate));

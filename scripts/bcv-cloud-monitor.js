@@ -276,27 +276,33 @@ async function checkOnce() {
   const currentKey = `${current.isoDate}_${current.usd.toFixed(2)}_${current.eur.toFixed(2)}`;
   const lastKey = lastState ? `${lastState.isoDate}_${Number(lastState.usd).toFixed(2)}_${Number(lastState.eur).toFixed(2)}` : '';
 
-  if (currentKey === lastKey) {
+  const isTest = process.argv.includes('--test');
+  const isForce = process.argv.includes('--force') || isTest;
+
+  if (!isForce && currentKey === lastKey) {
     console.log(`ℹ️ La tasa actual (${currentKey}) ya fue notificada previamente.`);
     return false;
   }
 
-  console.log(`🚨 ¡NUEVA TASA DETECTADA! Anterior: ${lastKey || 'ninguna'} => Nueva: ${currentKey}`);
+  console.log(`🚨 ${isTest ? '🧪 MODO PRUEBA DE NOTIFICACIÓN PUSH' : '¡NUEVA TASA DETECTADA!'} Anterior: ${lastKey || 'ninguna'} => Nueva: ${currentKey}`);
 
   const pushed = await sendFirebasePush(current);
 
-  // Actualizar estado persistente
-  const newState = {
-    usd: current.usd,
-    eur: current.eur,
-    isoDate: current.isoDate,
-    shortDate: current.shortDate,
-    pushed: Boolean(pushed),
-    notifiedAt: new Date().toISOString()
-  };
-
-  saveState(newState);
-  console.log('💾 Estado guardado en state/last_bcv.json.');
+  if (!isTest) {
+    // Actualizar estado persistente
+    const newState = {
+      usd: current.usd,
+      eur: current.eur,
+      isoDate: current.isoDate,
+      shortDate: current.shortDate,
+      pushed: Boolean(pushed),
+      notifiedAt: new Date().toISOString()
+    };
+    saveState(newState);
+    console.log('💾 Estado guardado en state/last_bcv.json.');
+  } else {
+    console.log('🧪 Push de prueba emitido con éxito. Estado no alterado.');
+  }
   return true;
 }
 

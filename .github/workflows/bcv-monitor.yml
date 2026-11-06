@@ -3,17 +3,24 @@ name: BCV Realtime Monitor & Push Notifications
 on:
   schedule:
     # Lunes a Viernes: vigilancia activa continua durante la ventana crítica del BCV (hora Venezuela / UTC-4)
-    # 20:20 UTC = 4:20 PM VET (vigilancia activa en tiempo real de 35 min cada 25s)
-    # 20:30 UTC = 4:30 PM VET
-    # 20:45 UTC = 4:45 PM VET
-    # 21:00 UTC = 5:00 PM VET
-    # 21:20 UTC = 5:20 PM VET
-    - cron: '20 20 * * 1-5'
-    - cron: '30 20 * * 1-5'
-    - cron: '45 20 * * 1-5'
-    - cron: '0 21 * * 1-5'
-    - cron: '20 21 * * 1-5'
-  workflow_dispatch: # Permite probarlo manualmente desde GitHub o dispararlo vía webhook API
+    # Usamos minutos no estándar (23, 38, 53) para reducir retrasos de cola en runners gratuitos de GitHub
+    # 20:23 UTC = 4:23 PM VET (vigilancia activa en tiempo real de 35 min cada 25s)
+    # 20:38 UTC = 4:38 PM VET
+    # 20:53 UTC = 4:53 PM VET
+    # 21:08 UTC = 5:08 PM VET
+    # 21:23 UTC = 5:23 PM VET
+    - cron: '23 20 * * 1-5'
+    - cron: '38 20 * * 1-5'
+    - cron: '53 20 * * 1-5'
+    - cron: '08 21 * * 1-5'
+    - cron: '23 21 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Enviar notificación push de prueba aunque ya exista'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   check-and-notify:
@@ -35,7 +42,13 @@ jobs:
       - name: Check BCV and Push Notification
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: node scripts/bcv-cloud-monitor.js --watch
+          IS_TEST: ${{ github.event.inputs.test }}
+        run: |
+          if [ "$IS_TEST" = "true" ]; then
+            node scripts/bcv-cloud-monitor.js --test
+          else
+            node scripts/bcv-cloud-monitor.js --watch
+          fi
 
       - name: Commit updated state if changed
         run: |
