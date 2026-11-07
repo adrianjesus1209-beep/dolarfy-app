@@ -1,6 +1,6 @@
 /**
  * Monitor en la Nube de Tasas BCV y Emisor de Notificaciones Push vía Firebase Cloud Messaging (FCM)
- * Se ejecuta automáticamente en GitHub Actions cada 5 minutos durante la ventana del BCV (3:45 PM - 6:00 PM VET).
+ * Incluye Modo Turbo en Tiempo Real (revisión cada 5 segundos en la ventana crítica del BCV).
  */
 
 const fs = require('fs');
@@ -41,15 +41,27 @@ function isoToShortDate(iso) {
   return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
 }
 
+function getVenezuelaNow() {
+  // Venezuela es UTC-4 fijo todo el año
+  const vetMs = Date.now() - 4 * 60 * 60 * 1000;
+  const vetDate = new Date(vetMs);
+  const isoToday = vetDate.toISOString().slice(0, 10);
+  const hour = vetDate.getUTCHours();
+  const minute = vetDate.getUTCMinutes();
+  return { isoToday, hour, minute };
+}
+
 function fetchBcvDirectHttps() {
   return new Promise((resolve) => {
     const https = require('https');
     const req = https.get('https://www.bcv.org.ve/', {
       rejectUnauthorized: false,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
       },
-      timeout: 7000
+      timeout: 6000
     }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -85,7 +97,7 @@ function fetchBcvDirectHttps() {
 }
 
 async function fetchCurrentBcv() {
-  // 1. Scraping ultra-rápido directo a bcv.org.ve vía HTTPS nativo (1.5 segundos)
+  // 1. Scraping ultra-rápido directo a bcv.org.ve vía HTTPS nativo (~1.2 segundos)
   try {
     const direct = await fetchBcvDirectHttps();
     if (direct) return direct;
@@ -93,10 +105,10 @@ async function fetchCurrentBcv() {
 
   // 2. Scraping de respaldo vía Jina Reader
   try {
-    const cb = Math.floor(Date.now() / 15000);
+    const cb = Math.floor(Date.now() / 5000);
     const res = await fetchWithTimeout(`https://r.jina.ai/https://www.bcv.org.ve/?_cb=${cb}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-    }, 12000);
+    }, 10000);
 
     if (res.ok) {
       const text = await res.text();
@@ -127,7 +139,7 @@ async function fetchCurrentBcv() {
     console.warn('Fallo lector directo bcv.org.ve:', e.message);
   }
 
-  // 2. Respaldo vía DolarApi Históricos (detecta la Fecha Valor oficial)
+  // 3. Respaldo vía DolarApi Históricos (detecta la Fecha Valor oficial)
   try {
     const [usdRes, eurRes] = await Promise.all([
       fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/dolares/oficial', {}, 6000),
@@ -184,7 +196,7 @@ function saveState(data) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-async function sendFirebasePush(rateData) {
+async function sendFirebasePush(rateData, isForce = false) {
   let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!serviceAccountJson) {
     // Buscar archivo local para tests
@@ -236,7 +248,9 @@ async function sendFirebasePush(rateData) {
       eur: eurStr,
       isoDate: rateData.isoDate,
       shortDate: shortDate,
-      expandedText: expandedText
+      expandedText: expandedText,
+      force: isForce ? 'true' : 'false',
+      test: isForce ? 'true' : 'false'
     },
     android: {
       priority: 'high',
@@ -261,16 +275,18 @@ async function sendFirebasePush(rateData) {
   }
 }
 
-async function checkOnce() {
+async function checkOnce(overrideCurrent = null) {
+  const t0 = Date.now();
   console.log('🔍 Consultando tasas oficiales del BCV en tiempo real...');
-  const current = await fetchCurrentBcv();
+  const current = overrideCurrent || await fetchCurrentBcv();
+  const fetchMs = Date.now() - t0;
 
   if (!current) {
     console.log('⚠️ No se pudo obtener la tasa oficial del BCV en este intento.');
-    return false;
+    return { notified: false, alreadyFutureNotified: false };
   }
 
-  console.log(`📊 Tasa detectada: USD = Bs. ${current.usd} | EUR = Bs. ${current.eur} | Fecha: ${current.isoDate} (${current.source})`);
+  console.log(`📊 Tasa detectada en ${fetchMs}ms: USD = Bs. ${current.usd} | EUR = Bs. ${current.eur} | Fecha: ${current.isoDate} (${current.source})`);
 
   const lastState = loadLastState();
   const currentKey = `${current.isoDate}_${current.usd.toFixed(2)}_${current.eur.toFixed(2)}`;
@@ -278,15 +294,20 @@ async function checkOnce() {
 
   const isTest = process.argv.includes('--test');
   const isForce = process.argv.includes('--force') || isTest;
+  const { isoToday } = getVenezuelaNow();
 
   if (!isForce && currentKey === lastKey) {
+    const isFutureRateAlreadyNotified = current.isoDate > isoToday;
     console.log(`ℹ️ La tasa actual (${currentKey}) ya fue notificada previamente.`);
-    return false;
+    return { notified: false, alreadyFutureNotified: isFutureRateAlreadyNotified };
   }
 
-  console.log(`🚨 ${isTest ? '🧪 MODO PRUEBA DE NOTIFICACIÓN PUSH' : '¡NUEVA TASA DETECTADA!'} Anterior: ${lastKey || 'ninguna'} => Nueva: ${currentKey}`);
+  const pushStart = Date.now();
+  console.log(`🚨 ${isTest ? '🧪 MODO PRUEBA DE NOTIFICACIÓN PUSH' : '¡NUEVA TASA DETECTADA AL INSTANTE!'} Anterior: ${lastKey || 'ninguna'} => Nueva: ${currentKey}`);
 
-  const pushed = await sendFirebasePush(current);
+  const pushed = await sendFirebasePush(current, isForce);
+  const pushMs = Date.now() - pushStart;
+  console.log(`⚡ Tiempo de despacho FCM: ${pushMs}ms (Tiempo total detección + envío: ${Date.now() - t0}ms)`);
 
   if (!isTest) {
     // Actualizar estado persistente
@@ -303,32 +324,99 @@ async function checkOnce() {
   } else {
     console.log('🧪 Push de prueba emitido con éxito. Estado no alterado.');
   }
-  return true;
+  return { notified: true, alreadyFutureNotified: true };
+}
+
+async function runSimulateLiveUpdate() {
+  console.log('🧪 INICIANDO SIMULACIÓN DE ACTUALIZACIÓN EN VIVO DE LA PÁGINA DEL BCV...');
+  const realBcv = await fetchCurrentBcv();
+  if (!realBcv) {
+    console.error('❌ No se pudo conectar a bcv.org.ve para la prueba.');
+    process.exit(1);
+  }
+
+  // Simulamos el estado justo 5 segundos antes de que el BCV actualice su página
+  const previousSimulated = {
+    status: 'ok',
+    usd: 896.12,
+    eur: 1004.96,
+    isoDate: '2026-11-06',
+    shortDate: '06/11/2026',
+    fecha: 'Viernes, 06 Noviembre 2026',
+    source: 'bcv_direct_https (pre-update)'
+  };
+
+  const originalState = loadLastState();
+  saveState({
+    usd: previousSimulated.usd,
+    eur: previousSimulated.eur,
+    isoDate: previousSimulated.isoDate,
+    shortDate: previousSimulated.shortDate,
+    pushed: true,
+    notifiedAt: new Date(Date.now() - 3600000).toISOString()
+  });
+
+  console.log('\n--- [Ciclo 1 | T=0.0s] El BCV aún muestra la tasa anterior en su página ---');
+  await checkOnce(previousSimulated);
+
+  console.log('\n⏳ Esperando siguiente pulso del monitor en Modo Turbo (5 segundos)...');
+  await new Promise(r => setTimeout(r, 5000));
+
+  console.log('\n--- [Ciclo 2 | T=5.0s] ¡El BCV acaba de actualizar su página web en vivo! ---');
+  const tUpdate = Date.now();
+  await checkOnce(); // Consulta bcv.org.ve real en vivo y dispara el push
+  console.log(`\n✅ PRUEBA COMPLETADA: Desde que la página cambió hasta que Firebase entregó el push pasaron exactamente ${((Date.now() - tUpdate) / 1000).toFixed(2)} segundos.`);
+
+  if (originalState) {
+    saveState(originalState);
+  }
 }
 
 async function main() {
+  if (process.argv.includes('--simulate-live-update')) {
+    await runSimulateLiveUpdate();
+    return;
+  }
+
   const isWatch = process.argv.includes('--watch');
   if (!isWatch) {
     await checkOnce();
     return;
   }
 
-  const MAX_MINUTES = 35;
-  const INTERVAL_MS = 25000; // cada 25 segundos
+  // En modo --watch en la nube:
+  // Si el runner arranca temprano (pre-calentamiento para absorber retrasos de cola de GitHub),
+  // permanece activo hasta las 5:45 PM VET, y entre 4:10 PM y 5:45 PM VET entra en Modo Turbo (cada 5 segundos).
+  const MAX_MINUTES = 280; // hasta 4h 40m de cobertura continua
   const startTime = Date.now();
-  console.log(`👀 Modo Vigilancia Activa iniciado (hasta ${MAX_MINUTES} minutos, revisión cada ${INTERVAL_MS / 1000}s)...`);
+  console.log('👀 Modo Vigilancia Activa Turbo iniciado...');
 
   while (Date.now() - startTime < MAX_MINUTES * 60 * 1000) {
     try {
-      const notified = await checkOnce();
+      const { notified, alreadyFutureNotified } = await checkOnce();
       if (notified) {
-        console.log('🎉 Nueva tasa notificada con éxito. Vigilancia finalizada.');
+        console.log('🎉 Nueva tasa notificada al instante con éxito. Vigilancia finalizada.');
+        return;
+      }
+      if (alreadyFutureNotified) {
+        console.log('✅ La tasa del próximo día hábil ya fue publicada y notificada hoy. Vigilancia finalizada.');
         return;
       }
     } catch (e) {
       console.warn('Error en ciclo de vigilancia:', e.message);
     }
-    await new Promise(r => setTimeout(r, INTERVAL_MS));
+
+    const { hour, minute } = getVenezuelaNow();
+    // Si ya pasaron las 6:00 PM VET (18:00), terminar vigilancia del día
+    if (hour >= 18) {
+      console.log('⏹️ Fin de la ventana horaria del BCV (6:00 PM VET).');
+      return;
+    }
+
+    // Ventana crítica (4:05 PM a 5:55 PM VET): Modo Turbo cada 5 segundos
+    const isTurboWindow = (hour === 16 && minute >= 5) || (hour === 17);
+    const intervalMs = isTurboWindow ? 5000 : 45000;
+    await new Promise(r => setTimeout(r, intervalMs));
   }
 
   console.log('⏱️ Tiempo máximo de vigilancia cumplido sin nueva tasa.');

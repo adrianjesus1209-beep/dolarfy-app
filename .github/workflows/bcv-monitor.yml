@@ -2,18 +2,17 @@ name: BCV Realtime Monitor & Push Notifications
 
 on:
   schedule:
-    # Lunes a Viernes: vigilancia activa continua durante la ventana crítica del BCV (hora Venezuela / UTC-4)
-    # Usamos minutos no estándar (23, 38, 53) para reducir retrasos de cola en runners gratuitos de GitHub
-    # 20:23 UTC = 4:23 PM VET (vigilancia activa en tiempo real de 35 min cada 25s)
-    # 20:38 UTC = 4:38 PM VET
-    # 20:53 UTC = 4:53 PM VET
-    # 21:08 UTC = 5:08 PM VET
-    # 21:23 UTC = 5:23 PM VET
-    - cron: '23 20 * * 1-5'
-    - cron: '38 20 * * 1-5'
-    - cron: '53 20 * * 1-5'
-    - cron: '08 21 * * 1-5'
-    - cron: '23 21 * * 1-5'
+    # Lunes a Viernes: Pre-calentamiento escalonado para absorber cualquier retraso de cola de GitHub Actions
+    # y mantener un runner activo en Modo Turbo (cada 5s) durante toda la ventana de 4:05 PM a 5:55 PM VET (UTC-4).
+    - cron: '15 15 * * 1-5' # 11:15 AM VET (absorbe retrasos de hasta 5 horas)
+    - cron: '15 16 * * 1-5' # 12:15 PM VET (absorbe retrasos de hasta 4 horas)
+    - cron: '15 17 * * 1-5' # 1:15 PM VET  (absorbe retrasos de hasta 3 horas)
+    - cron: '15 18 * * 1-5' # 2:15 PM VET  (absorbe retrasos de hasta 2 horas)
+    - cron: '15 19 * * 1-5' # 3:15 PM VET  (absorbe retrasos de hasta 1 hora)
+    - cron: '05 20 * * 1-5' # 4:05 PM VET  (inicio directo de ventana Turbo)
+    - cron: '23 20 * * 1-5' # 4:23 PM VET
+    - cron: '38 20 * * 1-5' # 4:38 PM VET
+    - cron: '53 20 * * 1-5' # 4:53 PM VET
   workflow_dispatch:
     inputs:
       test:
@@ -22,9 +21,14 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: bcv-realtime-monitor
+  cancel-in-progress: false
+
 jobs:
   check-and-notify:
     runs-on: ubuntu-latest
+    timeout-minutes: 300
     permissions:
       contents: write
     steps:
@@ -57,5 +61,6 @@ jobs:
           if [[ -n $(git status -s state/last_bcv.json) ]]; then
             git add state/last_bcv.json
             git commit -m "chore(sync): actualizar estado de tasa BCV notificada [skip ci]"
+            git pull --rebase origin main || true
             git push origin main
           fi
