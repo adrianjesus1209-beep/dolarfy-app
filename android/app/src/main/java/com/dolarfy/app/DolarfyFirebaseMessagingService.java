@@ -26,11 +26,12 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
         Context context = getApplicationContext();
 
         try {
+            if (!BcvNativeHelper.isNotificationsEnabled(context)) return;
+
             String title = "📢 Nueva Tasa BCV Disponible";
             String body = null;
 
-            boolean hasSystemNotification = (remoteMessage.getNotification() != null);
-            if (hasSystemNotification) {
+            if (remoteMessage.getNotification() != null) {
                 if (remoteMessage.getNotification().getTitle() != null) {
                     title = remoteMessage.getNotification().getTitle();
                 }
@@ -62,9 +63,10 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
                 }
             }
 
-            // Si ya traía notificación del sistema Google, Google Play Services la muestra directamente.
-            // Solo creamos la notificación local si es un mensaje data-only para evitar duplicados.
-            if (!hasSystemNotification && body != null) {
+            // En Android FCM, onMessageReceived se invoca cuando la app está abierta en primer plano
+            // o cuando el mensaje es data-only. Al compartir el tag "dolarfy_bcv_alert" e ID 0,
+            // garantizamos visualización instantánea sin duplicados.
+            if (body != null) {
                 BcvNativeHelper.showNativeNotification(context, title, body);
             }
         } catch (Exception ignored) {}

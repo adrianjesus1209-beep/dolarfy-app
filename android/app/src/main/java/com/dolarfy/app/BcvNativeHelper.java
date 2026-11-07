@@ -106,10 +106,10 @@ public class BcvNativeHelper {
             int minute = cal.get(Calendar.MINUTE);
 
             boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
-            // Ventana activa de publicación oficial del BCV: 16:15 a 17:30 (4:15 PM a 5:30 PM VET)
+            // Ventana activa de publicación oficial del BCV: 16:10 a 17:45 (4:10 PM a 5:45 PM VET)
             return isWeekday && (
-                (hour == 16 && minute >= 15) ||
-                (hour == 17 && minute <= 30)
+                (hour == 16 && minute >= 10) ||
+                (hour == 17 && minute <= 45)
             );
         } catch (Exception ignored) {
             return false;
@@ -125,9 +125,9 @@ public class BcvNativeHelper {
 
             boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
             if (isWeekday) {
-                // 16:15 a 17:30: Ventana crítica de publicación del BCV -> Cada 2 minutos
-                if ((hour == 16 && minute >= 15) || (hour == 17 && minute <= 30)) {
-                    return 2 * 60 * 1000L;
+                // 16:10 a 17:45: Ventana crítica de publicación del BCV -> Cada 1 minuto
+                if ((hour == 16 && minute >= 10) || (hour == 17 && minute <= 45)) {
+                    return 60 * 1000L;
                 }
                 // 15:45 a 16:15: Pre-ventana -> Cada 5 minutos
                 if (hour == 15 && minute >= 45) {
@@ -322,7 +322,8 @@ public class BcvNativeHelper {
                 .setAutoCancel(true)
                 .setContentIntent(contentIntent);
 
-            nm.notify(NOTIFICATION_ID, builder.build());
+            nm.cancel(NOTIFICATION_ID);
+            nm.notify("dolarfy_bcv_alert", 0, builder.build());
             return true;
         } catch (Exception ignored) {
             return false;
