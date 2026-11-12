@@ -390,47 +390,54 @@ public class BcvNativeHelper {
             }
         } catch (Exception ignored) {}
 
-        // 3. Respaldo vía DolarApi oficial (USD y EUR)
+        // 3. Respaldo vía DolarApi Históricos (USD y EUR con Fecha Valor oficial exacta)
         try {
-            URL urlUsd = new URL("https://ve.dolarapi.com/v1/dolares/oficial");
+            URL urlUsd = new URL("https://ve.dolarapi.com/v1/historicos/dolares/oficial");
             HttpURLConnection connUsd = (HttpURLConnection) urlUsd.openConnection();
-            connUsd.setConnectTimeout(4000);
-            connUsd.setReadTimeout(4500);
+            connUsd.setConnectTimeout(6000);
+            connUsd.setReadTimeout(7000);
             connUsd.setRequestProperty("Accept", "application/json");
             connUsd.setRequestProperty("User-Agent", "Mozilla/5.0");
 
             if (connUsd.getResponseCode() == 200) {
                 String rawUsd = readStream(connUsd.getInputStream());
-                JSONObject jsonUsd = new JSONObject(rawUsd);
-                double usd = jsonUsd.optDouble("promedio", 0);
-                String fechaActualizacion = jsonUsd.optString("fechaActualizacion", "");
-                if (usd > 0 && !fechaActualizacion.isEmpty()) {
-                    String isoDate = fechaActualizacion.split("T")[0];
-                    double eur = 0;
-                    try {
-                        URL urlEur = new URL("https://ve.dolarapi.com/v1/euros/oficial");
-                        HttpURLConnection connEur = (HttpURLConnection) urlEur.openConnection();
-                        connEur.setConnectTimeout(3500);
-                        connEur.setReadTimeout(4000);
-                        connEur.setRequestProperty("Accept", "application/json");
-                        connEur.setRequestProperty("User-Agent", "Mozilla/5.0");
-                        if (connEur.getResponseCode() == 200) {
-                            JSONObject jsonEur = new JSONObject(readStream(connEur.getInputStream()));
-                            eur = jsonEur.optDouble("promedio", 0);
-                            if (eur > 0 && eur < 100 && usd > 100) {
-                                eur = eur * 1000.0;
-                            }
-                        }
-                    } catch (Exception ignored) {}
+                JSONArray arrUsd = new JSONArray(rawUsd);
+                if (arrUsd.length() > 0) {
+                    JSONObject lastUsd = arrUsd.getJSONObject(arrUsd.length() - 1);
+                    double usd = lastUsd.optDouble("promedio", 0);
+                    String isoDate = lastUsd.optString("fecha", "").trim();
 
-                    JSONObject out = new JSONObject();
-                    out.put("status", "ok");
-                    out.put("usd", Math.round(usd * 100.0) / 100.0);
-                    if (eur > 0) out.put("eur", Math.round(eur * 100.0) / 100.0);
-                    out.put("isoDate", isoDate);
-                    out.put("shortDate", isoToShortDate(isoDate));
-                    out.put("fecha", isoToShortDate(isoDate));
-                    return out;
+                    if (usd > 0 && !isoDate.isEmpty()) {
+                        double eur = 0;
+                        try {
+                            URL urlEur = new URL("https://ve.dolarapi.com/v1/historicos/euros/oficial");
+                            HttpURLConnection connEur = (HttpURLConnection) urlEur.openConnection();
+                            connEur.setConnectTimeout(5000);
+                            connEur.setReadTimeout(5000);
+                            connEur.setRequestProperty("Accept", "application/json");
+                            connEur.setRequestProperty("User-Agent", "Mozilla/5.0");
+                            if (connEur.getResponseCode() == 200) {
+                                String rawEur = readStream(connEur.getInputStream());
+                                JSONArray arrEur = new JSONArray(rawEur);
+                                if (arrEur.length() > 0) {
+                                    JSONObject lastEur = arrEur.getJSONObject(arrEur.length() - 1);
+                                    eur = lastEur.optDouble("promedio", 0);
+                                    if (eur > 0 && eur < 100 && usd > 100) {
+                                        eur = eur * 1000.0;
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
+
+                        JSONObject out = new JSONObject();
+                        out.put("status", "ok");
+                        out.put("usd", Math.round(usd * 100.0) / 100.0);
+                        if (eur > 0) out.put("eur", Math.round(eur * 100.0) / 100.0);
+                        out.put("isoDate", isoDate);
+                        out.put("shortDate", isoToShortDate(isoDate));
+                        out.put("fecha", isoToShortDate(isoDate));
+                        return out;
+                    }
                 }
             }
         } catch (Exception ignored) {}
