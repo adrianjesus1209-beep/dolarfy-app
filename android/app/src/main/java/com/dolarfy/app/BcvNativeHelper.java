@@ -93,6 +93,30 @@ public class BcvNativeHelper {
         } catch (Exception ignored) {}
     }
 
+    public static String getTodayVenezuelaIso() {
+        try {
+            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("America/Caracas"));
+            return String.format(Locale.US, "%04d-%02d-%02d",
+                cal.get(Calendar.YEAR),
+                cal.get(Calendar.MONTH) + 1,
+                cal.get(Calendar.DAY_OF_MONTH));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static boolean isFutureRateAlreadyNotified(Context context) {
+        try {
+            String lastKey = getLastNotifiedKey(context);
+            if (lastKey != null && lastKey.startsWith("VE_") && lastKey.length() >= 13) {
+                String notifiedIso = lastKey.substring(3, 13);
+                String todayIso = getTodayVenezuelaIso();
+                return !todayIso.isEmpty() && notifiedIso.compareTo(todayIso) > 0;
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     public static boolean isBcvWindowActive() {
         try {
             Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("America/Caracas"));
@@ -101,10 +125,10 @@ public class BcvNativeHelper {
             int minute = cal.get(Calendar.MINUTE);
 
             boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
-            // Ventana activa de publicación oficial del BCV: 16:10 a 17:45 (4:10 PM a 5:45 PM VET)
+            // Ventana activa de publicación oficial del BCV: 16:05 a 17:55 (4:05 PM a 5:55 PM VET)
             return isWeekday && (
-                (hour == 16 && minute >= 10) ||
-                (hour == 17 && minute <= 45)
+                (hour == 16 && minute >= 5) ||
+                (hour == 17 && minute <= 55)
             );
         } catch (Exception ignored) {
             return false;
@@ -120,21 +144,21 @@ public class BcvNativeHelper {
 
             boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
             if (isWeekday) {
-                // 16:10 a 17:45: Ventana crítica de publicación del BCV -> Cada 1 minuto
-                if ((hour == 16 && minute >= 10) || (hour == 17 && minute <= 45)) {
-                    return 60 * 1000L;
+                // 16:05 a 17:55: Ventana crítica de publicación del BCV -> Cada 30 segundos
+                if ((hour == 16 && minute >= 5) || (hour == 17 && minute <= 55)) {
+                    return 30 * 1000L;
                 }
-                // 15:45 a 16:15: Pre-ventana -> Cada 5 minutos
-                if (hour == 15 && minute >= 45) {
-                    return 5 * 60 * 1000L;
+                // 15:40 a 16:05: Pre-ventana -> Cada 3 minutos
+                if (hour == 15 && minute >= 40) {
+                    return 3 * 60 * 1000L;
                 }
-                // 17:30 a 18:30: Post-ventana -> Cada 10 minutos
+                // 17:55 a 18:45: Post-ventana -> Cada 5 minutos
                 if (hour == 17 || hour == 18) {
-                    return 10 * 60 * 1000L;
+                    return 5 * 60 * 1000L;
                 }
             }
         } catch (Exception ignored) {}
-        return 20 * 60 * 1000L; // 20 minutos en horario regular
+        return 15 * 60 * 1000L; // 15 minutos en horario regular
     }
 
     public static void scheduleNextAlarm(Context context) {
@@ -279,22 +303,32 @@ public class BcvNativeHelper {
         } catch (Exception ignored) {}
     }
 
+    public static void ensureNotificationChannel(Context context) {
+        if (context == null) return;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    NotificationChannel channel = new NotificationChannel(
+                        CHANNEL_ID,
+                        "Alertas BCV Oficial",
+                        NotificationManager.IMPORTANCE_HIGH
+                    );
+                    channel.setDescription("Notificaciones en tiempo real de nuevas tasas oficiales del BCV");
+                    channel.enableVibration(true);
+                    nm.createNotificationChannel(channel);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
     public static boolean showNativeNotification(Context context, String title, String body) {
         try {
             if (!canPostNotifications(context)) return false;
             NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm == null) return false;
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Alertas BCV Oficial",
-                    NotificationManager.IMPORTANCE_HIGH
-                );
-                channel.setDescription("Notificaciones en tiempo real de nuevas tasas oficiales del BCV");
-                channel.enableVibration(true);
-                nm.createNotificationChannel(channel);
-            }
+            ensureNotificationChannel(context);
 
             Intent launchIntent = new Intent(context, MainActivity.class);
             launchIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -336,13 +370,56 @@ public class BcvNativeHelper {
         return sb.toString();
     }
 
+    private static boolean isBetterCandidate(JSONObject candidate, JSONObject currentBest) {
+        if (candidate == null || !"ok".equals(candidate.optString("status"))) return false;
+        if (currentBest == null || !"ok".equals(currentBest.optString("status"))) return true;
+        String candIso = candidate.optString("isoDate", "");
+        String bestIso = currentBest.optString("isoDate", "");
+        return candIso.compareTo(bestIso) > 0;
+    }
+
     public static JSONObject fetchBcvDirect() {
-        // 1. DolarApi Históricos (USD y EUR con Fecha Valor oficial exacta)
+        String todayIso = getTodayVenezuelaIso();
+        boolean inWindow = isBcvWindowActive();
+        JSONObject best = null;
+
+        // 1. Conexión directa oficial a https://www.bcv.org.ve/ (validada con CA Sectigo oficial en network_security_config.xml)
+        try {
+            long cb = System.currentTimeMillis() / 5000L;
+            URL url = new URL("https://www.bcv.org.ve/?_cb=" + cb);
+            HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(4500);
+            conn.setReadTimeout(5500);
+            conn.setUseCaches(false);
+            conn.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
+            conn.setRequestProperty("Pragma", "no-cache");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36");
+
+            if (conn.getResponseCode() == 200) {
+                String html = readStream(conn.getInputStream());
+                JSONObject parsed = parseBcvText(html);
+                if (isBetterCandidate(parsed, best)) {
+                    best = parsed;
+                }
+                // Si ya tenemos la tasa del próximo día hábil (> hoy) o estamos fuera de ventana crítica, retornar al instante
+                if (best != null) {
+                    String iso = best.optString("isoDate", "");
+                    if ((!todayIso.isEmpty() && iso.compareTo(todayIso) > 0) || !inWindow) {
+                        return best;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 2. DolarApi Históricos (USD y EUR con Fecha Valor oficial exacta)
         try {
             URL urlUsd = new URL("https://ve.dolarapi.com/v1/historicos/dolares/oficial");
             HttpURLConnection connUsd = (HttpURLConnection) urlUsd.openConnection();
-            connUsd.setConnectTimeout(6000);
-            connUsd.setReadTimeout(7000);
+            connUsd.setConnectTimeout(5000);
+            connUsd.setReadTimeout(6000);
+            connUsd.setUseCaches(false);
+            connUsd.setRequestProperty("Cache-Control", "no-cache");
             connUsd.setRequestProperty("Accept", "application/json");
             connUsd.setRequestProperty("User-Agent", "Mozilla/5.0");
 
@@ -359,8 +436,10 @@ public class BcvNativeHelper {
                         try {
                             URL urlEur = new URL("https://ve.dolarapi.com/v1/historicos/euros/oficial");
                             HttpURLConnection connEur = (HttpURLConnection) urlEur.openConnection();
-                            connEur.setConnectTimeout(5000);
+                            connEur.setConnectTimeout(4500);
                             connEur.setReadTimeout(5000);
+                            connEur.setUseCaches(false);
+                            connEur.setRequestProperty("Cache-Control", "no-cache");
                             connEur.setRequestProperty("Accept", "application/json");
                             connEur.setRequestProperty("User-Agent", "Mozilla/5.0");
                             if (connEur.getResponseCode() == 200) {
@@ -383,44 +462,44 @@ public class BcvNativeHelper {
                         out.put("isoDate", isoDate);
                         out.put("shortDate", isoToShortDate(isoDate));
                         out.put("fecha", isoToShortDate(isoDate));
-                        return out;
+
+                        if (isBetterCandidate(out, best)) {
+                            best = out;
+                        }
+                        if (best != null) {
+                            String iso = best.optString("isoDate", "");
+                            if ((!todayIso.isEmpty() && iso.compareTo(todayIso) > 0) || !inWindow) {
+                                return best;
+                            }
+                        }
                     }
                 }
             }
         } catch (Exception ignored) {}
 
-        // 2. Respaldo vía lector r.jina.ai
+        // 3. Respaldo en vivo vía lector r.jina.ai (con X-No-Cache para lectura fresca)
         try {
-            long cb = System.currentTimeMillis() / 15000L;
+            long cb = System.currentTimeMillis() / 5000L;
             URL url = new URL("https://r.jina.ai/https://www.bcv.org.ve/?_cb=" + cb);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(6000);
+            conn.setConnectTimeout(6000);
+            conn.setReadTimeout(9500);
+            conn.setUseCaches(false);
+            conn.setRequestProperty("X-No-Cache", "true");
+            conn.setRequestProperty("Cache-Control", "no-cache");
             conn.setRequestProperty("User-Agent", "Mozilla/5.0");
 
             if (conn.getResponseCode() == 200) {
                 String md = readStream(conn.getInputStream());
                 JSONObject parsed = parseBcvText(md);
-                if (parsed != null) return parsed;
+                if (isBetterCandidate(parsed, best)) {
+                    best = parsed;
+                }
             }
         } catch (Exception ignored) {}
 
-        // 3. Conexión directa a https://www.bcv.org.ve/ con HttpsURLConnection estándar
-        try {
-            URL url = new URL("https://www.bcv.org.ve/");
-            HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(4500);
-            conn.setReadTimeout(5500);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36");
-
-            if (conn.getResponseCode() == 200) {
-                String html = readStream(conn.getInputStream());
-                JSONObject parsed = parseBcvText(html);
-                if (parsed != null) return parsed;
-            }
-        } catch (Exception ignored) {}
+        if (best != null) return best;
 
         JSONObject fail = new JSONObject();
         try { fail.put("status", "fail"); } catch (Exception ignored) {}

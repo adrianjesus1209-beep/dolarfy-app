@@ -2,8 +2,9 @@ name: BCV Realtime Monitor & Push Notifications
 
 on:
   schedule:
-    # Lunes a Viernes: Ejecución cada 10 minutos entre 4:00 PM y 5:50 PM VET (20:00 a 21:50 UTC)
-    - cron: '*/10 20-21 * * 1-5'
+    # Lunes a Viernes: Pre-calentamiento desde 12:05 PM VET (16:05 UTC) hasta 5:35 PM VET (21:35 UTC)
+    # para absorber hasta 3 horas de cola en GitHub Actions y llegar a las 4:00 PM VET con el servidor ya encendido.
+    - cron: '5,35 16-21 * * 1-5'
   workflow_dispatch:
     inputs:
       test:
@@ -14,12 +15,12 @@ on:
 
 concurrency:
   group: bcv-realtime-monitor
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   check-and-notify:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 360
     permissions:
       contents: write
     steps:
@@ -32,7 +33,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install firebase-admin
+        run: npm install --no-save firebase-admin
 
       - name: Check BCV and Push Notification
         env:
@@ -50,6 +51,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if [[ -n $(git status -s state/last_bcv.json) ]]; then
+            git checkout -- package.json package-lock.json 2>/dev/null || true
             git add state/last_bcv.json
             git commit -m "chore(sync): actualizar estado de tasa BCV notificada [skip ci]"
             git pull --rebase origin main || true

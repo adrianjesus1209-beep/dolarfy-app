@@ -11,7 +11,8 @@ public class BcvCheckReceiver extends BroadcastReceiver {
         if (context == null) return;
         final Context appContext = context.getApplicationContext();
 
-        // 1. Siempre programar el siguiente ciclo para que la cadena de alarmas nunca se detenga
+        // 1. Asegurar canal de notificaciones y siguiente ciclo de alarmas
+        BcvNativeHelper.ensureNotificationChannel(appContext);
         BcvNativeHelper.scheduleNextAlarm(appContext);
 
         // 2. Asegurar también el trabajo periódico de WorkManager

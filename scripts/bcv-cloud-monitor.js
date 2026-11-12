@@ -96,50 +96,27 @@ function fetchBcvDirectHttps() {
   });
 }
 
+function isBetterRate(candidate, currentBest) {
+  if (!candidate || candidate.status !== 'ok' || !candidate.isoDate) return false;
+  if (!currentBest || currentBest.status !== 'ok' || !currentBest.isoDate) return true;
+  return candidate.isoDate > currentBest.isoDate;
+}
+
 async function fetchCurrentBcv() {
-  // 1. Scraping ultra-rápido directo a bcv.org.ve vía HTTPS nativo (~1.2 segundos)
+  const { isoToday, hour } = getVenezuelaNow();
+  const inWindow = (hour === 16 || hour === 17);
+  let best = null;
+
+  // 1. Scraping ultra-rápido directo a bcv.org.ve vía HTTPS nativo (~0.8 segundos)
   try {
     const direct = await fetchBcvDirectHttps();
-    if (direct) return direct;
+    if (isBetterRate(direct, best)) best = direct;
+    if (best && (best.isoDate > isoToday || !inWindow)) {
+      return best;
+    }
   } catch (e) {}
 
-  // 2. Scraping de respaldo vía Jina Reader
-  try {
-    const cb = Math.floor(Date.now() / 5000);
-    const res = await fetchWithTimeout(`https://r.jina.ai/https://www.bcv.org.ve/?_cb=${cb}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-    }, 10000);
-
-    if (res.ok) {
-      const text = await res.text();
-      const mdUsd = text.match(/\bUSD\b[\s\S]{0,120}?\*\*([\d.,]+)\*\*/i);
-      const mdEur = text.match(/\bEUR\b[\s\S]{0,120}?\*\*([\d.,]+)\*\*/i);
-      const mdFecha = text.match(/Fecha\s+Valor\s*:\s*([^\n\r*]+)/i);
-
-      if (mdUsd) {
-        const usd = parseFloat(mdUsd[1].trim().replace(/\./g, '').replace(',', '.'));
-        const eur = mdEur ? parseFloat(mdEur[1].trim().replace(/\./g, '').replace(',', '.')) : 0;
-        const fechaText = mdFecha ? mdFecha[1].trim().replace(/\s+/g, ' ') : '';
-        const isoDate = parseSpanishDateToIso(fechaText);
-
-        if (usd > 0 && isoDate) {
-          return {
-            status: 'ok',
-            usd: parseFloat(usd.toFixed(2)),
-            eur: parseFloat(eur.toFixed(2)),
-            isoDate,
-            shortDate: isoToShortDate(isoDate),
-            fecha: fechaText,
-            source: 'bcv_direct'
-          };
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('Fallo lector directo bcv.org.ve:', e.message);
-  }
-
-  // 3. Respaldo vía DolarApi Históricos (detecta la Fecha Valor oficial)
+  // 2. Respaldo vía DolarApi Históricos (detecta la Fecha Valor oficial)
   try {
     const [usdRes, eurRes] = await Promise.all([
       fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/dolares/oficial', {}, 6000),
@@ -162,7 +139,7 @@ async function fetchCurrentBcv() {
         const isoDate = String(lastUsd.fecha).slice(0, 10);
 
         if (usd > 0 && isoDate) {
-          return {
+          const dapi = {
             status: 'ok',
             usd,
             eur,
@@ -171,6 +148,10 @@ async function fetchCurrentBcv() {
             fecha: isoToShortDate(isoDate),
             source: 'dolarapi_historicos'
           };
+          if (isBetterRate(dapi, best)) best = dapi;
+          if (best && (best.isoDate > isoToday || !inWindow)) {
+            return best;
+          }
         }
       }
     }
@@ -178,7 +159,47 @@ async function fetchCurrentBcv() {
     console.warn('Fallo respaldo DolarApi:', e.message);
   }
 
-  return null;
+  // 3. Scraping de respaldo vía Jina Reader (con X-No-Cache)
+  try {
+    const cb = Math.floor(Date.now() / 5000);
+    const res = await fetchWithTimeout(`https://r.jina.ai/https://www.bcv.org.ve/?_cb=${cb}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'X-No-Cache': 'true'
+      }
+    }, 10000);
+
+    if (res.ok) {
+      const text = await res.text();
+      const mdUsd = text.match(/\bUSD\b[\s\S]{0,120}?\*\*([\d.,]+)\*\*/i);
+      const mdEur = text.match(/\bEUR\b[\s\S]{0,120}?\*\*([\d.,]+)\*\*/i);
+      const mdFecha = text.match(/Fecha\s+Valor\s*:\s*([^\n\r*]+)/i);
+
+      if (mdUsd) {
+        const usd = parseFloat(mdUsd[1].trim().replace(/\./g, '').replace(',', '.'));
+        const eur = mdEur ? parseFloat(mdEur[1].trim().replace(/\./g, '').replace(',', '.')) : 0;
+        const fechaText = mdFecha ? mdFecha[1].trim().replace(/\s+/g, ' ') : '';
+        const isoDate = parseSpanishDateToIso(fechaText);
+
+        if (usd > 0 && isoDate) {
+          const jina = {
+            status: 'ok',
+            usd: parseFloat(usd.toFixed(2)),
+            eur: parseFloat(eur.toFixed(2)),
+            isoDate,
+            shortDate: isoToShortDate(isoDate),
+            fecha: fechaText,
+            source: 'bcv_jina_live'
+          };
+          if (isBetterRate(jina, best)) best = jina;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Fallo lector Jina bcv.org.ve:', e.message);
+  }
+
+  return best;
 }
 
 function loadLastState() {
@@ -386,10 +407,10 @@ async function main() {
 
   // En modo --watch en la nube:
   // Si el runner arranca temprano (pre-calentamiento para absorber retrasos de cola de GitHub),
-  // permanece activo hasta las 5:45 PM VET, y entre 4:10 PM y 5:45 PM VET entra en Modo Turbo (cada 5 segundos).
-  const MAX_MINUTES = 280; // hasta 4h 40m de cobertura continua
+  // permanece activo hasta las 6:00 PM VET, y entre 4:00 PM y 5:58 PM VET entra en Modo Ultra-Turbo (cada 3 segundos).
+  const MAX_MINUTES = 345; // hasta 5h 45m de cobertura continua
   const startTime = Date.now();
-  console.log('👀 Modo Vigilancia Activa Turbo iniciado...');
+  console.log('👀 Modo Vigilancia Activa Ultra-Turbo iniciado...');
 
   while (Date.now() - startTime < MAX_MINUTES * 60 * 1000) {
     try {
@@ -413,9 +434,9 @@ async function main() {
       return;
     }
 
-    // Ventana crítica (4:05 PM a 5:55 PM VET): Modo Turbo cada 5 segundos
-    const isTurboWindow = (hour === 16 && minute >= 5) || (hour === 17);
-    const intervalMs = isTurboWindow ? 5000 : 45000;
+    // Ventana crítica (4:00 PM a 5:58 PM VET): Modo Ultra-Turbo cada 3 segundos
+    const isTurboWindow = (hour === 16) || (hour === 17 && minute <= 58);
+    const intervalMs = isTurboWindow ? 3000 : 45000;
     await new Promise(r => setTimeout(r, intervalMs));
   }
 

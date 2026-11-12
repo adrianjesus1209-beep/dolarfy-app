@@ -30,6 +30,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        BcvNativeHelper.ensureNotificationChannel(getApplicationContext());
         ensureNotificationPermission();
         BcvNativeHelper.scheduleRepeatingAlarm(getApplicationContext());
         BcvSyncWorker.enqueuePeriodicSync(getApplicationContext());
