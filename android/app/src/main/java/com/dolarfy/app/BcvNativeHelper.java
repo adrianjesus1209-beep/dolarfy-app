@@ -27,8 +27,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -41,9 +39,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 public class BcvNativeHelper {
     public static final String PREFS_NAME = "dolarfy_native_prefs";
@@ -330,19 +325,6 @@ public class BcvNativeHelper {
         }
     }
 
-    private static SSLContext createPermissiveSslContext() throws Exception {
-        TrustManager[] trustAllCerts = new TrustManager[]{
-            new X509TrustManager() {
-                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-                public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-                public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-            }
-        };
-        SSLContext sc = SSLContext.getInstance("TLS");
-        sc.init(null, trustAllCerts, new SecureRandom());
-        return sc;
-    }
-
     private static String readStream(InputStream is) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
         StringBuilder sb = new StringBuilder();
@@ -355,42 +337,7 @@ public class BcvNativeHelper {
     }
 
     public static JSONObject fetchBcvDirect() {
-        // 1. Conexión directa a https://www.bcv.org.ve/ ignorando certificado intermedio incompleto del BCV
-        try {
-            URL url = new URL("https://www.bcv.org.ve/");
-            HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
-            conn.setSSLSocketFactory(createPermissiveSslContext().getSocketFactory());
-            conn.setHostnameVerifier((hostname, session) -> true);
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(4500);
-            conn.setReadTimeout(5500);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36");
-
-            if (conn.getResponseCode() == 200) {
-                String html = readStream(conn.getInputStream());
-                JSONObject parsed = parseBcvText(html);
-                if (parsed != null) return parsed;
-            }
-        } catch (Exception ignored) {}
-
-        // 2. Respaldo vía lector en vivo r.jina.ai
-        try {
-            long cb = System.currentTimeMillis() / 15000L;
-            URL url = new URL("https://r.jina.ai/https://www.bcv.org.ve/?_cb=" + cb);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(4500);
-            conn.setReadTimeout(5500);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-
-            if (conn.getResponseCode() == 200) {
-                String md = readStream(conn.getInputStream());
-                JSONObject parsed = parseBcvText(md);
-                if (parsed != null) return parsed;
-            }
-        } catch (Exception ignored) {}
-
-        // 3. Respaldo vía DolarApi Históricos (USD y EUR con Fecha Valor oficial exacta)
+        // 1. DolarApi Históricos (USD y EUR con Fecha Valor oficial exacta)
         try {
             URL urlUsd = new URL("https://ve.dolarapi.com/v1/historicos/dolares/oficial");
             HttpURLConnection connUsd = (HttpURLConnection) urlUsd.openConnection();
@@ -439,6 +386,39 @@ public class BcvNativeHelper {
                         return out;
                     }
                 }
+            }
+        } catch (Exception ignored) {}
+
+        // 2. Respaldo vía lector r.jina.ai
+        try {
+            long cb = System.currentTimeMillis() / 15000L;
+            URL url = new URL("https://r.jina.ai/https://www.bcv.org.ve/?_cb=" + cb);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(6000);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+
+            if (conn.getResponseCode() == 200) {
+                String md = readStream(conn.getInputStream());
+                JSONObject parsed = parseBcvText(md);
+                if (parsed != null) return parsed;
+            }
+        } catch (Exception ignored) {}
+
+        // 3. Conexión directa a https://www.bcv.org.ve/ con HttpsURLConnection estándar
+        try {
+            URL url = new URL("https://www.bcv.org.ve/");
+            HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(4500);
+            conn.setReadTimeout(5500);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36");
+
+            if (conn.getResponseCode() == 200) {
+                String html = readStream(conn.getInputStream());
+                JSONObject parsed = parseBcvText(html);
+                if (parsed != null) return parsed;
             }
         } catch (Exception ignored) {}
 
