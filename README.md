@@ -36,4 +36,4 @@ Dolarfy es una aplicación Web (SPA) ligera, rápida y moderna para consultar co
 
 ## Créditos y Licencia
 
-Desarrollado y mantenido por Adrián Bello.
+Desarrollado y mantenido por Adrián Bello. xd
