@@ -2,9 +2,8 @@ name: BCV Realtime Monitor & Push Notifications
 
 on:
   schedule:
-    # Lunes a Viernes: Pre-calentamiento desde 12:05 PM VET (16:05 UTC) hasta 5:35 PM VET (21:35 UTC)
-    # para absorber hasta 3 horas de cola en GitHub Actions y llegar a las 4:00 PM VET con el servidor ya encendido.
-    - cron: '5,35 16-21 * * 1-5'
+    # Red de seguridad 24/7 cada 30 minutos por si GitHub reinicia máquinas físicas
+    - cron: '12,42 * * * *'
   workflow_dispatch:
     inputs:
       test:
@@ -12,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      max_minutes:
+        description: 'Duración del turno en minutos (por defecto 310 = 5h 10m)'
+        required: false
+        default: '310'
+        type: string
 
 concurrency:
   group: bcv-realtime-monitor
@@ -20,9 +24,10 @@ concurrency:
 jobs:
   check-and-notify:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 350
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,6 +44,7 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           IS_TEST: ${{ github.event.inputs.test }}
+          MAX_WATCH_MINUTES: ${{ github.event.inputs.max_minutes }}
         run: |
           if [ "$IS_TEST" = "true" ]; then
             node scripts/bcv-cloud-monitor.js --test
@@ -47,13 +53,22 @@ jobs:
           fi
 
       - name: Commit updated state if changed
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if [[ -n $(git status -s state/last_bcv.json) ]]; then
             git checkout -- package.json package-lock.json 2>/dev/null || true
             git add state/last_bcv.json
-            git commit -m "chore(sync): actualizar estado de tasa BCV notificada [skip ci]"
+            git commit -m "chore(sync): actualizar estado de tasa BCV notificada"
             git pull --rebase origin main || true
             git push origin main
           fi
+
+      - name: Relay next monitor shift (Auto-Chain via workflow_dispatch)
+        if: always() && github.event.inputs.test != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_RELAY_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🚀 Disparando siguiente turno continuo por vía rápida (workflow_dispatch)..."
+          gh workflow run bcv-monitor.yml --ref main || true

@@ -48,7 +48,8 @@ function getVenezuelaNow() {
   const isoToday = vetDate.toISOString().slice(0, 10);
   const hour = vetDate.getUTCHours();
   const minute = vetDate.getUTCMinutes();
-  return { isoToday, hour, minute };
+  const dayOfWeek = vetDate.getUTCDay(); // 0 = Dom, 1 = Lun, ..., 6 = Sab
+  return { isoToday, hour, minute, dayOfWeek };
 }
 
 function fetchBcvDirectHttps() {
@@ -406,41 +407,74 @@ async function main() {
   }
 
   // En modo --watch en la nube:
-  // Si el runner arranca temprano (pre-calentamiento para absorber retrasos de cola de GitHub),
-  // permanece activo hasta las 6:00 PM VET, y entre 4:00 PM y 5:58 PM VET entra en Modo Ultra-Turbo (cada 3 segundos).
-  const MAX_MINUTES = 345; // hasta 5h 45m de cobertura continua
+  // Turnos continuos de 5h 10m (310 min) encadenados automáticamente por workflow_dispatch (2s de arranque).
+  // El servidor NUNCA se apaga en horas muertas: permanece en Modo Guardia Continua y a las 3:45 PM VET
+  // entra al instante en Modo Ultra-Turbo (cada 2.5 segundos) con 0 segundos de espera en cola.
+  const MAX_MINUTES = Number(process.env.MAX_WATCH_MINUTES) > 0
+    ? Number(process.env.MAX_WATCH_MINUTES)
+    : 310;
   const startTime = Date.now();
-  console.log('👀 Modo Vigilancia Activa Ultra-Turbo iniciado...');
+  console.log(`👀 Modo Vigilancia Perpetua Ultra-Turbo iniciado (Turno de ${MAX_MINUTES} min)...`);
 
   while (Date.now() - startTime < MAX_MINUTES * 60 * 1000) {
+    let notified = false;
+    let alreadyFutureNotified = false;
     try {
-      const { notified, alreadyFutureNotified } = await checkOnce();
+      const res = await checkOnce();
+      notified = res.notified;
+      alreadyFutureNotified = res.alreadyFutureNotified;
       if (notified) {
-        console.log('🎉 Nueva tasa notificada al instante con éxito. Vigilancia finalizada.');
-        return;
-      }
-      if (alreadyFutureNotified) {
-        console.log('✅ La tasa del próximo día hábil ya fue publicada y notificada hoy. Vigilancia finalizada.');
+        console.log('🎉 Nueva tasa notificada al instante con éxito. Guardando estado y relevando turno...');
         return;
       }
     } catch (e) {
       console.warn('Error en ciclo de vigilancia:', e.message);
     }
 
-    const { hour, minute } = getVenezuelaNow();
-    // Si ya pasaron las 6:00 PM VET (18:00), terminar vigilancia del día
-    if (hour >= 18) {
-      console.log('⏹️ Fin de la ventana horaria del BCV (6:00 PM VET).');
+    const { hour, minute, dayOfWeek } = getVenezuelaNow();
+    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+    const elapsedMinutes = (Date.now() - startTime) / 60000;
+
+    // Relevo preventivo entre 2:45 PM y 3:30 PM VET si el turno actual lleva más de 90 minutos,
+    // para que un turno recién iniciado cubra de 3:00 PM a 8:10 PM VET sin interrupción alguna.
+    const isPreWindowHandover = isWeekday
+      && ((hour === 14 && minute >= 45) || (hour === 15 && minute <= 30))
+      && elapsedMinutes >= 90;
+
+    if (isPreWindowHandover) {
+      console.log('🔄 Relevo preventivo pre-ventana BCV para garantizar cobertura continua de 3:00 PM a 8:00 PM VET.');
       return;
     }
 
-    // Ventana crítica (4:00 PM a 5:58 PM VET): Modo Ultra-Turbo cada 3 segundos
-    const isTurboWindow = (hour === 16) || (hour === 17 && minute <= 58);
-    const intervalMs = isTurboWindow ? 3000 : 45000;
-    await new Promise(r => setTimeout(r, intervalMs));
+    // Ventana crítica (3:45 PM a 6:15 PM VET en días hábiles mientras no haya salido la tasa futura):
+    // Modo Ultra-Turbo cada 2.5 segundos
+    const isTurboWindow = isWeekday
+      && !alreadyFutureNotified
+      && ((hour === 15 && minute >= 45) || hour === 16 || hour === 17 || (hour === 18 && minute <= 15));
+
+    if (isTurboWindow) {
+      await new Promise(r => setTimeout(r, 2500));
+    } else {
+      // Modo Guardia Pasiva (Standby): mantiene el servidor vivo en memoria sin apagarse,
+      // revisando el reloj cada 15 segundos para entrar en Modo Ultra-Turbo al instante a las 3:45 PM VET.
+      console.log(`🛡️ Servidor activo en Guardia Continua (Hora VET: ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} | Transcurrido: ${elapsedMinutes.toFixed(1)}/${MAX_MINUTES} min).`);
+      const standbyCycleMs = 120000; // 2 minutos entre chequeos pasivos
+      const stepMs = 15000;
+      let waited = 0;
+      while (waited < standbyCycleMs && (Date.now() - startTime < MAX_MINUTES * 60 * 1000)) {
+        await new Promise(r => setTimeout(r, stepMs));
+        waited += stepMs;
+        const nowVet = getVenezuelaNow();
+        const nowWeekday = nowVet.dayOfWeek >= 1 && nowVet.dayOfWeek <= 5;
+        const enteredTurbo = nowWeekday
+          && !alreadyFutureNotified
+          && ((nowVet.hour === 15 && nowVet.minute >= 45) || nowVet.hour === 16 || nowVet.hour === 17);
+        if (enteredTurbo) break;
+      }
+    }
   }
 
-  console.log('⏱️ Tiempo máximo de vigilancia cumplido sin nueva tasa.');
+  console.log('⏱️ Turno de vigilancia completado. Ejecutando auto-relevo inmediato...');
 }
 
 main().catch(err => {
