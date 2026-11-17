@@ -2,8 +2,8 @@ name: BCV Realtime Monitor & Push Notifications
 
 on:
   schedule:
-    # Red de seguridad 24/7 cada 30 minutos por si GitHub reinicia máquinas físicas
-    - cron: '12,42 * * * *'
+    # Red de seguridad 24/7 cada 2 horas por si GitHub reinicia máquinas físicas
+    - cron: '17 */2 * * *'
   workflow_dispatch:
     inputs:
       test:
@@ -31,6 +31,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Sync latest state from origin/main
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

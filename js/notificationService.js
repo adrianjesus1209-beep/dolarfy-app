@@ -11,14 +11,37 @@ class NotificationService {
   constructor() {
     this.STORAGE_ENABLED = 'dolarfy_notifications_enabled';
     this.STORAGE_LAST_DATE = 'dolarfy_last_notified_date';
+    this.STORAGE_MAX_ISO = 'dolarfy_max_notified_iso';
+    this.STORAGE_RECENT_KEYS = 'dolarfy_notified_recent_keys';
     this.STORAGE_LOGS = 'dolarfy_notification_logs';
 
     this.enabled = this.loadEnabledState();
     this.lastNotifiedDate = this._storageGet(this.STORAGE_LAST_DATE) || '';
+    this.maxNotifiedIso = this._loadMaxIso();
+    this.recentKeys = this._loadRecentKeys();
     this.logs = this.loadLogs();
     this.notificationTimer = null;
 
     this._syncNativeState();
+  }
+
+  _loadMaxIso() {
+    const saved = this._storageGet(this.STORAGE_MAX_ISO) || '';
+    if (saved) return saved;
+    if (this.lastNotifiedDate && this.lastNotifiedDate.includes('_')) {
+      const parts = this.lastNotifiedDate.split('_');
+      if (parts[1] && /^\d{4}-\d{2}-\d{2}$/.test(parts[1])) return parts[1];
+    }
+    return '';
+  }
+
+  _loadRecentKeys() {
+    try {
+      const raw = this._storageGet(this.STORAGE_RECENT_KEYS);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {}
+    return this.lastNotifiedDate ? [this.lastNotifiedDate] : [];
   }
 
   _storageGet(key) {
@@ -217,6 +240,15 @@ class NotificationService {
     const euro = rates?.euro || {};
 
     const hasNextDay = Boolean(bcv.nextDay && bcv.nextDay.published && typeof bcv.nextDay.value === 'number' && bcv.nextDay.value > 0);
+    const isoDate = (hasNextDay && bcv.nextDay._iso)
+      ? bcv.nextDay._iso
+      : (bcv._iso || this.getTodayString());
+
+    const euroNextMatches = Boolean(
+      hasNextDay && euro.nextDay && euro.nextDay.published
+      && typeof euro.nextDay.value === 'number' && euro.nextDay.value > 0
+      && (!euro.nextDay._iso || euro.nextDay._iso === isoDate)
+    );
 
     const currentCountryRates = mockEngine?.getCurrentCountry?.()?.rates;
     const fallbackUsd = currentCountryRates?.bcv?.value || 0;
@@ -226,13 +258,9 @@ class NotificationService {
       ? bcv.nextDay.value
       : (typeof bcv.value === 'number' && bcv.value > 0 ? bcv.value : fallbackUsd);
 
-    const eurVal = (hasNextDay && euro.nextDay && typeof euro.nextDay.value === 'number' && euro.nextDay.value > 0)
+    const eurVal = euroNextMatches
       ? euro.nextDay.value
-      : (typeof euro.value === 'number' && euro.value > 0 ? euro.value : fallbackEur);
-
-    const isoDate = (hasNextDay && bcv.nextDay._iso)
-      ? bcv.nextDay._iso
-      : (bcv._iso || this.getTodayString());
+      : (!hasNextDay && typeof euro.value === 'number' && euro.value > 0 ? euro.value : (!hasNextDay ? fallbackEur : 0));
 
     const shortDate = (hasNextDay && bcv.nextDay.shortDate)
       ? bcv.nextDay.shortDate
@@ -267,6 +295,7 @@ class NotificationService {
       date: shortDate,
       dedupKey,
       isNextDay: hasNextDay,
+      isPartialNextDay: hasNextDay && !euroNextMatches,
       type: 'live'
     };
   }
@@ -282,32 +311,80 @@ class NotificationService {
     if (rates._meta?.placeholder) return;
 
     const payload = this._buildBcvNotificationPayload(country, rates);
-    if (!payload || !payload.value) return;
+    if (!payload || !payload.value || payload.isPartialNextDay) return;
 
-    // Si ya notificamos exactamente esta misma Fecha Valor + tasa, omitir
-    if (this.lastNotifiedDate === payload.dedupKey) return;
+    const isNativeAndroid = Boolean(typeof window !== 'undefined' && window.DolarfyNative);
+    const todayIso = this.getTodayString();
 
-    // Verificar si el servicio en segundo plano de Android ya lanzó la notificación en la barra de estado
-    let alreadyNotifiedByNative = false;
+    let nativeMaxIso = '';
+    let nativeAlreadyNotified = false;
     try {
-      if (typeof window !== 'undefined' && window.DolarfyNative && typeof window.DolarfyNative.getLastNotifiedKey === 'function') {
-        const nativeKey = window.DolarfyNative.getLastNotifiedKey();
-        if (nativeKey && nativeKey === payload.dedupKey) {
-          alreadyNotifiedByNative = true;
+      if (isNativeAndroid) {
+        if (typeof window.DolarfyNative.getMaxNotifiedIsoDate === 'function') {
+          nativeMaxIso = window.DolarfyNative.getMaxNotifiedIsoDate() || '';
+        }
+        if (typeof window.DolarfyNative.isRateNotifiedOrStale === 'function') {
+          nativeAlreadyNotified = Boolean(window.DolarfyNative.isRateNotifiedOrStale(payload.isoDate, payload.dedupKey));
+        } else if (typeof window.DolarfyNative.getLastNotifiedKey === 'function') {
+          nativeAlreadyNotified = window.DolarfyNative.getLastNotifiedKey() === payload.dedupKey;
         }
       }
     } catch (e) {}
 
+    const effectiveMaxIso = [this.maxNotifiedIso, nativeMaxIso].filter(Boolean).sort().pop() || '';
+
+    // Candado monotónico: jamás permitir retrocesos de Fecha Valor ni tasas de hoy si ya salió mañana
+    if (payload.isoDate && effectiveMaxIso) {
+      if (payload.isoDate < effectiveMaxIso) return;
+      if (effectiveMaxIso > todayIso && payload.isoDate <= todayIso) return;
+    }
+
+    // Si ya notificamos exactamente esta misma Fecha Valor + tasa, omitir
+    if (this.lastNotifiedDate === payload.dedupKey || this.recentKeys.includes(payload.dedupKey)) {
+      if (effectiveMaxIso && effectiveMaxIso > this.maxNotifiedIso) {
+        this.maxNotifiedIso = effectiveMaxIso;
+        this._storageSet(this.STORAGE_MAX_ISO, effectiveMaxIso);
+      }
+      return;
+    }
+
     this.lastNotifiedDate = payload.dedupKey;
     this._storageSet(this.STORAGE_LAST_DATE, payload.dedupKey);
 
-    this.logs.unshift(payload);
-    this.saveLogs();
-
-    if (!alreadyNotifiedByNative) {
-      await this.sendLocalNotification(payload, payload.dedupKey);
+    if (payload.isoDate && (!this.maxNotifiedIso || payload.isoDate >= this.maxNotifiedIso)) {
+      this.maxNotifiedIso = payload.isoDate;
+      this._storageSet(this.STORAGE_MAX_ISO, payload.isoDate);
     }
-    this.showToast(payload);
+
+    this.recentKeys = [
+      payload.dedupKey,
+      ...this.recentKeys.filter(k => k !== payload.dedupKey)
+    ].slice(0, 15);
+    this._storageSet(this.STORAGE_RECENT_KEYS, JSON.stringify(this.recentKeys));
+
+    if (!this.logs.some(l => l.dedupKey === payload.dedupKey)) {
+      this.logs.unshift(payload);
+      this.saveLogs();
+    }
+
+    if (isNativeAndroid) {
+      try {
+        if (typeof window.DolarfyNative.markNotified === 'function') {
+          window.DolarfyNative.markNotified(payload.isoDate, payload.dedupKey);
+        }
+      } catch (e) {}
+      // En Android APK, Firebase Cloud Messaging es el emisor único de alertas sonoras del sistema;
+      // al abrir o usar la app nunca duplicamos el sonido sobre la bandeja de Android.
+      if (!nativeAlreadyNotified) {
+        this.showToast(payload);
+      }
+      return;
+    }
+
+    if (!nativeAlreadyNotified) {
+      await this.sendLocalNotification(payload, payload.dedupKey);
+      this.showToast(payload);
+    }
   }
 
   clearLogs() {

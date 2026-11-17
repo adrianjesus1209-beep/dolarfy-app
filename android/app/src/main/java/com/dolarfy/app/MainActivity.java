@@ -30,14 +30,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        BcvNativeHelper.ensureNotificationChannel(getApplicationContext());
+        Context appContext = getApplicationContext();
+        BcvNativeHelper.ensureNotificationChannel(appContext);
+        BcvNativeHelper.cancelAllBackgroundAlarms(appContext);
+        BcvNativeHelper.markNotifiedFromFcmBundle(appContext, getIntent() != null ? getIntent().getExtras() : null);
+        BcvNativeHelper.syncFromActiveNotifications(appContext);
         ensureNotificationPermission();
-        BcvNativeHelper.scheduleRepeatingAlarm(getApplicationContext());
-        BcvSyncWorker.enqueuePeriodicSync(getApplicationContext());
-
-        try {
-            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("bcv_rates");
-        } catch (Exception ignored) {}
+        syncTopicSubscription(appContext);
 
         try {
             if (getBridge() != null && getBridge().getWebView() != null) {
@@ -50,9 +49,30 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        Context appContext = getApplicationContext();
+        BcvNativeHelper.markNotifiedFromFcmBundle(appContext, intent != null ? intent.getExtras() : null);
+        BcvNativeHelper.syncFromActiveNotifications(appContext);
+        triggerAsyncSync(true);
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
+        BcvNativeHelper.syncFromActiveNotifications(getApplicationContext());
         triggerAsyncSync(true);
+    }
+
+    private void syncTopicSubscription(Context context) {
+        try {
+            if (BcvNativeHelper.isNotificationsEnabled(context)) {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("bcv_rates");
+            } else {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("bcv_rates");
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -112,7 +132,7 @@ public class MainActivity extends BridgeActivity {
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(() -> {
             try {
-                BcvNativeHelper.syncLiveAll(getApplicationContext());
+                BcvNativeHelper.syncLiveAll(getApplicationContext(), false);
                 lastSyncMs = System.currentTimeMillis();
                 notifyWebView();
             } catch (Exception ignored) {}
@@ -126,7 +146,7 @@ public class MainActivity extends BridgeActivity {
 
         new Thread(() -> {
             try {
-                BcvNativeHelper.syncLiveAll(getApplicationContext());
+                BcvNativeHelper.syncLiveAll(getApplicationContext(), false);
                 lastSyncMs = System.currentTimeMillis();
                 notifyWebView();
             } catch (Exception ignored) {
@@ -164,20 +184,51 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void showNotification(String title, String body, String dedupKey) {
-            boolean shown = BcvNativeHelper.showNativeNotification(getApplicationContext(), title, body);
-            if (shown && dedupKey != null && !dedupKey.isEmpty()) {
-                BcvNativeHelper.setLastNotifiedKey(getApplicationContext(), dedupKey);
+            Context ctx = getApplicationContext();
+            BcvNativeHelper.syncFromActiveNotifications(ctx);
+            String isoDate = (dedupKey != null && dedupKey.startsWith("VE_") && dedupKey.length() >= 13)
+                ? dedupKey.substring(3, 13)
+                : "";
+            if (BcvNativeHelper.isRateAlreadyNotifiedOrStale(ctx, isoDate, dedupKey)) {
+                return;
             }
+            if (dedupKey != null && !dedupKey.isEmpty()) {
+                BcvNativeHelper.markKeyNotified(ctx, isoDate, dedupKey);
+            }
+            BcvNativeHelper.showNativeNotification(ctx, title, body);
         }
 
         @JavascriptInterface
         public void setNotificationsEnabled(boolean enabled) {
-            BcvNativeHelper.setNotificationsEnabled(getApplicationContext(), enabled);
+            Context ctx = getApplicationContext();
+            BcvNativeHelper.setNotificationsEnabled(ctx, enabled);
+            syncTopicSubscription(ctx);
         }
 
         @JavascriptInterface
         public String getLastNotifiedKey() {
-            return BcvNativeHelper.getLastNotifiedKey(getApplicationContext());
+            Context ctx = getApplicationContext();
+            BcvNativeHelper.syncFromActiveNotifications(ctx);
+            return BcvNativeHelper.getLastNotifiedKey(ctx);
+        }
+
+        @JavascriptInterface
+        public String getMaxNotifiedIsoDate() {
+            Context ctx = getApplicationContext();
+            BcvNativeHelper.syncFromActiveNotifications(ctx);
+            return BcvNativeHelper.getMaxNotifiedIsoDate(ctx);
+        }
+
+        @JavascriptInterface
+        public boolean isRateNotifiedOrStale(String isoDate, String dedupKey) {
+            Context ctx = getApplicationContext();
+            BcvNativeHelper.syncFromActiveNotifications(ctx);
+            return BcvNativeHelper.isRateAlreadyNotifiedOrStale(ctx, isoDate, dedupKey);
+        }
+
+        @JavascriptInterface
+        public void markNotified(String isoDate, String dedupKey) {
+            BcvNativeHelper.markKeyNotified(getApplicationContext(), isoDate, dedupKey);
         }
 
         @JavascriptInterface

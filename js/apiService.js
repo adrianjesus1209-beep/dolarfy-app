@@ -585,17 +585,26 @@ class ApiService {
       }
     }
 
-    // 3. BCV Oficial en Tiempo Real (Prioridad máxima: Android Nativo -> Proxy PHP -> Lector Directo bcv.org.ve)
-    let liveBcv = null;
+    // 3. BCV Oficial en Tiempo Real: elegir la fuente con Fecha Valor (isoDate) más reciente
+    const bcvCandidates = [];
     if (nativeData?.bcv?.status === 'ok' && nativeData.bcv.usd > 0) {
-      liveBcv = nativeData.bcv;
-      fetched.nativeBcv = true;
-    } else if (proxyData.status === 'fulfilled' && proxyData.value?.bcv?.status === 'ok' && proxyData.value.bcv.usd > 0) {
-      liveBcv = proxyData.value.bcv;
-      fetched.phpBcv = true;
-    } else if (bcvDirectRes.status === 'fulfilled' && bcvDirectRes.value?.status === 'ok' && bcvDirectRes.value.bcv?.usd > 0) {
-      liveBcv = bcvDirectRes.value.bcv;
-      fetched.webBcvDirect = true;
+      bcvCandidates.push({ data: nativeData.bcv, flag: 'nativeBcv' });
+    }
+    if (proxyData.status === 'fulfilled' && proxyData.value?.bcv?.status === 'ok' && proxyData.value.bcv.usd > 0) {
+      bcvCandidates.push({ data: proxyData.value.bcv, flag: 'phpBcv' });
+    }
+    if (bcvDirectRes.status === 'fulfilled' && bcvDirectRes.value?.status === 'ok' && bcvDirectRes.value.bcv?.usd > 0) {
+      bcvCandidates.push({ data: bcvDirectRes.value.bcv, flag: 'webBcvDirect' });
+    }
+
+    let liveBcv = null;
+    for (const item of bcvCandidates) {
+      fetched[item.flag] = true;
+      const candIso = String(item.data.isoDate || '');
+      const bestIso = String(liveBcv?.isoDate || '');
+      if (!liveBcv || candIso > bestIso) {
+        liveBcv = item.data;
+      }
     }
 
     if (liveBcv) {

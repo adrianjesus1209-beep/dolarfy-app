@@ -14,9 +14,13 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
     @Override
     public void onNewToken(@NonNull String token) {
         super.onNewToken(token);
-        // Suscribir automáticamente al tema general de alertas del BCV
+        Context context = getApplicationContext();
         try {
-            FirebaseMessaging.getInstance().subscribeToTopic("bcv_rates");
+            if (BcvNativeHelper.isNotificationsEnabled(context)) {
+                FirebaseMessaging.getInstance().subscribeToTopic("bcv_rates");
+            } else {
+                FirebaseMessaging.getInstance().unsubscribeFromTopic("bcv_rates");
+            }
         } catch (Exception ignored) {}
     }
 
@@ -45,17 +49,25 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
                 String shortDate = data.get("shortDate");
                 String isoDate = data.get("isoDate");
                 String expanded = data.get("expandedText");
+                String dataKey = data.get("dedupKey");
                 boolean isForce = "true".equalsIgnoreCase(data.get("force")) || "true".equalsIgnoreCase(data.get("test"));
 
                 if (body == null && usdStr != null) {
                     body = "USD = Bs. " + usdStr + " | EUR = Bs. " + (eurStr != null ? eurStr : "0.00") + " Fecha: " + (shortDate != null ? shortDate : "");
                 }
 
-                if (!isForce && usdStr != null && isoDate != null) {
-                    String dedupKey = "VE_" + isoDate + "_" + usdStr + "_" + (eurStr != null ? eurStr : "0.00");
-                    String lastKey = BcvNativeHelper.getLastNotifiedKey(context);
-                    if (dedupKey.equals(lastKey)) return;
-                    BcvNativeHelper.setLastNotifiedKey(context, dedupKey);
+                String dedupKey = (dataKey != null && !dataKey.isEmpty())
+                    ? dataKey
+                    : (usdStr != null && isoDate != null
+                        ? "VE_" + isoDate + "_" + usdStr + "_" + (eurStr != null ? eurStr : "0.00")
+                        : "");
+
+                if (!isForce && !dedupKey.isEmpty()) {
+                    BcvNativeHelper.syncFromActiveNotifications(context);
+                    if (BcvNativeHelper.isRateAlreadyNotifiedOrStale(context, isoDate, dedupKey)) {
+                        return;
+                    }
+                    BcvNativeHelper.markKeyNotified(context, isoDate, dedupKey);
                 }
 
                 if (expanded != null) {
@@ -63,9 +75,8 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
                 }
             }
 
-            // En Android FCM, onMessageReceived se invoca cuando la app está abierta en primer plano
-            // o cuando el mensaje es data-only. Al compartir el tag "dolarfy_bcv_alert" e ID 0,
-            // garantizamos visualización instantánea sin duplicados.
+            // En Android FCM, onMessageReceived se invoca cuando la app está abierta en primer plano.
+            // Al validar monotónicamente la Fecha Valor y el historial reciente, garantizamos 1 solo aviso.
             if (body != null) {
                 BcvNativeHelper.showNativeNotification(context, title, body);
             }

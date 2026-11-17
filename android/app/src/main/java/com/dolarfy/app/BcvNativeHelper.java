@@ -2,6 +2,7 @@ package com.dolarfy.app;
 
 import android.Manifest;
 import android.app.AlarmManager;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -9,13 +10,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Build;
-import android.os.SystemClock;
+import android.os.Bundle;
+import android.service.notification.StatusBarNotification;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.work.WorkManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -44,9 +45,12 @@ public class BcvNativeHelper {
     public static final String PREFS_NAME = "dolarfy_native_prefs";
     public static final String KEY_ENABLED = "notifications_enabled";
     public static final String KEY_LAST_NOTIFIED = "last_notified_key";
+    public static final String KEY_MAX_ISO_DATE = "max_notified_iso_date";
+    public static final String KEY_RECENT_KEYS = "recent_notified_keys";
     public static final String KEY_LAST_PAYLOAD = "last_live_payload";
     public static final String CHANNEL_ID = "dolarfy_bcv_alerts";
-    public static final int NOTIFICATION_ID = 9001;
+    public static final String ALERT_TAG = "dolarfy_bcv_alert";
+    public static final int ALERT_ID = 0;
 
     private static volatile String memoryPayload = null;
 
@@ -63,7 +67,7 @@ public class BcvNativeHelper {
     public static void setNotificationsEnabled(Context context, boolean enabled) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            prefs.edit().putBoolean(KEY_ENABLED, enabled).apply();
+            prefs.edit().putBoolean(KEY_ENABLED, enabled).commit();
         } catch (Exception ignored) {}
     }
 
@@ -85,11 +89,162 @@ public class BcvNativeHelper {
         }
     }
 
-    public static void setLastNotifiedKey(Context context, String key) {
-        if (key == null || key.isEmpty()) return;
+    public static String getMaxNotifiedIsoDate(Context context) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            prefs.edit().putString(KEY_LAST_NOTIFIED, key).apply();
+            String stored = prefs.getString(KEY_MAX_ISO_DATE, "");
+            if (stored != null && !stored.isEmpty()) return stored;
+            String lastKey = prefs.getString(KEY_LAST_NOTIFIED, "");
+            if (lastKey != null && lastKey.startsWith("VE_") && lastKey.length() >= 13) {
+                return lastKey.substring(3, 13);
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    private static List<String> loadRecentKeys(SharedPreferences prefs) {
+        List<String> list = new ArrayList<>();
+        try {
+            String raw = prefs.getString(KEY_RECENT_KEYS, "");
+            if (raw != null && !raw.isEmpty()) {
+                for (String item : raw.split(",")) {
+                    if (item != null && !item.trim().isEmpty()) {
+                        list.add(item.trim());
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return list;
+    }
+
+    public static void setLastNotifiedKey(Context context, String key) {
+        String isoDate = "";
+        if (key != null && key.startsWith("VE_") && key.length() >= 13) {
+            isoDate = key.substring(3, 13);
+        }
+        markKeyNotified(context, isoDate, key);
+    }
+
+    public static synchronized void markKeyNotified(Context context, String isoDate, String dedupKey) {
+        if (context == null || dedupKey == null || dedupKey.isEmpty()) return;
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            String currentMax = getMaxNotifiedIsoDate(context);
+            String resolvedIso = (isoDate != null && isoDate.length() >= 10)
+                ? isoDate.substring(0, 10)
+                : (dedupKey.startsWith("VE_") && dedupKey.length() >= 13 ? dedupKey.substring(3, 13) : "");
+
+            // Nunca retroceder KEY_MAX_ISO_DATE hacia una fecha menor
+            String nextMax = currentMax;
+            if (!resolvedIso.isEmpty() && (currentMax.isEmpty() || resolvedIso.compareTo(currentMax) >= 0)) {
+                nextMax = resolvedIso;
+            }
+
+            List<String> recent = loadRecentKeys(prefs);
+            List<String> updated = new ArrayList<>();
+            updated.add(dedupKey);
+            for (String existing : recent) {
+                if (!dedupKey.equals(existing) && updated.size() < 15) {
+                    updated.add(existing);
+                }
+            }
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < updated.size(); i++) {
+                if (i > 0) sb.append(",");
+                sb.append(updated.get(i));
+            }
+
+            SharedPreferences.Editor editor = prefs.edit();
+            if (currentMax.isEmpty() || resolvedIso.isEmpty() || resolvedIso.compareTo(currentMax) >= 0) {
+                editor.putString(KEY_LAST_NOTIFIED, dedupKey);
+            }
+            if (!nextMax.isEmpty()) {
+                editor.putString(KEY_MAX_ISO_DATE, nextMax);
+            }
+            editor.putString(KEY_RECENT_KEYS, sb.toString());
+            editor.commit();
+        } catch (Exception ignored) {}
+    }
+
+    public static synchronized boolean isRateAlreadyNotifiedOrStale(Context context, String isoDate, String dedupKey) {
+        if (context == null) return true;
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            String maxIso = getMaxNotifiedIsoDate(context);
+            String todayIso = getTodayVenezuelaIso();
+            String resolvedIso = (isoDate != null && isoDate.length() >= 10) ? isoDate.substring(0, 10) : "";
+
+            if (!resolvedIso.isEmpty() && !maxIso.isEmpty()) {
+                // Bloqueo monotónico: jamás permitir fecha anterior a la máxima ya notificada
+                if (resolvedIso.compareTo(maxIso) < 0) {
+                    return true;
+                }
+                // Si ya notificamos el próximo día hábil (> hoy), ignorar cualquier lectura de hoy
+                if (!todayIso.isEmpty() && maxIso.compareTo(todayIso) > 0 && resolvedIso.compareTo(todayIso) <= 0) {
+                    return true;
+                }
+            }
+
+            if (dedupKey != null && !dedupKey.isEmpty()) {
+                String lastKey = prefs.getString(KEY_LAST_NOTIFIED, "");
+                if (dedupKey.equals(lastKey)) return true;
+                if (loadRecentKeys(prefs).contains(dedupKey)) return true;
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    public static void markNotifiedFromFcmBundle(Context context, Bundle extras) {
+        if (context == null || extras == null) return;
+        try {
+            String isoDate = extras.getString("isoDate", "");
+            String usdStr = extras.getString("usd", "");
+            String eurStr = extras.getString("eur", "0.00");
+            String dedupKey = extras.getString("dedupKey", "");
+            if (dedupKey.isEmpty() && !isoDate.isEmpty() && !usdStr.isEmpty()) {
+                dedupKey = "VE_" + isoDate + "_" + usdStr + "_" + (eurStr != null && !eurStr.isEmpty() ? eurStr : "0.00");
+            }
+            if (!dedupKey.isEmpty()) {
+                markKeyNotified(context, isoDate, dedupKey);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Sincroniza el estado local si Google Play Services ya publicó una notificación activa
+     * mientras la app estaba cerrada (evita re-notificar al abrir o reanudar la app).
+     */
+    public static void syncFromActiveNotifications(Context context) {
+        if (context == null) return;
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+            NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            StatusBarNotification[] active = nm.getActiveNotifications();
+            if (active == null) return;
+
+            for (StatusBarNotification sbn : active) {
+                if (sbn == null || !ALERT_TAG.equals(sbn.getTag())) continue;
+                Notification notif = sbn.getNotification();
+                if (notif == null || notif.extras == null) continue;
+
+                CharSequence bigCs = notif.extras.getCharSequence(Notification.EXTRA_BIG_TEXT);
+                CharSequence textCs = notif.extras.getCharSequence(Notification.EXTRA_TEXT);
+                String text = bigCs != null ? bigCs.toString() : (textCs != null ? textCs.toString() : "");
+                if (text.isEmpty()) continue;
+
+                Matcher mUsd = Pattern.compile("USD\\s*=\\s*Bs\\.\\s*([\\d.]+)", Pattern.CASE_INSENSITIVE).matcher(text);
+                Matcher mEur = Pattern.compile("EUR\\s*=\\s*Bs\\.\\s*([\\d.]+)", Pattern.CASE_INSENSITIVE).matcher(text);
+                Matcher mFecha = Pattern.compile("Fecha:\\s*(\\d{2})/(\\d{2})/(\\d{4})", Pattern.CASE_INSENSITIVE).matcher(text);
+
+                if (mUsd.find() && mFecha.find()) {
+                    String usdStr = mUsd.group(1);
+                    String eurStr = mEur.find() ? mEur.group(1) : "0.00";
+                    String isoDate = mFecha.group(3) + "-" + mFecha.group(2) + "-" + mFecha.group(1);
+                    String dedupKey = "VE_" + isoDate + "_" + usdStr + "_" + eurStr;
+                    markKeyNotified(context, isoDate, dedupKey);
+                }
+            }
         } catch (Exception ignored) {}
     }
 
@@ -105,134 +260,50 @@ public class BcvNativeHelper {
         }
     }
 
-    public static boolean isFutureRateAlreadyNotified(Context context) {
-        try {
-            String lastKey = getLastNotifiedKey(context);
-            if (lastKey != null && lastKey.startsWith("VE_") && lastKey.length() >= 13) {
-                String notifiedIso = lastKey.substring(3, 13);
-                String todayIso = getTodayVenezuelaIso();
-                return !todayIso.isEmpty() && notifiedIso.compareTo(todayIso) > 0;
-            }
-        } catch (Exception ignored) {}
-        return false;
-    }
-
-    public static boolean isBcvWindowActive() {
+    public static int getCurrentVenezuelaHour() {
         try {
             Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("America/Caracas"));
-            int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-            int hour = cal.get(Calendar.HOUR_OF_DAY);
-            int minute = cal.get(Calendar.MINUTE);
-
-            boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
-            // Ventana activa de publicación oficial del BCV: 16:05 a 17:55 (4:05 PM a 5:55 PM VET)
-            return isWeekday && (
-                (hour == 16 && minute >= 5) ||
-                (hour == 17 && minute <= 55)
-            );
-        } catch (Exception ignored) {
-            return false;
+            return cal.get(Calendar.HOUR_OF_DAY);
+        } catch (Exception e) {
+            return 12;
         }
     }
 
-    public static long getNextCheckDelayMs() {
-        try {
-            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("America/Caracas"));
-            int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-            int hour = cal.get(Calendar.HOUR_OF_DAY);
-            int minute = cal.get(Calendar.MINUTE);
-
-            boolean isWeekday = (dayOfWeek >= Calendar.MONDAY && dayOfWeek <= Calendar.FRIDAY);
-            if (isWeekday) {
-                // 16:05 a 17:55: Ventana crítica de publicación del BCV -> Cada 30 segundos
-                if ((hour == 16 && minute >= 5) || (hour == 17 && minute <= 55)) {
-                    return 30 * 1000L;
-                }
-                // 15:40 a 16:05: Pre-ventana -> Cada 3 minutos
-                if (hour == 15 && minute >= 40) {
-                    return 3 * 60 * 1000L;
-                }
-                // 17:55 a 18:45: Post-ventana -> Cada 5 minutos
-                if (hour == 17 || hour == 18) {
-                    return 5 * 60 * 1000L;
-                }
-            }
-        } catch (Exception ignored) {}
-        return 15 * 60 * 1000L; // 15 minutos en horario regular
-    }
-
-    public static void scheduleNextAlarm(Context context) {
+    public static void cancelAllBackgroundAlarms(Context context) {
         if (context == null) return;
         try {
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-            if (am == null) return;
-
-            Intent intent = new Intent(context, BcvCheckReceiver.class);
-            intent.setAction("com.dolarfy.app.ACTION_CHECK_BCV");
-            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                flags |= PendingIntent.FLAG_IMMUTABLE;
-            }
-            PendingIntent pi = PendingIntent.getBroadcast(context, 7001, intent, flags);
-
-            long delayMs = getNextCheckDelayMs();
-            boolean isCriticalWindow = isBcvWindowActive();
-
-            boolean alarmScheduled = false;
-
-            if (isCriticalWindow && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                // En la ventana crítica usamos setAlarmClock:
-                // Es inmune a Doze Mode, App Standby y optimizaciones agresivas de batería.
-                // NOTA CRÍTICA AOSP: showIntent DEBE ser un PendingIntent de Activity (no Broadcast).
-                try {
-                    Intent showIntent = new Intent(context, MainActivity.class);
-                    showIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    PendingIntent showPi = PendingIntent.getActivity(context, 7002, showIntent, flags);
-
-                    long triggerWallClock = System.currentTimeMillis() + delayMs;
-                    am.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerWallClock, showPi), pi);
-                    alarmScheduled = true;
-                } catch (Throwable t) {
-                    // Fallback inmediato si el fabricante restringe setAlarmClock
-                }
-            }
-
-            if (!alarmScheduled) {
-                long triggerAt = SystemClock.elapsedRealtime() + delayMs;
+            if (am != null) {
+                Intent intent = new Intent(context, BcvCheckReceiver.class);
+                intent.setAction("com.dolarfy.app.ACTION_CHECK_BCV");
+                int flags = PendingIntent.FLAG_NO_CREATE;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        try {
-                            if (am.canScheduleExactAlarms()) {
-                                am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
-                                alarmScheduled = true;
-                            }
-                        } catch (Throwable ignored) {}
-                    } else {
-                        try {
-                            am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
-                            alarmScheduled = true;
-                        } catch (Throwable ignored) {}
-                    }
-
-                    if (!alarmScheduled) {
-                        try {
-                            am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
-                            alarmScheduled = true;
-                        } catch (Throwable ignored) {}
-                    }
-                } else {
-                    am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+                    flags |= PendingIntent.FLAG_IMMUTABLE;
+                }
+                PendingIntent pi = PendingIntent.getBroadcast(context, 7001, intent, flags);
+                if (pi != null) {
+                    am.cancel(pi);
+                    pi.cancel();
                 }
             }
+        } catch (Exception ignored) {}
+        try {
+            WorkManager.getInstance(context).cancelUniqueWork(BcvSyncWorker.UNIQUE_WORK_NAME);
+            WorkManager.getInstance(context).cancelUniqueWork(BcvSyncWorker.UNIQUE_TURBO_WORK_NAME);
         } catch (Exception ignored) {}
     }
 
     public static void scheduleRepeatingAlarm(Context context) {
-        scheduleNextAlarm(context);
-        BcvSyncWorker.enqueuePeriodicSync(context);
+        // Las notificaciones push ahora operan exclusivamente vía Firebase Cloud Messaging (FCM)
+        // para garantizar cero competencia y cero sonidos duplicados. Cancelar alarmas previas.
+        cancelAllBackgroundAlarms(context);
     }
 
     public static JSONObject syncLiveAll(Context context) {
+        return syncLiveAll(context, false);
+    }
+
+    public static JSONObject syncLiveAll(Context context, boolean allowNotify) {
         JSONObject result = new JSONObject();
         try {
             JSONObject bcv = fetchBcvDirect();
@@ -247,7 +318,7 @@ public class BcvNativeHelper {
                 if (context != null) {
                     SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                     prefs.edit().putString(KEY_LAST_PAYLOAD, jsonStr).apply();
-                    if ("ok".equals(bcv.optString("status"))) {
+                    if (allowNotify && "ok".equals(bcv.optString("status"))) {
                         checkAndNotifyBcv(context, bcv);
                     }
                 }
@@ -283,6 +354,8 @@ public class BcvNativeHelper {
             if (!canPostNotifications(context)) return;
             if (!"ok".equals(bcv.optString("status"))) return;
 
+            syncFromActiveNotifications(context);
+
             double usd = bcv.optDouble("usd", 0);
             double eur = bcv.optDouble("eur", 0);
             String isoDate = bcv.optString("isoDate", "");
@@ -293,13 +366,11 @@ public class BcvNativeHelper {
             String eurStr = eur > 0 ? String.format(Locale.US, "%.2f", eur) : "0.00";
             String dedupKey = "VE_" + isoDate + "_" + usdStr + "_" + eurStr;
 
-            String lastKey = getLastNotifiedKey(context);
-            if (dedupKey.equals(lastKey)) return;
+            if (isRateAlreadyNotifiedOrStale(context, isoDate, dedupKey)) return;
 
-            if (showNativeNotification(context, "📢 Nueva Tasa BCV Disponible",
-                    "USD = Bs. " + usdStr + " | EUR = Bs. " + eurStr + "\nFecha: " + shortDate)) {
-                setLastNotifiedKey(context, dedupKey);
-            }
+            markKeyNotified(context, isoDate, dedupKey);
+            showNativeNotification(context, "📢 Nueva Tasa BCV Disponible",
+                "USD = Bs. " + usdStr + " | EUR = Bs. " + eurStr + "\nFecha: " + shortDate);
         } catch (Exception ignored) {}
     }
 
@@ -351,8 +422,8 @@ public class BcvNativeHelper {
                 .setAutoCancel(true)
                 .setContentIntent(contentIntent);
 
-            nm.cancel(NOTIFICATION_ID);
-            nm.notify("dolarfy_bcv_alert", 0, builder.build());
+            nm.cancel(ALERT_TAG, ALERT_ID);
+            nm.notify(ALERT_TAG, ALERT_ID, builder.build());
             return true;
         } catch (Exception ignored) {
             return false;
@@ -380,7 +451,7 @@ public class BcvNativeHelper {
 
     public static JSONObject fetchBcvDirect() {
         String todayIso = getTodayVenezuelaIso();
-        boolean inWindow = isBcvWindowActive();
+        boolean checkBackupIfNotTomorrow = getCurrentVenezuelaHour() >= 16;
         JSONObject best = null;
 
         // 1. Conexión directa oficial a https://www.bcv.org.ve/ (validada con CA Sectigo oficial en network_security_config.xml)
@@ -402,10 +473,10 @@ public class BcvNativeHelper {
                 if (isBetterCandidate(parsed, best)) {
                     best = parsed;
                 }
-                // Si ya tenemos la tasa del próximo día hábil (> hoy) o estamos fuera de ventana crítica, retornar al instante
+                // Si ya tenemos la tasa del próximo día hábil (> hoy) o aún no son las 4:00 PM VET, retornar al instante
                 if (best != null) {
                     String iso = best.optString("isoDate", "");
-                    if ((!todayIso.isEmpty() && iso.compareTo(todayIso) > 0) || !inWindow) {
+                    if ((!todayIso.isEmpty() && iso.compareTo(todayIso) > 0) || !checkBackupIfNotTomorrow) {
                         return best;
                     }
                 }
@@ -468,7 +539,7 @@ public class BcvNativeHelper {
                         }
                         if (best != null) {
                             String iso = best.optString("isoDate", "");
-                            if ((!todayIso.isEmpty() && iso.compareTo(todayIso) > 0) || !inWindow) {
+                            if ((!todayIso.isEmpty() && iso.compareTo(todayIso) > 0) || !checkBackupIfNotTomorrow) {
                                 return best;
                             }
                         }

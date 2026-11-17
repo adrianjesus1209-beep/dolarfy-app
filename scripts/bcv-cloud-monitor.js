@@ -55,14 +55,15 @@ function getVenezuelaNow() {
 function fetchBcvDirectHttps() {
   return new Promise((resolve) => {
     const https = require('https');
-    const req = https.get('https://www.bcv.org.ve/', {
+    const cb = Math.floor(Date.now() / 2000);
+    const req = https.get(`https://www.bcv.org.ve/?_cb=${cb}`, {
       rejectUnauthorized: false,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache'
       },
-      timeout: 6000
+      timeout: 5500
     }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -271,6 +272,7 @@ async function sendFirebasePush(rateData, isForce = false) {
       isoDate: rateData.isoDate,
       shortDate: shortDate,
       expandedText: expandedText,
+      dedupKey: `VE_${rateData.isoDate}_${usdStr}_${eurStr}`,
       force: isForce ? 'true' : 'false',
       test: isForce ? 'true' : 'false'
     },
@@ -297,7 +299,93 @@ async function sendFirebasePush(rateData, isForce = false) {
   }
 }
 
-async function checkOnce(overrideCurrent = null) {
+/**
+ * Evalúa de forma estricta y monotónica si una tasa detectada debe notificarse.
+ * Bloquea cualquier retroceso de Fecha Valor (ej. nodos rezagados del BCV devolviendo la tasa de hoy
+ * después de haberse publicado mañana) y evita rebotes mediante historial de claves.
+ */
+function evaluateRateTransition(current, lastState, isoToday, isForce = false) {
+  if (!current || !current.usd || current.usd <= 0 || !current.isoDate) {
+    return { shouldNotify: false, reason: 'invalid_current', alreadyFutureNotified: Boolean(lastState?.isoDate && lastState.isoDate > isoToday) };
+  }
+
+  const usdFixed = current.usd.toFixed(2);
+  const eurFixed = (typeof current.eur === 'number' && current.eur > 0 ? current.eur : 0).toFixed(2);
+  const currentKey = `${current.isoDate}_${usdFixed}_${eurFixed}`;
+  const lastKey = lastState && lastState.isoDate
+    ? `${lastState.isoDate}_${Number(lastState.usd || 0).toFixed(2)}_${Number(lastState.eur || 0).toFixed(2)}`
+    : '';
+  const recentKeys = Array.isArray(lastState?.recentKeys)
+    ? lastState.recentKeys
+    : (lastKey ? [lastKey] : []);
+
+  const alreadyFutureInState = Boolean(lastState?.isoDate && lastState.isoDate > isoToday);
+
+  if (isForce) {
+    return { shouldNotify: true, reason: 'forced', currentKey, lastKey, recentKeys, alreadyFutureNotified: current.isoDate > isoToday || alreadyFutureInState };
+  }
+
+  if (lastState && lastState.isoDate) {
+    // 1. Candado Monotónico: PROHIBIDO retroceder de fecha valor (ej: 2026-11-18 -> 2026-11-17)
+    if (current.isoDate < lastState.isoDate) {
+      return {
+        shouldNotify: false,
+        reason: 'stale_date_regression',
+        currentKey,
+        lastKey,
+        recentKeys,
+        alreadyFutureNotified: alreadyFutureInState
+      };
+    }
+
+    // 2. Si hoy ya notificamos el próximo día hábil (> hoy), jamás notificar fechas <= hoy
+    if (lastState.isoDate > isoToday && current.isoDate <= isoToday) {
+      return {
+        shouldNotify: false,
+        reason: 'future_already_notified_for_today',
+        currentKey,
+        lastKey,
+        recentKeys,
+        alreadyFutureNotified: true
+      };
+    }
+
+    // 3. Evitar lecturas incompletas sin EUR sobre la misma fecha ya notificada
+    if (current.isoDate === lastState.isoDate && current.eur <= 0 && Number(lastState.eur || 0) > 0) {
+      return {
+        shouldNotify: false,
+        reason: 'incomplete_eur_same_date',
+        currentKey,
+        lastKey,
+        recentKeys,
+        alreadyFutureNotified: alreadyFutureInState
+      };
+    }
+  }
+
+  // 4. Coincidencia exacta o clave presente en historial reciente (bloquea ping-pong A -> B -> A)
+  if (currentKey === lastKey || recentKeys.includes(currentKey)) {
+    return {
+      shouldNotify: false,
+      reason: 'already_notified',
+      currentKey,
+      lastKey,
+      recentKeys,
+      alreadyFutureNotified: current.isoDate > isoToday || alreadyFutureInState
+    };
+  }
+
+  return {
+    shouldNotify: true,
+    reason: 'new_rate',
+    currentKey,
+    lastKey,
+    recentKeys,
+    alreadyFutureNotified: current.isoDate > isoToday
+  };
+}
+
+async function checkOnce(overrideCurrent = null, pushOverrideFn = null) {
   const t0 = Date.now();
   console.log('🔍 Consultando tasas oficiales del BCV en tiempo real...');
   const current = overrideCurrent || await fetchCurrentBcv();
@@ -305,48 +393,111 @@ async function checkOnce(overrideCurrent = null) {
 
   if (!current) {
     console.log('⚠️ No se pudo obtener la tasa oficial del BCV en este intento.');
-    return { notified: false, alreadyFutureNotified: false };
+    const lastState = loadLastState();
+    const { isoToday } = getVenezuelaNow();
+    return { notified: false, alreadyFutureNotified: Boolean(lastState?.isoDate && lastState.isoDate > isoToday) };
   }
 
   console.log(`📊 Tasa detectada en ${fetchMs}ms: USD = Bs. ${current.usd} | EUR = Bs. ${current.eur} | Fecha: ${current.isoDate} (${current.source})`);
 
   const lastState = loadLastState();
-  const currentKey = `${current.isoDate}_${current.usd.toFixed(2)}_${current.eur.toFixed(2)}`;
-  const lastKey = lastState ? `${lastState.isoDate}_${Number(lastState.usd).toFixed(2)}_${Number(lastState.eur).toFixed(2)}` : '';
-
   const isTest = process.argv.includes('--test');
   const isForce = process.argv.includes('--force') || isTest;
   const { isoToday } = getVenezuelaNow();
 
-  if (!isForce && currentKey === lastKey) {
-    const isFutureRateAlreadyNotified = current.isoDate > isoToday;
-    console.log(`ℹ️ La tasa actual (${currentKey}) ya fue notificada previamente.`);
-    return { notified: false, alreadyFutureNotified: isFutureRateAlreadyNotified };
+  const decision = evaluateRateTransition(current, lastState, isoToday, isForce);
+
+  if (!decision.shouldNotify) {
+    if (decision.reason === 'stale_date_regression' || decision.reason === 'future_already_notified_for_today') {
+      console.log(`🛡️ Lectura rezagada bloqueada (${decision.reason}): detectada ${current.isoDate}, protegida ${lastState?.isoDate}.`);
+    } else {
+      console.log(`ℹ️ La tasa actual (${decision.currentKey}) ya fue notificada previamente.`);
+    }
+    return { notified: false, alreadyFutureNotified: decision.alreadyFutureNotified };
   }
 
   const pushStart = Date.now();
-  console.log(`🚨 ${isTest ? '🧪 MODO PRUEBA DE NOTIFICACIÓN PUSH' : '¡NUEVA TASA DETECTADA AL INSTANTE!'} Anterior: ${lastKey || 'ninguna'} => Nueva: ${currentKey}`);
+  console.log(`🚨 ${isTest ? '🧪 MODO PRUEBA DE NOTIFICACIÓN PUSH' : '¡NUEVA TASA DETECTADA AL INSTANTE!'} Anterior: ${decision.lastKey || 'ninguna'} => Nueva: ${decision.currentKey}`);
 
-  const pushed = await sendFirebasePush(current, isForce);
+  const pushed = pushOverrideFn
+    ? await pushOverrideFn(current, isForce)
+    : await sendFirebasePush(current, isForce);
   const pushMs = Date.now() - pushStart;
   console.log(`⚡ Tiempo de despacho FCM: ${pushMs}ms (Tiempo total detección + envío: ${Date.now() - t0}ms)`);
 
   if (!isTest) {
-    // Actualizar estado persistente
-    const newState = {
-      usd: current.usd,
-      eur: current.eur,
-      isoDate: current.isoDate,
-      shortDate: current.shortDate,
-      pushed: Boolean(pushed),
-      notifiedAt: new Date().toISOString()
-    };
-    saveState(newState);
-    console.log('💾 Estado guardado en state/last_bcv.json.');
+    if (pushed) {
+      const updatedRecent = [
+        decision.currentKey,
+        ...decision.recentKeys.filter(k => k !== decision.currentKey)
+      ].slice(0, 15);
+      const newState = {
+        usd: current.usd,
+        eur: current.eur,
+        isoDate: current.isoDate,
+        shortDate: current.shortDate,
+        pushed: true,
+        notifiedAt: new Date().toISOString(),
+        recentKeys: updatedRecent
+      };
+      saveState(newState);
+      console.log('💾 Estado guardado en state/last_bcv.json.');
+    } else {
+      console.warn('⚠️ El push FCM no confirmó envío; state/last_bcv.json no se modificó.');
+      return { notified: false, alreadyFutureNotified: decision.alreadyFutureNotified };
+    }
   } else {
     console.log('🧪 Push de prueba emitido con éxito. Estado no alterado.');
   }
-  return { notified: true, alreadyFutureNotified: true };
+  return { notified: Boolean(pushed), alreadyFutureNotified: decision.alreadyFutureNotified };
+}
+
+async function runBounceRegressionTest() {
+  console.log('🧪 INICIANDO PRUEBA DE ESTRÉS ANTI-REBOTE (BCV PING-PONG)...');
+  const originalState = loadLastState();
+  let pushCount = 0;
+  const mockPush = async () => { pushCount += 1; return true; };
+
+  const addDaysIso = (iso, days) => {
+    const dt = new Date(`${iso}T12:00:00Z`);
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+  };
+  const { isoToday } = getVenezuelaNow();
+  const isoTomorrow = addDaysIso(isoToday, 1);
+  const isoDayAfter = addDaysIso(isoToday, 2);
+
+  try {
+    saveState({
+      usd: 915.75,
+      eur: 1008.31,
+      isoDate: isoToday,
+      shortDate: isoToShortDate(isoToday),
+      pushed: true,
+      notifiedAt: new Date(Date.now() - 86400000).toISOString(),
+      recentKeys: [`${isoToday}_915.75_1008.31`]
+    });
+
+    // 1. Publicación real de mañana -> DEBE enviar 1 push
+    const r1 = await checkOnce({ status: 'ok', usd: 916.65, eur: 1007.39, isoDate: isoTomorrow, shortDate: isoToShortDate(isoTomorrow), source: 'sim_bcv_fresh' }, mockPush);
+    // 2. Nodo lento del BCV devuelve hoy 6 min después -> DEBE BLOQUEARSE (0 push)
+    const r2 = await checkOnce({ status: 'ok', usd: 915.75, eur: 1008.31, isoDate: isoToday, shortDate: isoToShortDate(isoToday), source: 'sim_bcv_stale' }, mockPush);
+    // 3. Nodo fresco vuelve a devolver mañana 20s después -> DEBE BLOQUEARSE (0 push)
+    const r3 = await checkOnce({ status: 'ok', usd: 916.65, eur: 1007.39, isoDate: isoTomorrow, shortDate: isoToShortDate(isoTomorrow), source: 'sim_jina' }, mockPush);
+    // 4. Siguiente día hábil sale tasa nueva -> DEBE enviar 1 push
+    const r4 = await checkOnce({ status: 'ok', usd: 918.10, eur: 1009.50, isoDate: isoDayAfter, shortDate: isoToShortDate(isoDayAfter), source: 'sim_bcv_next' }, mockPush);
+
+    const passed = r1.notified === true && r2.notified === false && r3.notified === false && r4.notified === true && pushCount === 2;
+    console.log(`\nResultado prueba anti-rebote: r1=${r1.notified}, r2=${r2.notified}, r3=${r3.notified}, r4=${r4.notified}, totalPushes=${pushCount}`);
+    if (!passed) {
+      throw new Error('La prueba anti-rebote falló!');
+    }
+    console.log('✅ PRUEBA ANTI-REBOTE SUPERADA AL 100%: 0 regresiones, 0 duplicados.');
+  } finally {
+    if (originalState) {
+      saveState(originalState);
+    }
+  }
 }
 
 async function runSimulateLiveUpdate() {
@@ -357,7 +508,6 @@ async function runSimulateLiveUpdate() {
     process.exit(1);
   }
 
-  // Simulamos el estado justo 5 segundos antes de que el BCV actualice su página
   const previousSimulated = {
     status: 'ok',
     usd: 896.12,
@@ -386,7 +536,7 @@ async function runSimulateLiveUpdate() {
 
   console.log('\n--- [Ciclo 2 | T=5.0s] ¡El BCV acaba de actualizar su página web en vivo! ---');
   const tUpdate = Date.now();
-  await checkOnce(); // Consulta bcv.org.ve real en vivo y dispara el push
+  await checkOnce();
   console.log(`\n✅ PRUEBA COMPLETADA: Desde que la página cambió hasta que Firebase entregó el push pasaron exactamente ${((Date.now() - tUpdate) / 1000).toFixed(2)} segundos.`);
 
   if (originalState) {
@@ -395,6 +545,11 @@ async function runSimulateLiveUpdate() {
 }
 
 async function main() {
+  if (process.argv.includes('--test-bounce')) {
+    await runBounceRegressionTest();
+    return;
+  }
+
   if (process.argv.includes('--simulate-live-update')) {
     await runSimulateLiveUpdate();
     return;
@@ -406,10 +561,6 @@ async function main() {
     return;
   }
 
-  // En modo --watch en la nube:
-  // Turnos continuos de 5h 10m (310 min) encadenados automáticamente por workflow_dispatch (2s de arranque).
-  // El servidor NUNCA se apaga en horas muertas: permanece en Modo Guardia Continua y a las 3:45 PM VET
-  // entra al instante en Modo Ultra-Turbo (cada 2.5 segundos) con 0 segundos de espera en cola.
   const MAX_MINUTES = Number(process.env.MAX_WATCH_MINUTES) > 0
     ? Number(process.env.MAX_WATCH_MINUTES)
     : 310;
@@ -455,10 +606,10 @@ async function main() {
     if (isTurboWindow) {
       await new Promise(r => setTimeout(r, 2500));
     } else {
-      // Modo Guardia Pasiva (Standby): mantiene el servidor vivo en memoria sin apagarse,
-      // revisando el reloj cada 15 segundos para entrar en Modo Ultra-Turbo al instante a las 3:45 PM VET.
-      console.log(`🛡️ Servidor activo en Guardia Continua (Hora VET: ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} | Transcurrido: ${elapsedMinutes.toFixed(1)}/${MAX_MINUTES} min).`);
-      const standbyCycleMs = 120000; // 2 minutos entre chequeos pasivos
+      // Si ya se notificó la tasa del próximo día hábil, espaciar las verificaciones pasivas a 10 min;
+      // de lo contrario cada 2 min, despertando al instante al entrar en 3:45 PM VET.
+      const standbyCycleMs = alreadyFutureNotified ? 600000 : 120000;
+      console.log(`🛡️ Servidor activo en Guardia Continua (Hora VET: ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} | Próximo chequeo: ${standbyCycleMs / 60000} min | Transcurrido: ${elapsedMinutes.toFixed(1)}/${MAX_MINUTES} min).`);
       const stepMs = 15000;
       let waited = 0;
       while (waited < standbyCycleMs && (Date.now() - startTime < MAX_MINUTES * 60 * 1000)) {
