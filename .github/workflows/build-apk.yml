@@ -55,7 +55,7 @@ jobs:
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "::error::Falta el secreto ANDROID_KEYSTORE_BASE64"; exit 1
           fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/dolarfy-release.p12"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d ' \t\r\n' | base64 -d > "$RUNNER_TEMP/dolarfy-release.p12"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/dolarfy-release.p12" >> "$GITHUB_ENV"
 
       - name: Build Release APK
