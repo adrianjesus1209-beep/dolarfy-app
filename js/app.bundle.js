@@ -7,7 +7,7 @@
  * Constantes globales de Dolarfy
  */
 
-const APP_VERSION = '1.0.23';
+const APP_VERSION = '1.0.24';
 
 // Clave de caché de tasas en localStorage. v4: soporte directo BCV en vivo + notificaciones exactas.
 const RATES_CACHE_VERSION = 'v4';

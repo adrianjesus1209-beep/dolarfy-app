@@ -18,3 +18,10 @@ scratch/
 *firebase-adminsdk*.json
 google-services.json
 
+# Android signing keys (NUNCA subir)
+keys/
+*.jks
+*.keystore
+*.p12
+keystore.properties
+
