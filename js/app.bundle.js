@@ -7,7 +7,7 @@
  * Constantes globales de Dolarfy
  */
 
-const APP_VERSION = '1.0.22';
+const APP_VERSION = '1.0.23';
 
 // Clave de caché de tasas en localStorage. v4: soporte directo BCV en vivo + notificaciones exactas.
 const RATES_CACHE_VERSION = 'v4';
@@ -189,16 +189,77 @@ const markPredictionRead = (rates) => {
 /**
  * Evaluador matemático seguro y preciso para Dolarfy.
  * Reemplaza el uso de eval() y new Function() en la calculadora.
- * Soporta + - * /, paréntesis, decimales con coma o punto, y previene divisiones por cero.
+ * Soporta + - * / (y símbolos ÷ × −), paréntesis, multiplicación implícita,
+ * decimales con coma o punto, separadores de miles (1.000,50 / 1,234.56),
+ * notación científica y previene divisiones por cero.
  */
 
+function parseLocalizedNumber(rawToken) {
+  let s = rawToken.trim();
+  if (!s || s === '.' || s === ',') return 0;
+
+  // Manejo de notación científica (ej: 1.5e+6 o 1,5e6)
+  if (/e/i.test(s)) {
+    const normalizedSci = s.replace(/,/g, '.');
+    const n = Number(normalizedSci);
+    if (isNaN(n)) {
+      throw new Error(`Número inválido: ${rawToken}`);
+    }
+    return n;
+  }
+
+  const dotCount = (s.match(/\./g) || []).length;
+  const commaCount = (s.match(/,/g) || []).length;
+
+  if (dotCount > 0 && commaCount > 0) {
+    const lastDot = s.lastIndexOf('.');
+    const lastComma = s.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      // Formato es-VE: 1.000,50 -> puntos son miles, coma es decimal
+      if (commaCount > 1) throw new Error(`Número inválido: ${rawToken}`);
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // Formato en-US: 1,234.56 -> comas son miles, punto es decimal
+      if (dotCount > 1) throw new Error(`Número inválido: ${rawToken}`);
+      s = s.replace(/,/g, '');
+    }
+  } else if (commaCount > 1) {
+    // Múltiples comas sin puntos: solo válido si son grupos exactos de miles (1,000,000)
+    if (/^\d{1,3}(,\d{3})+$/.test(s)) {
+      s = s.replace(/,/g, '');
+    } else {
+      throw new Error(`Número inválido: ${rawToken}`);
+    }
+  } else if (dotCount > 1) {
+    // Múltiples puntos sin comas: solo válido si son grupos exactos de miles (1.000.000)
+    if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+      s = s.replace(/\./g, '');
+    } else {
+      throw new Error(`Número inválido: ${rawToken}`);
+    }
+  } else if (commaCount === 1) {
+    s = s.replace(',', '.');
+  }
+
+  const num = parseFloat(s);
+  if (isNaN(num)) {
+    throw new Error(`Número inválido: ${rawToken}`);
+  }
+  return num;
+}
+
 function tokenize(expr) {
-  const tokens = [];
+  const normalized = expr
+    .replace(/÷/g, '/')
+    .replace(/×/g, '*')
+    .replace(/−/g, '-');
+
+  const rawTokens = [];
   let i = 0;
-  const n = expr.length;
+  const n = normalized.length;
 
   while (i < n) {
-    const ch = expr[i];
+    const ch = normalized[i];
 
     if (ch === ' ' || ch === '\t') {
       i++;
@@ -206,36 +267,51 @@ function tokenize(expr) {
     }
 
     if (ch === '(' || ch === ')' || ch === '+' || ch === '-' || ch === '*' || ch === '/') {
-      tokens.push({ type: 'op', value: ch });
+      rawTokens.push({ type: 'op', value: ch });
       i++;
       continue;
     }
 
     if ((ch >= '0' && ch <= '9') || ch === ',' || ch === '.') {
       let j = i;
-      let decimalSeen = false;
       while (j < n) {
-        const c = expr[j];
-        if (c >= '0' && c <= '9') {
+        const c = normalized[j];
+        if ((c >= '0' && c <= '9') || c === ',' || c === '.') {
           j++;
           continue;
         }
-        if ((c === ',' || c === '.') && !decimalSeen) {
-          decimalSeen = true;
+        if ((c === 'e' || c === 'E') && j > i) {
           j++;
+          if (j < n && (normalized[j] === '+' || normalized[j] === '-')) {
+            j++;
+          }
           continue;
         }
         break;
       }
-      let raw = expr.slice(i, j).replace(/,/g, '.');
-      if (raw === '.' || raw === '') raw = '0';
-      const num = parseFloat(raw);
-      tokens.push({ type: 'num', value: isNaN(num) ? 0 : num });
+      const raw = normalized.slice(i, j);
+      const num = parseLocalizedNumber(raw);
+      rawTokens.push({ type: 'num', value: num });
       i = j;
       continue;
     }
 
     throw new Error(`Carácter inesperado: ${ch}`);
+  }
+
+  // Insertar multiplicación implícita: 2(3+4) -> 2 * (3+4), (2+3)(4+5) -> (2+3) * (4+5), (2+3)4 -> (2+3) * 4
+  const tokens = [];
+  for (let k = 0; k < rawTokens.length; k++) {
+    const curr = rawTokens[k];
+    if (tokens.length > 0) {
+      const prev = tokens[tokens.length - 1];
+      const isPrevValue = prev.type === 'num' || (prev.type === 'op' && prev.value === ')');
+      const isCurrValue = curr.type === 'num' || (curr.type === 'op' && curr.value === '(');
+      if (isPrevValue && isCurrValue) {
+        tokens.push({ type: 'op', value: '*' });
+      }
+    }
+    tokens.push(curr);
   }
 
   return tokens;
@@ -246,6 +322,15 @@ function evaluateMath(expr) {
 
   const tokens = tokenize(expr.trim());
   if (tokens.length === 0) return 0;
+
+  // Ignorar operadores binarios colgantes al final mientras el usuario escribe en vivo (ej. "10 + ")
+  while (
+    tokens.length > 1 &&
+    tokens[tokens.length - 1].type === 'op' &&
+    ['+', '-', '*', '/'].includes(tokens[tokens.length - 1].value)
+  ) {
+    tokens.pop();
+  }
 
   let pos = 0;
   const peek = () => tokens[pos] || null;
@@ -267,9 +352,9 @@ function evaluateMath(expr) {
     if (t.type === 'num') return t.value;
     if (t.type === 'op' && t.value === '(') {
       const value = parseExpr();
-      const close = next();
-      if (!close || close.type !== 'op' || close.value !== ')') {
-        return value;
+      const close = peek();
+      if (close && close.type === 'op' && close.value === ')') {
+        next();
       }
       return value;
     }
@@ -426,8 +511,8 @@ const COUNTRIES_DATA = [
         id: 'bcv',
         name: 'Dólar Oficial (BCV)',
         code: 'USD/VES',
-        value: 888.12,
-        change: 0.09,
+        value: 918.77,
+        change: 0.11,
         currency: 'VES',
         type: 'official',
         icon: 'building-2',
@@ -437,7 +522,7 @@ const COUNTRIES_DATA = [
         id: 'paralelo',
         name: 'USDT (Binance P2P)',
         code: 'USDT/VES',
-        value: 1004.03,
+        value: 1092.90,
         change: 0.35,
         currency: 'VES',
         type: 'crypto',
@@ -448,8 +533,8 @@ const COUNTRIES_DATA = [
         id: 'euro',
         name: 'Euro Oficial (BCV)',
         code: 'EUR/VES',
-        value: 989.72,
-        change: 0.12,
+        value: 1009.07,
+        change: 0.16,
         currency: 'VES',
         type: 'official',
         icon: 'euro',
@@ -557,10 +642,18 @@ class CalcHistoryService {
   }
 
   addEntry(entry) {
-    // Evitar duplicados inmediatos idénticos
+    // Evitar duplicados inmediatos idénticos (considerando dirección de conversión, tasa y día)
     if (this.history.length > 0) {
       const last = this.history[0];
-      if (last.expression === entry.expression && last.rateId === entry.rateId && last.countryId === entry.countryId) {
+      if (
+        last.expression === entry.expression &&
+        last.rateId === entry.rateId &&
+        last.countryId === entry.countryId &&
+        last.fromCurrency === entry.fromCurrency &&
+        last.toCurrency === entry.toCurrency &&
+        last.rateValue === entry.rateValue &&
+        (last.selectedDay || 'hoy') === (entry.selectedDay || 'hoy')
+      ) {
         return;
       }
     }
@@ -577,6 +670,7 @@ class CalcHistoryService {
       rateValue: entry.rateValue,
       fromCurrency: entry.fromCurrency,
       toCurrency: entry.toCurrency,
+      selectedDay: entry.selectedDay || 'hoy',
       timestamp: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true })
     };
 
@@ -979,7 +1073,7 @@ class ApiService {
 
     const [usdRes, eurRes] = await Promise.all([
       this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial', force }),
-      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/euros', force })
+      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/euros/oficial', force })
     ]);
 
     const today = this.getTodayIsoVet();
@@ -1048,7 +1142,7 @@ class ApiService {
     }
 
     this.isSyncing = true;
-    this._inflightPromise = this.fetchVenezuelaRates(country, cacheKey, force)
+    const currentPromise = this.fetchVenezuelaRates(country, cacheKey, force)
       .then(rates => {
         if (rates && rates._meta) {
           this._lastRates = JSON.parse(JSON.stringify(rates));
@@ -1064,11 +1158,15 @@ class ApiService {
         return this._getLastKnownRates(country);
       });
 
+    this._inflightPromise = currentPromise;
+
     try {
-      return await this._inflightPromise;
+      return await currentPromise;
     } finally {
-      this.isSyncing = false;
-      this._inflightPromise = null;
+      if (this._inflightPromise === currentPromise) {
+        this.isSyncing = false;
+        this._inflightPromise = null;
+      }
     }
   }
 
@@ -1204,6 +1302,10 @@ class ApiService {
       const bestIso = String(liveBcv?.isoDate || '');
       if (!liveBcv || candIso > bestIso) {
         liveBcv = item.data;
+      } else if (candIso && candIso === bestIso) {
+        if ((!liveBcv.eur || liveBcv.eur <= 0) && item.data.eur > 0) {
+          liveBcv = item.data;
+        }
       }
     }
 
@@ -2485,6 +2587,7 @@ const aboutModal = new AboutModal();
 
 
 
+
 class DashboardView {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
@@ -2574,7 +2677,8 @@ class DashboardView {
       if (secondVal && mainVal && mainRate.currency === secondRate.currency) {
         const diff = Math.abs(secondVal - mainVal);
         const gapPercent = ((diff / Math.min(mainVal, secondVal)) * 100).toFixed(1);
-        bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
+        const diffText = formatCurrency(diff, mainRate.currency, 2);
+        bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name}: ${gapPercent}% (${diffText}).`;
       }
     }
 
@@ -2649,7 +2753,7 @@ class DashboardView {
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                   </span>
                 ` : ''}
-                <span>${nextDayLabel}</span>
+                <span id="dash-nextday-label">${nextDayLabel}</span>
               </button>
             </div>
           </div>
@@ -2696,7 +2800,7 @@ class DashboardView {
       : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
 
     return `
-      <div id="card-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300">
+      <div id="card-${rate.id}" data-calc-rate="${rate.id}" data-calc-day="hoy" class="dash-rate-card glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 cursor-pointer" title="Toca para calcular con esta tasa">
         <div class="flex justify-between items-start">
           <div class="flex items-center space-x-3">
             <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 text-cyan-400">
@@ -2707,10 +2811,15 @@ class DashboardView {
               <p class="text-xs text-gray-400">${rate.code}</p>
             </div>
           </div>
-          <span id="badge-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
-            <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${formatPercentage(rate.change)}</span>
-          </span>
+          <div class="flex items-center space-x-1.5">
+            <span id="badge-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
+              <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
+              <span>${formatPercentage(rate.change)}</span>
+            </span>
+            <button type="button" data-copy-rate="${rate.id}" data-copy-day="hoy" title="Copiar tasa" class="dash-copy-rate-btn p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-cyan-400 transition-all active:scale-95 cursor-pointer">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
         </div>
 
         <div class="mt-4 flex justify-between items-end">
@@ -2736,7 +2845,7 @@ class DashboardView {
         : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
 
       return `
-        <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-yellow-500/30">
+        <div id="card-next-${rate.id}" data-calc-rate="${rate.id}" data-calc-day="hoy" class="dash-rate-card glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-yellow-500/30 cursor-pointer" title="Toca para calcular con esta tasa">
           <div class="flex justify-between items-start">
             <div class="flex items-center space-x-3">
               <div class="p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
@@ -2749,10 +2858,15 @@ class DashboardView {
                 </span>
               </div>
             </div>
-            <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-              <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
-              <span>En Vivo</span>
-            </span>
+            <div class="flex items-center space-x-1.5">
+              <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                <span>En Vivo</span>
+              </span>
+              <button type="button" data-copy-rate="${rate.id}" data-copy-day="hoy" title="Copiar tasa" class="dash-copy-rate-btn p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-cyan-400 transition-all active:scale-95 cursor-pointer">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
 
           <div class="mt-4 flex justify-between items-end">
@@ -2789,7 +2903,7 @@ class DashboardView {
       : `Pendiente por publicación del BCV`;
 
     return `
-      <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
+      <div id="card-next-${rate.id}" data-calc-rate="${rate.id}" data-calc-day="prediccion" class="dash-rate-card glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30 cursor-pointer" title="Toca para calcular con esta tasa">
         <div class="flex justify-between items-start">
           <div class="flex items-center space-x-3">
             <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
@@ -2800,14 +2914,19 @@ class DashboardView {
               ${badgeTag}
             </div>
           </div>
-          ${hasOfficialNextDay ? `
-            <span id="badge-next-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
-              <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-              <span>${formatPercentage(nextDay.change)}</span>
-            </span>` : `
-            <span class="inline-flex items-center space-x-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-white/5 text-gray-400 border-white/10">
-              <span>Pendiente</span>
-            </span>`}
+          <div class="flex items-center space-x-1.5">
+            ${hasOfficialNextDay ? `
+              <span id="badge-next-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
+                <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
+                <span>${formatPercentage(nextDay.change)}</span>
+              </span>
+              <button type="button" data-copy-rate="${rate.id}" data-copy-day="prediccion" title="Copiar tasa" class="dash-copy-rate-btn p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-cyan-400 transition-all active:scale-95 cursor-pointer">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              </button>` : `
+              <span class="inline-flex items-center space-x-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-white/5 text-gray-400 border-white/10">
+                <span>Pendiente</span>
+              </span>`}
+          </div>
         </div>
 
         <div class="mt-4 flex justify-between items-end">
@@ -2815,9 +2934,9 @@ class DashboardView {
             <p id="val-${rate.id}" class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${dateSubtitle}</p>
+            <p id="date-next-${rate.id}" class="text-[11px] text-gray-300 font-medium mt-0.5">${dateSubtitle}</p>
           </div>
-          <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
+          <span id="ref-next-${rate.id}" class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>
       </div>
     `;
@@ -2839,6 +2958,43 @@ class DashboardView {
             this.selectedDay = day;
             this.render();
           }
+        }
+      });
+    });
+
+    const copyBtns = this.container.querySelectorAll('.dash-copy-rate-btn');
+    copyBtns.forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rateId = btn.getAttribute('data-copy-rate');
+        const copyDay = btn.getAttribute('data-copy-day');
+        const currentRates = mockEngine.getRates();
+        const r = currentRates[rateId];
+        if (!r) return;
+        const val = (copyDay === 'prediccion' && r.nextDay && r.nextDay.published && r.nextDay.value)
+          ? r.nextDay.value
+          : r.value;
+        if (typeof val !== 'number' || isNaN(val)) return;
+        const formatted = val.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(formatted);
+          }
+        } catch (err) {}
+        showToast(`${r.name}: Bs. ${formatted} copiado`, 'Tasa Copiada', 'check-circle');
+      });
+    });
+
+    const cards = this.container.querySelectorAll('.dash-rate-card');
+    cards.forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.dash-copy-rate-btn')) return;
+        const rateId = card.getAttribute('data-calc-rate');
+        const day = card.getAttribute('data-calc-day') || 'hoy';
+        if (rateId && typeof window !== 'undefined' && window.dolarfyApp) {
+          window.__dolarfyCalcPreset = { rateId, day };
+          window.dolarfyApp.navigateTo('calculator', true);
         }
       });
     });
@@ -2923,6 +3079,26 @@ class DashboardView {
           srcEl.innerHTML = label;
         }
       }
+
+      if (isManana && !isCrypto && r.nextDay && r.nextDay.published) {
+        const nextLabel = this.getNextDayLabel(rates);
+        const dateEl = document.getElementById(`date-next-${key}`);
+        const newDateText = this.cleanText(r.nextDay.date) || `Oficial ${nextLabel}`;
+        if (dateEl && dateEl.textContent !== newDateText) {
+          dateEl.textContent = newDateText;
+        }
+        const refEl = document.getElementById(`ref-next-${key}`);
+        const newRefText = `Ref. ${nextLabel}`;
+        if (refEl && refEl.textContent !== newRefText) {
+          refEl.textContent = newRefText;
+        }
+      }
+    }
+
+    const nextDayBtnLabel = document.getElementById('dash-nextday-label');
+    const currentNextLabel = this.getNextDayLabel(rates);
+    if (nextDayBtnLabel && nextDayBtnLabel.textContent !== currentNextLabel) {
+      nextDayBtnLabel.textContent = currentNextLabel;
     }
 
     // Banner
@@ -2964,13 +3140,29 @@ class CalculatorView {
 
     // Tasa por defecto
     const rates = this.currentCountry.rates;
-    const rateKeys = Object.keys(rates);
+    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
     this.selectedRateId = this.currentCountry.defaultRateId && rates[this.currentCountry.defaultRateId] 
       ? this.currentCountry.defaultRateId 
       : rateKeys[0];
 
     // Selector de día: 'hoy' o 'prediccion'
     this.selectedDay = 'hoy';
+    this._userSelectedDay = false;
+    this._lastNextIso = '';
+
+    // Preselección desde tarjeta del Dashboard
+    if (typeof window !== 'undefined' && window.__dolarfyCalcPreset) {
+      const preset = window.__dolarfyCalcPreset;
+      window.__dolarfyCalcPreset = null;
+      if (preset.rateId && rates[preset.rateId]) {
+        this.selectedRateId = preset.rateId;
+      }
+      if (preset.day === 'prediccion' || preset.day === 'hoy') {
+        this.selectedDay = preset.day;
+        this._userSelectedDay = true;
+      }
+    }
+
     this.unsubscribe = null;
   }
 
@@ -2981,8 +3173,14 @@ class CalculatorView {
   hasNextDayRate(rates) {
     if (!rates) rates = this.currentCountry?.rates;
     if (!rates || typeof rates !== 'object') return false;
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const todayIso = new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+
     return Object.values(rates).some(r =>
-      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0
+      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0 &&
+      (!r.nextDay._iso || String(r.nextDay._iso) > todayIso)
     );
   }
 
@@ -3058,7 +3256,7 @@ class CalculatorView {
     }
 
     if (!rates[this.selectedRateId]) {
-      this.selectedRateId = this.currentCountry.defaultRateId && rates[this.selectedRateId]
+      this.selectedRateId = this.currentCountry.defaultRateId && rates[this.currentCountry.defaultRateId]
         ? this.currentCountry.defaultRateId
         : rateKeys[0];
     }
@@ -3066,6 +3264,7 @@ class CalculatorView {
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
     const activeRate = this.getEffectiveRate(activeRateObj);
     this._lastActiveRate = activeRate;
+    this._lastNextIso = activeRateObj?.nextDay?._iso || rates?.bcv?.nextDay?._iso || '';
     const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
     const ratePair = [baseCode, targetCode];
 
@@ -3287,7 +3486,7 @@ class CalculatorView {
       const temp = this.fromCurrency;
       this.fromCurrency = this.toCurrency;
       this.toCurrency = temp;
-      this.calculate();
+      this.render();
     };
 
     swapBtn?.addEventListener('click', triggerSwap);
@@ -3302,8 +3501,12 @@ class CalculatorView {
       if (fullText.includes('=')) {
         resultOnly = fullText.split('=').pop().trim();
       }
+      const isNegative = /-\s*\d/.test(resultOnly);
       // Limpiar símbolos de moneda, letras y puntos/comas sobrantes al final (ej. "Bs." -> sin punto al final)
       resultOnly = resultOnly.replace(/[^\d.,]/g, '').replace(/[.,]+$/, '').trim();
+      if (isNegative && resultOnly) {
+        resultOnly = `-${resultOnly}`;
+      }
 
       const performCopy = (text) => {
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -3407,7 +3610,8 @@ class CalculatorView {
     try {
       const evalResult = evaluateMath(this.expression);
       if (!isNaN(evalResult) && isFinite(evalResult)) {
-        this.expression = evalResult.toString().replace(/\./g, ',');
+        const cleanStr = Number(evalResult.toFixed(6)).toString();
+        this.expression = cleanStr.replace(/\./g, ',');
       }
     } catch (e) {
       if (e.message && e.message.includes('cero')) {
@@ -3424,6 +3628,11 @@ class CalculatorView {
 
     const rates = this.currentCountry.rates;
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
+    const effectiveRate = this.getEffectiveRate(activeRateObj);
+    const isPred = this.selectedDay === 'prediccion' && this.hasNextDayRate(rates);
+    const rateLabel = activeRateObj
+      ? (isPred ? `${activeRateObj.name} (${this.getNextDayLabel(rates)})` : activeRateObj.name)
+      : '';
 
     calcHistoryService.addEntry({
       expression: this.expression,
@@ -3431,11 +3640,12 @@ class CalculatorView {
       countryId: this.currentCountry.id,
       countryName: this.currentCountry.name,
       flagUrl: this.currentCountry.flagUrl,
-      rateName: activeRateObj ? activeRateObj.name : '',
+      rateName: rateLabel,
       rateId: this.selectedRateId,
-      rateValue: activeRateObj ? activeRateObj.value : 1,
+      rateValue: effectiveRate,
       fromCurrency: this.fromCurrency,
-      toCurrency: this.toCurrency
+      toCurrency: this.toCurrency,
+      selectedDay: this.selectedDay
     });
   }
 
@@ -3526,6 +3736,10 @@ class CalculatorView {
           this.selectedRateId = entry.rateId;
           this.fromCurrency = entry.fromCurrency;
           this.toCurrency = entry.toCurrency;
+          if (entry.selectedDay === 'prediccion' || entry.selectedDay === 'hoy') {
+            this.selectedDay = entry.selectedDay;
+            this._userSelectedDay = true;
+          }
           container.innerHTML = '';
           this.render();
         }
@@ -3608,13 +3822,21 @@ class CalculatorView {
     if (!activeRateObj) return;
 
     const newRate = this.getEffectiveRate(activeRateObj);
-    if (this._lastActiveRate === newRate) return;
+    const nextIso = activeRateObj?.nextDay?._iso || rates?.bcv?.nextDay?._iso || '';
+    if (this._lastActiveRate === newRate && this._lastNextIso === nextIso) return;
     this._lastActiveRate = newRate;
+    this._lastNextIso = nextIso;
+
+    const nextDayLabel = this.getNextDayLabel(rates);
+    const predBtnLabel = document.querySelector('.calc-day-btn[data-calcday="prediccion"] span:last-child');
+    if (predBtnLabel && predBtnLabel.textContent !== nextDayLabel) {
+      predBtnLabel.textContent = nextDayLabel;
+    }
 
     const pillEl = document.getElementById('rate-badge-pill');
     if (pillEl) {
       pillEl.innerHTML = `${this.selectedDay === 'prediccion' && hasNextDay
-        ? `<i data-lucide="calendar-check" class="w-3 h-3 text-amber-400"></i><span class="text-amber-300">${this.getNextDayLabel(rates)}:</span>`
+        ? `<i data-lucide="calendar-check" class="w-3 h-3 text-amber-400"></i><span class="text-amber-300">${nextDayLabel}:</span>`
         : `<i data-lucide="sun" class="w-3 h-3 text-emerald-400"></i>`} ${newRate.toFixed(newRate < 10 ? 4 : 2)}`;
       if (window.lucide) window.lucide.createIcons();
     }
@@ -3681,7 +3903,7 @@ class AnalyticsView {
     const endpointMap = {
       bcv: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial',
       paralelo: 'https://ve.dolarapi.com/v1/historicos/dolares/paralelo',
-      euro: 'https://ve.dolarapi.com/v1/historicos/euros'
+      euro: 'https://ve.dolarapi.com/v1/historicos/euros/oficial'
     };
     const fuenteMap = { bcv: 'oficial', paralelo: 'paralelo', euro: 'oficial' };
     const url = endpointMap[rateKey];
@@ -3721,12 +3943,14 @@ class AnalyticsView {
   }
 
   _filterHistorical(series, days) {
-    const today = new Date();
-    const from = new Date();
-    from.setDate(today.getDate() - days);
-    const fromStr = from.toISOString().split('T')[0];
-    const toStr = today.toISOString().split('T')[0];
-    return series.filter(d => d.date >= fromStr && d.date <= toStr);
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const todayVet = new Date(utcMs + vetOffsetMs);
+    const fromVet = new Date(todayVet);
+    fromVet.setUTCDate(todayVet.getUTCDate() - days);
+    const fromStr = fromVet.toISOString().split('T')[0];
+    return series.filter(d => d.date >= fromStr);
   }
 
   processHistoricalForChart(historicalData, period) {
@@ -3765,12 +3989,14 @@ class AnalyticsView {
     const bcvRate = rates.bcv;
     const paraleloRate = rates.paralelo;
     let gapPercent = 0;
+    let gapDiffBs = 0;
     if (
       bcvRate && paraleloRate &&
       typeof bcvRate.value === 'number' && typeof paraleloRate.value === 'number' &&
       bcvRate.value > 0 && paraleloRate.value > 0
     ) {
       gapPercent = ((paraleloRate.value / bcvRate.value) - 1) * 100;
+      gapDiffBs = paraleloRate.value - bcvRate.value;
     }
 
     const periodDetails = this.getPeriodDetails(this.selectedPeriod);
@@ -3799,8 +4025,8 @@ class AnalyticsView {
           <!-- Brecha BCV vs Paralelo -->
           <div class="glass-card rounded-2xl p-3 text-center border border-white/10 hover:border-cyan-500/30 transition-all">
             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha Oficial/P2P</span>
-            <p id="gap-value" class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent.toFixed(2)}%` : '0.00%'}</p>
-            <span class="text-[9px] text-gray-400 font-semibold block truncate">Diferencia BCV vs USDT</span>
+            <p id="gap-value" class="text-lg font-black text-cyan-400 mt-0.5">${formatPercentage(gapPercent)}</p>
+            <span id="gap-diff-bs" class="text-[9px] text-gray-400 font-semibold block truncate">${gapDiffBs !== 0 ? `${gapDiffBs > 0 ? '+' : ''}${formatCurrency(gapDiffBs, currentCountry.currency.code, 2)}` : 'Diferencia BCV vs USDT'}</span>
           </div>
 
           <!-- Mínimo del Período -->
@@ -3903,9 +4129,9 @@ class AnalyticsView {
     };
 
     const seriesData = [];
-    let categories = [];
     let hasRealData = false;
-    let bcvHistoricalPoints = null;
+    this._chartReqId = (this._chartReqId || 0) + 1;
+    const reqId = this._chartReqId;
 
     const rangeKey = this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]
       ? this.selectedRateFilter
@@ -3914,17 +4140,23 @@ class AnalyticsView {
     let realMax = -Infinity;
     let hasRangeData = false;
 
+    const rawSeriesList = await Promise.all(
+      activeKeys.map(key => this.fetchHistoricalData(key, days))
+    );
+
+    if (reqId !== this._chartReqId || !document.getElementById('apex-analytics-chart')) {
+      return;
+    }
+
     for (let index = 0; index < activeKeys.length; index++) {
       const key = activeKeys[index];
       const rateObj = rates[key];
-
-      const historicalRaw = await this.fetchHistoricalData(key, days);
+      const historicalRaw = rawSeriesList[index];
       let chartData = null;
 
       if (historicalRaw && historicalRaw.length > 0) {
         chartData = this.processHistoricalForChart(historicalRaw, this.selectedPeriod);
         hasRealData = true;
-        if (key === 'bcv') bcvHistoricalPoints = historicalRaw;
 
         if (key === rangeKey) {
           for (const point of historicalRaw) {
@@ -3944,7 +4176,6 @@ class AnalyticsView {
           color: colorMap[key] || '#8B5CF6'
         });
       }
-      // Sin datos históricos reales: la serie se omite (no se inventa ningún punto)
     }
 
     const skeleton = document.getElementById('chart-loading-skeleton');
@@ -4099,8 +4330,15 @@ class AnalyticsView {
       bcvRate.value > 0 && paraleloRate.value > 0
     ) {
       const gap = ((paraleloRate.value / bcvRate.value) - 1) * 100;
-      const text = gap > 0 ? `+${gap.toFixed(2)}%` : '0.00%';
+      const text = formatPercentage(gap);
       if (gapEl.textContent !== text) gapEl.textContent = text;
+      const diffEl = document.getElementById('gap-diff-bs');
+      if (diffEl) {
+        const diffBs = paraleloRate.value - bcvRate.value;
+        const currentCountry = mockEngine.getCurrentCountry();
+        const diffText = `${diffBs > 0 ? '+' : ''}${formatCurrency(diffBs, currentCountry.currency.code, 2)}`;
+        if (diffEl.textContent !== diffText) diffEl.textContent = diffText;
+      }
     }
   }
 

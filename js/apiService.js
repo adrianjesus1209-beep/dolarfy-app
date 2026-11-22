@@ -379,7 +379,7 @@ class ApiService {
 
     const [usdRes, eurRes] = await Promise.all([
       this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial', force }),
-      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/euros', force })
+      this._request({ source: 'histDolarapi', url: 'https://ve.dolarapi.com/v1/historicos/euros/oficial', force })
     ]);
 
     const today = this.getTodayIsoVet();
@@ -448,7 +448,7 @@ class ApiService {
     }
 
     this.isSyncing = true;
-    this._inflightPromise = this.fetchVenezuelaRates(country, cacheKey, force)
+    const currentPromise = this.fetchVenezuelaRates(country, cacheKey, force)
       .then(rates => {
         if (rates && rates._meta) {
           this._lastRates = JSON.parse(JSON.stringify(rates));
@@ -464,11 +464,15 @@ class ApiService {
         return this._getLastKnownRates(country);
       });
 
+    this._inflightPromise = currentPromise;
+
     try {
-      return await this._inflightPromise;
+      return await currentPromise;
     } finally {
-      this.isSyncing = false;
-      this._inflightPromise = null;
+      if (this._inflightPromise === currentPromise) {
+        this.isSyncing = false;
+        this._inflightPromise = null;
+      }
     }
   }
 
@@ -604,6 +608,10 @@ class ApiService {
       const bestIso = String(liveBcv?.isoDate || '');
       if (!liveBcv || candIso > bestIso) {
         liveBcv = item.data;
+      } else if (candIso && candIso === bestIso) {
+        if ((!liveBcv.eur || liveBcv.eur <= 0) && item.data.eur > 0) {
+          liveBcv = item.data;
+        }
       }
     }
 

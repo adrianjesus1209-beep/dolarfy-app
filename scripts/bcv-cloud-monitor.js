@@ -71,12 +71,13 @@ function fetchBcvDirectHttps() {
         try {
           const mUsd = data.match(/id="dolar"[\s\S]{0,800}?<strong[^>]*>\s*([\d.,]+)\s*<\/strong>/i);
           const mEur = data.match(/id="euro"[\s\S]{0,800}?<strong[^>]*>\s*([\d.,]+)\s*<\/strong>/i);
+          const mIso = data.match(/Fecha\s+Valor[\s\S]{0,500}?content="(\d{4}-\d{2}-\d{2})/i);
           const mFecha = data.match(/Fecha\s+Valor[\s\S]{0,500}?<span[^>]*>([^<]+)<\/span>/i);
           if (mUsd) {
             const usd = parseFloat(mUsd[1].trim().replace(/\./g, '').replace(',', '.'));
             let eur = mEur ? parseFloat(mEur[1].trim().replace(/\./g, '').replace(',', '.')) : 0;
             const fechaText = mFecha ? mFecha[1].trim().replace(/\s+/g, ' ') : '';
-            const isoDate = parseSpanishDateToIso(fechaText);
+            const isoDate = (mIso ? mIso[1] : null) || parseSpanishDateToIso(fechaText);
             if (usd > 0 && isoDate) {
               return resolve({
                 status: 'ok',
@@ -84,7 +85,7 @@ function fetchBcvDirectHttps() {
                 eur: parseFloat(eur.toFixed(2)),
                 isoDate,
                 shortDate: isoToShortDate(isoDate),
-                fecha: fechaText,
+                fecha: fechaText || isoToShortDate(isoDate),
                 source: 'bcv_direct_https'
               });
             }
@@ -101,28 +102,22 @@ function fetchBcvDirectHttps() {
 function isBetterRate(candidate, currentBest) {
   if (!candidate || candidate.status !== 'ok' || !candidate.isoDate) return false;
   if (!currentBest || currentBest.status !== 'ok' || !currentBest.isoDate) return true;
-  return candidate.isoDate > currentBest.isoDate;
+  if (candidate.isoDate !== currentBest.isoDate) {
+    return candidate.isoDate > currentBest.isoDate;
+  }
+  // En empate de fecha, preferir el candidato que sí traiga Euro válido (> 0) o fuente directa BCV
+  if ((currentBest.eur || 0) <= 0 && (candidate.eur || 0) > 0) return true;
+  if (currentBest.source === 'dolarapi_historicos' && candidate.source !== 'dolarapi_historicos' && (candidate.eur || 0) > 0) {
+    return true;
+  }
+  return false;
 }
 
-async function fetchCurrentBcv() {
-  const { isoToday, hour } = getVenezuelaNow();
-  const inWindow = (hour === 16 || hour === 17);
-  let best = null;
-
-  // 1. Scraping ultra-rápido directo a bcv.org.ve vía HTTPS nativo (~0.8 segundos)
-  try {
-    const direct = await fetchBcvDirectHttps();
-    if (isBetterRate(direct, best)) best = direct;
-    if (best && (best.isoDate > isoToday || !inWindow)) {
-      return best;
-    }
-  } catch (e) {}
-
-  // 2. Respaldo vía DolarApi Históricos (detecta la Fecha Valor oficial)
+async function fetchDolarApiHistorics() {
   try {
     const [usdRes, eurRes] = await Promise.all([
-      fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/dolares/oficial', {}, 6000),
-      fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/euros/oficial', {}, 6000)
+      fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/dolares/oficial', {}, 4500),
+      fetchWithTimeout('https://ve.dolarapi.com/v1/historicos/euros/oficial', {}, 4500)
     ]);
 
     if (usdRes.ok) {
@@ -131,17 +126,26 @@ async function fetchCurrentBcv() {
 
       if (Array.isArray(usdList) && usdList.length > 0) {
         const lastUsd = usdList[usdList.length - 1];
-        const lastEur = Array.isArray(eurList) && eurList.length > 0 ? eurList[eurList.length - 1] : null;
+        const isoDate = String(lastUsd.fecha || '').slice(0, 10);
+        let matchingEur = null;
+        if (Array.isArray(eurList) && eurList.length > 0) {
+          for (let i = eurList.length - 1; i >= 0; i--) {
+            if (String(eurList[i]?.fecha || '').slice(0, 10) === isoDate) {
+              matchingEur = eurList[i];
+              break;
+            }
+          }
+          if (!matchingEur) matchingEur = eurList[eurList.length - 1];
+        }
 
         const usd = parseFloat(parseFloat(lastUsd.promedio).toFixed(2));
-        let eur = lastEur ? parseFloat(parseFloat(lastEur.promedio).toFixed(2)) : 0;
+        let eur = matchingEur ? parseFloat(parseFloat(matchingEur.promedio).toFixed(2)) : 0;
         if (eur > 0 && eur < 100 && usd > 100) {
           eur = parseFloat((eur * 1000).toFixed(2));
         }
-        const isoDate = String(lastUsd.fecha).slice(0, 10);
 
         if (usd > 0 && isoDate) {
-          const dapi = {
+          return {
             status: 'ok',
             usd,
             eur,
@@ -150,18 +154,14 @@ async function fetchCurrentBcv() {
             fecha: isoToShortDate(isoDate),
             source: 'dolarapi_historicos'
           };
-          if (isBetterRate(dapi, best)) best = dapi;
-          if (best && (best.isoDate > isoToday || !inWindow)) {
-            return best;
-          }
         }
       }
     }
-  } catch (e) {
-    console.warn('Fallo respaldo DolarApi:', e.message);
-  }
+  } catch (e) {}
+  return null;
+}
 
-  // 3. Scraping de respaldo vía Jina Reader (con X-No-Cache)
+async function fetchBcvJinaLive() {
   try {
     const cb = Math.floor(Date.now() / 5000);
     const res = await fetchWithTimeout(`https://r.jina.ai/https://www.bcv.org.ve/?_cb=${cb}`, {
@@ -169,7 +169,7 @@ async function fetchCurrentBcv() {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
         'X-No-Cache': 'true'
       }
-    }, 10000);
+    }, 6500);
 
     if (res.ok) {
       const text = await res.text();
@@ -184,7 +184,7 @@ async function fetchCurrentBcv() {
         const isoDate = parseSpanishDateToIso(fechaText);
 
         if (usd > 0 && isoDate) {
-          const jina = {
+          return {
             status: 'ok',
             usd: parseFloat(usd.toFixed(2)),
             eur: parseFloat(eur.toFixed(2)),
@@ -193,12 +193,49 @@ async function fetchCurrentBcv() {
             fecha: fechaText,
             source: 'bcv_jina_live'
           };
-          if (isBetterRate(jina, best)) best = jina;
         }
       }
     }
-  } catch (e) {
-    console.warn('Fallo lector Jina bcv.org.ve:', e.message);
+  } catch (e) {}
+  return null;
+}
+
+async function fetchCurrentBcv() {
+  const { isoToday, hour } = getVenezuelaNow();
+  const inWindow = (hour >= 15 && hour <= 18);
+  let best = null;
+
+  // En la ventana vespertina del BCV (3:00 PM a 6:59 PM VET), consultar las 3 fuentes EN PARALELO
+  // para reducir el ciclo de 7-11s a ~1-3s y detectar al instante el primer nodo que actualice.
+  if (inWindow) {
+    const results = await Promise.allSettled([
+      fetchBcvDirectHttps(),
+      fetchDolarApiHistorics(),
+      fetchBcvJinaLive()
+    ]);
+    for (const r of results) {
+      if (r.status === 'fulfilled' && isBetterRate(r.value, best)) {
+        best = r.value;
+      }
+    }
+    return best;
+  }
+
+  // Fuera de la ventana crítica, priorizar conexión directa ligera y respaldar en paralelo solo si falla
+  try {
+    const direct = await fetchBcvDirectHttps();
+    if (isBetterRate(direct, best)) best = direct;
+    if (best) return best;
+  } catch (e) {}
+
+  const backups = await Promise.allSettled([
+    fetchDolarApiHistorics(),
+    fetchBcvJinaLive()
+  ]);
+  for (const r of backups) {
+    if (r.status === 'fulfilled' && isBetterRate(r.value, best)) {
+      best = r.value;
+    }
   }
 
   return best;
@@ -219,7 +256,7 @@ function saveState(data) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-async function sendFirebasePush(rateData, isForce = false) {
+async function sendFirebasePush(rateData, isForce = false, isCorrection = false) {
   let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!serviceAccountJson) {
     // Buscar archivo local para tests
@@ -259,20 +296,25 @@ async function sendFirebasePush(rateData, isForce = false) {
 
   const collapsedText = `USD = Bs. ${usdStr} | EUR = Bs. ${eurStr} Fecha: ${shortDate}`;
   const expandedText = `USD = Bs. ${usdStr} | EUR = Bs. ${eurStr}\nFecha: ${shortDate}`;
+  const notifTitle = isCorrection
+    ? '📅 Actualización Fecha Valor BCV'
+    : '📢 Nueva Tasa BCV Disponible';
 
   const message = {
     topic: 'bcv_rates',
     notification: {
-      title: '📢 Nueva Tasa BCV Disponible',
+      title: notifTitle,
       body: collapsedText
     },
     data: {
+      title: notifTitle,
       usd: usdStr,
       eur: eurStr,
       isoDate: rateData.isoDate,
       shortDate: shortDate,
       expandedText: expandedText,
       dedupKey: `VE_${rateData.isoDate}_${usdStr}_${eurStr}`,
+      isCorrection: isCorrection ? 'true' : 'false',
       force: isForce ? 'true' : 'false',
       test: isForce ? 'true' : 'false'
     },
@@ -375,9 +417,17 @@ function evaluateRateTransition(current, lastState, isoToday, isForce = false) {
     };
   }
 
+  const isCorrection = Boolean(
+    alreadyFutureInState &&
+    lastState?.isoDate &&
+    current.isoDate >= lastState.isoDate &&
+    currentKey !== lastKey
+  );
+
   return {
     shouldNotify: true,
-    reason: 'new_rate',
+    reason: isCorrection ? 'future_rate_correction' : 'new_rate',
+    isCorrection,
     currentKey,
     lastKey,
     recentKeys,
@@ -420,8 +470,8 @@ async function checkOnce(overrideCurrent = null, pushOverrideFn = null) {
   console.log(`🚨 ${isTest ? '🧪 MODO PRUEBA DE NOTIFICACIÓN PUSH' : '¡NUEVA TASA DETECTADA AL INSTANTE!'} Anterior: ${decision.lastKey || 'ninguna'} => Nueva: ${decision.currentKey}`);
 
   const pushed = pushOverrideFn
-    ? await pushOverrideFn(current, isForce)
-    : await sendFirebasePush(current, isForce);
+    ? await pushOverrideFn(current, isForce, Boolean(decision.isCorrection))
+    : await sendFirebasePush(current, isForce, Boolean(decision.isCorrection));
   const pushMs = Date.now() - pushStart;
   console.log(`⚡ Tiempo de despacho FCM: ${pushMs}ms (Tiempo total detección + envío: ${Date.now() - t0}ms)`);
 
@@ -598,15 +648,21 @@ async function main() {
     }
 
     // Ventana crítica (3:45 PM a 6:15 PM VET en días hábiles mientras no haya salido la tasa futura):
-    // Modo Ultra-Turbo cada 2.5 segundos
-    const isTurboWindow = isWeekday
-      && !alreadyFutureNotified
+    // Modo Ultra-Turbo cada 2.5 segundos.
+    // Si ya salió la tasa futura dentro de la ventana de tarde (3:45 PM a 6:00 PM VET),
+    // mantener Guardia Rápida Post-Publicación cada 25 segundos para detectar correcciones de Fecha Valor
+    // o feriados SUDEBAN al instante (en vez de esperar 10 minutos).
+    const isAfternoonWindow = isWeekday
       && ((hour === 15 && minute >= 45) || hour === 16 || hour === 17 || (hour === 18 && minute <= 15));
+    const isTurboWindow = isAfternoonWindow && !alreadyFutureNotified;
+    const isPostPublishQuickWindow = isAfternoonWindow && alreadyFutureNotified;
 
     if (isTurboWindow) {
       await new Promise(r => setTimeout(r, 2500));
+    } else if (isPostPublishQuickWindow) {
+      await new Promise(r => setTimeout(r, 25000));
     } else {
-      // Si ya se notificó la tasa del próximo día hábil, espaciar las verificaciones pasivas a 10 min;
+      // Fuera de la ventana de tarde: si ya se notificó la tasa del próximo día hábil, espaciar a 10 min;
       // de lo contrario cada 2 min, despertando al instante al entrar en 3:45 PM VET.
       const standbyCycleMs = alreadyFutureNotified ? 600000 : 120000;
       console.log(`🛡️ Servidor activo en Guardia Continua (Hora VET: ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} | Próximo chequeo: ${standbyCycleMs / 60000} min | Transcurrido: ${elapsedMinutes.toFixed(1)}/${MAX_MINUTES} min).`);

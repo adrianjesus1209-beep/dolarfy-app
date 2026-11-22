@@ -27,10 +27,18 @@ class CalcHistoryService {
   }
 
   addEntry(entry) {
-    // Evitar duplicados inmediatos idénticos
+    // Evitar duplicados inmediatos idénticos (considerando dirección de conversión, tasa y día)
     if (this.history.length > 0) {
       const last = this.history[0];
-      if (last.expression === entry.expression && last.rateId === entry.rateId && last.countryId === entry.countryId) {
+      if (
+        last.expression === entry.expression &&
+        last.rateId === entry.rateId &&
+        last.countryId === entry.countryId &&
+        last.fromCurrency === entry.fromCurrency &&
+        last.toCurrency === entry.toCurrency &&
+        last.rateValue === entry.rateValue &&
+        (last.selectedDay || 'hoy') === (entry.selectedDay || 'hoy')
+      ) {
         return;
       }
     }
@@ -47,6 +55,7 @@ class CalcHistoryService {
       rateValue: entry.rateValue,
       fromCurrency: entry.fromCurrency,
       toCurrency: entry.toCurrency,
+      selectedDay: entry.selectedDay || 'hoy',
       timestamp: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true })
     };
 

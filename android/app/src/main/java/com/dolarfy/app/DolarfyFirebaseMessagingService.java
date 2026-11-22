@@ -44,6 +44,9 @@ public class DolarfyFirebaseMessagingService extends FirebaseMessagingService {
 
             Map<String, String> data = remoteMessage.getData();
             if (data != null && !data.isEmpty()) {
+                if (data.get("title") != null && !data.get("title").isEmpty()) {
+                    title = data.get("title");
+                }
                 String usdStr = data.get("usd");
                 String eurStr = data.get("eur");
                 String shortDate = data.get("shortDate");

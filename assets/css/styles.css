@@ -238,8 +238,6 @@ html.light select option {
 }
 
 /* Modales en modo claro */
-html.light #country-modal > div:last-child,
-html.light #notif-modal > div:last-child,
 html.light #country-modal-container > div > div,
 html.light #notification-modal-container > div > div,
 html.light #about-modal-container > div > div,

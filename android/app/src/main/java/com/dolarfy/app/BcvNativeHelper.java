@@ -517,8 +517,18 @@ public class BcvNativeHelper {
                                 String rawEur = readStream(connEur.getInputStream());
                                 JSONArray arrEur = new JSONArray(rawEur);
                                 if (arrEur.length() > 0) {
-                                    JSONObject lastEur = arrEur.getJSONObject(arrEur.length() - 1);
-                                    eur = lastEur.optDouble("promedio", 0);
+                                    JSONObject matchedEur = null;
+                                    for (int i = arrEur.length() - 1; i >= 0; i--) {
+                                        JSONObject candidateEur = arrEur.optJSONObject(i);
+                                        if (candidateEur != null && isoDate.equals(candidateEur.optString("fecha", "").trim())) {
+                                            matchedEur = candidateEur;
+                                            break;
+                                        }
+                                    }
+                                    if (matchedEur == null) {
+                                        matchedEur = arrEur.getJSONObject(arrEur.length() - 1);
+                                    }
+                                    eur = matchedEur.optDouble("promedio", 0);
                                     if (eur > 0 && eur < 100 && usd > 100) {
                                         eur = eur * 1000.0;
                                     }

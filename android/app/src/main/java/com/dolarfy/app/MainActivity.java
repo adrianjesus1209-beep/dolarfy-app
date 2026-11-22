@@ -131,11 +131,15 @@ public class MainActivity extends BridgeActivity {
         if (scheduler != null) return;
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(() -> {
+            if (!syncInFlight.compareAndSet(false, true)) return;
             try {
                 BcvNativeHelper.syncLiveAll(getApplicationContext(), false);
                 lastSyncMs = System.currentTimeMillis();
                 notifyWebView();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            } finally {
+                syncInFlight.set(false);
+            }
         }, 0, 45, TimeUnit.SECONDS);
     }
 

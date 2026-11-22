@@ -48,7 +48,7 @@ export class AnalyticsView {
     const endpointMap = {
       bcv: 'https://ve.dolarapi.com/v1/historicos/dolares/oficial',
       paralelo: 'https://ve.dolarapi.com/v1/historicos/dolares/paralelo',
-      euro: 'https://ve.dolarapi.com/v1/historicos/euros'
+      euro: 'https://ve.dolarapi.com/v1/historicos/euros/oficial'
     };
     const fuenteMap = { bcv: 'oficial', paralelo: 'paralelo', euro: 'oficial' };
     const url = endpointMap[rateKey];
@@ -88,12 +88,14 @@ export class AnalyticsView {
   }
 
   _filterHistorical(series, days) {
-    const today = new Date();
-    const from = new Date();
-    from.setDate(today.getDate() - days);
-    const fromStr = from.toISOString().split('T')[0];
-    const toStr = today.toISOString().split('T')[0];
-    return series.filter(d => d.date >= fromStr && d.date <= toStr);
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const todayVet = new Date(utcMs + vetOffsetMs);
+    const fromVet = new Date(todayVet);
+    fromVet.setUTCDate(todayVet.getUTCDate() - days);
+    const fromStr = fromVet.toISOString().split('T')[0];
+    return series.filter(d => d.date >= fromStr);
   }
 
   processHistoricalForChart(historicalData, period) {
@@ -132,12 +134,14 @@ export class AnalyticsView {
     const bcvRate = rates.bcv;
     const paraleloRate = rates.paralelo;
     let gapPercent = 0;
+    let gapDiffBs = 0;
     if (
       bcvRate && paraleloRate &&
       typeof bcvRate.value === 'number' && typeof paraleloRate.value === 'number' &&
       bcvRate.value > 0 && paraleloRate.value > 0
     ) {
       gapPercent = ((paraleloRate.value / bcvRate.value) - 1) * 100;
+      gapDiffBs = paraleloRate.value - bcvRate.value;
     }
 
     const periodDetails = this.getPeriodDetails(this.selectedPeriod);
@@ -166,8 +170,8 @@ export class AnalyticsView {
           <!-- Brecha BCV vs Paralelo -->
           <div class="glass-card rounded-2xl p-3 text-center border border-white/10 hover:border-cyan-500/30 transition-all">
             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Brecha Oficial/P2P</span>
-            <p id="gap-value" class="text-lg font-black text-cyan-400 mt-0.5">${gapPercent > 0 ? `+${gapPercent.toFixed(2)}%` : '0.00%'}</p>
-            <span class="text-[9px] text-gray-400 font-semibold block truncate">Diferencia BCV vs USDT</span>
+            <p id="gap-value" class="text-lg font-black text-cyan-400 mt-0.5">${formatPercentage(gapPercent)}</p>
+            <span id="gap-diff-bs" class="text-[9px] text-gray-400 font-semibold block truncate">${gapDiffBs !== 0 ? `${gapDiffBs > 0 ? '+' : ''}${formatCurrency(gapDiffBs, currentCountry.currency.code, 2)}` : 'Diferencia BCV vs USDT'}</span>
           </div>
 
           <!-- Mínimo del Período -->
@@ -270,9 +274,9 @@ export class AnalyticsView {
     };
 
     const seriesData = [];
-    let categories = [];
     let hasRealData = false;
-    let bcvHistoricalPoints = null;
+    this._chartReqId = (this._chartReqId || 0) + 1;
+    const reqId = this._chartReqId;
 
     const rangeKey = this.selectedRateFilter !== 'all' && rates[this.selectedRateFilter]
       ? this.selectedRateFilter
@@ -281,17 +285,23 @@ export class AnalyticsView {
     let realMax = -Infinity;
     let hasRangeData = false;
 
+    const rawSeriesList = await Promise.all(
+      activeKeys.map(key => this.fetchHistoricalData(key, days))
+    );
+
+    if (reqId !== this._chartReqId || !document.getElementById('apex-analytics-chart')) {
+      return;
+    }
+
     for (let index = 0; index < activeKeys.length; index++) {
       const key = activeKeys[index];
       const rateObj = rates[key];
-
-      const historicalRaw = await this.fetchHistoricalData(key, days);
+      const historicalRaw = rawSeriesList[index];
       let chartData = null;
 
       if (historicalRaw && historicalRaw.length > 0) {
         chartData = this.processHistoricalForChart(historicalRaw, this.selectedPeriod);
         hasRealData = true;
-        if (key === 'bcv') bcvHistoricalPoints = historicalRaw;
 
         if (key === rangeKey) {
           for (const point of historicalRaw) {
@@ -311,7 +321,6 @@ export class AnalyticsView {
           color: colorMap[key] || '#8B5CF6'
         });
       }
-      // Sin datos históricos reales: la serie se omite (no se inventa ningún punto)
     }
 
     const skeleton = document.getElementById('chart-loading-skeleton');
@@ -466,8 +475,15 @@ export class AnalyticsView {
       bcvRate.value > 0 && paraleloRate.value > 0
     ) {
       const gap = ((paraleloRate.value / bcvRate.value) - 1) * 100;
-      const text = gap > 0 ? `+${gap.toFixed(2)}%` : '0.00%';
+      const text = formatPercentage(gap);
       if (gapEl.textContent !== text) gapEl.textContent = text;
+      const diffEl = document.getElementById('gap-diff-bs');
+      if (diffEl) {
+        const diffBs = paraleloRate.value - bcvRate.value;
+        const currentCountry = mockEngine.getCurrentCountry();
+        const diffText = `${diffBs > 0 ? '+' : ''}${formatCurrency(diffBs, currentCountry.currency.code, 2)}`;
+        if (diffEl.textContent !== diffText) diffEl.textContent = diffText;
+      }
     }
   }
 

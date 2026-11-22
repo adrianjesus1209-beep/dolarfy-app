@@ -1,5 +1,6 @@
 import { mockEngine } from '../mockData.js';
 import { formatCurrency, formatPercentage, formatTime, escapeHtml, getNextBusinessDayName, isPredictionRead, markPredictionRead } from '../utils/formatters.js';
+import { showToast } from '../utils/toast.js';
 
 export class DashboardView {
   constructor(containerId) {
@@ -90,7 +91,8 @@ export class DashboardView {
       if (secondVal && mainVal && mainRate.currency === secondRate.currency) {
         const diff = Math.abs(secondVal - mainVal);
         const gapPercent = ((diff / Math.min(mainVal, secondVal)) * 100).toFixed(1);
-        bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name} se ubica en ${gapPercent}%.`;
+        const diffText = formatCurrency(diff, mainRate.currency, 2);
+        bannerSub = `Diferencia entre ${mainRate.name} y ${secondRate.name}: ${gapPercent}% (${diffText}).`;
       }
     }
 
@@ -165,7 +167,7 @@ export class DashboardView {
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                   </span>
                 ` : ''}
-                <span>${nextDayLabel}</span>
+                <span id="dash-nextday-label">${nextDayLabel}</span>
               </button>
             </div>
           </div>
@@ -212,7 +214,7 @@ export class DashboardView {
       : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
 
     return `
-      <div id="card-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300">
+      <div id="card-${rate.id}" data-calc-rate="${rate.id}" data-calc-day="hoy" class="dash-rate-card glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 cursor-pointer" title="Toca para calcular con esta tasa">
         <div class="flex justify-between items-start">
           <div class="flex items-center space-x-3">
             <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 text-cyan-400">
@@ -223,10 +225,15 @@ export class DashboardView {
               <p class="text-xs text-gray-400">${rate.code}</p>
             </div>
           </div>
-          <span id="badge-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
-            <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-            <span>${formatPercentage(rate.change)}</span>
-          </span>
+          <div class="flex items-center space-x-1.5">
+            <span id="badge-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
+              <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
+              <span>${formatPercentage(rate.change)}</span>
+            </span>
+            <button type="button" data-copy-rate="${rate.id}" data-copy-day="hoy" title="Copiar tasa" class="dash-copy-rate-btn p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-cyan-400 transition-all active:scale-95 cursor-pointer">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
         </div>
 
         <div class="mt-4 flex justify-between items-end">
@@ -252,7 +259,7 @@ export class DashboardView {
         : `<span class="text-white/30 tracking-widest font-mono text-xl">— — —</span>`;
 
       return `
-        <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-yellow-500/30">
+        <div id="card-next-${rate.id}" data-calc-rate="${rate.id}" data-calc-day="hoy" class="dash-rate-card glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-yellow-500/30 cursor-pointer" title="Toca para calcular con esta tasa">
           <div class="flex justify-between items-start">
             <div class="flex items-center space-x-3">
               <div class="p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
@@ -265,10 +272,15 @@ export class DashboardView {
                 </span>
               </div>
             </div>
-            <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-              <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
-              <span>En Vivo</span>
-            </span>
+            <div class="flex items-center space-x-1.5">
+              <span class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                <span>En Vivo</span>
+              </span>
+              <button type="button" data-copy-rate="${rate.id}" data-copy-day="hoy" title="Copiar tasa" class="dash-copy-rate-btn p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-cyan-400 transition-all active:scale-95 cursor-pointer">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
 
           <div class="mt-4 flex justify-between items-end">
@@ -305,7 +317,7 @@ export class DashboardView {
       : `Pendiente por publicación del BCV`;
 
     return `
-      <div id="card-next-${rate.id}" class="glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30">
+      <div id="card-next-${rate.id}" data-calc-rate="${rate.id}" data-calc-day="prediccion" class="dash-rate-card glass-card-interactive rounded-2xl p-4 relative overflow-hidden transition-all duration-300 border-cyan-500/30 cursor-pointer" title="Toca para calcular con esta tasa">
         <div class="flex justify-between items-start">
           <div class="flex items-center space-x-3">
             <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
@@ -316,14 +328,19 @@ export class DashboardView {
               ${badgeTag}
             </div>
           </div>
-          ${hasOfficialNextDay ? `
-            <span id="badge-next-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
-              <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
-              <span>${formatPercentage(nextDay.change)}</span>
-            </span>` : `
-            <span class="inline-flex items-center space-x-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-white/5 text-gray-400 border-white/10">
-              <span>Pendiente</span>
-            </span>`}
+          <div class="flex items-center space-x-1.5">
+            ${hasOfficialNextDay ? `
+              <span id="badge-next-${rate.id}" class="inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}">
+                <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>
+                <span>${formatPercentage(nextDay.change)}</span>
+              </span>
+              <button type="button" data-copy-rate="${rate.id}" data-copy-day="prediccion" title="Copiar tasa" class="dash-copy-rate-btn p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-cyan-400 transition-all active:scale-95 cursor-pointer">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              </button>` : `
+              <span class="inline-flex items-center space-x-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-white/5 text-gray-400 border-white/10">
+                <span>Pendiente</span>
+              </span>`}
+          </div>
         </div>
 
         <div class="mt-4 flex justify-between items-end">
@@ -331,9 +348,9 @@ export class DashboardView {
             <p id="val-${rate.id}" class="text-2xl font-extrabold text-emerald-400 tracking-tight">
               ${valueDisplay}
             </p>
-            <p class="text-[11px] text-gray-300 font-medium mt-0.5">${dateSubtitle}</p>
+            <p id="date-next-${rate.id}" class="text-[11px] text-gray-300 font-medium mt-0.5">${dateSubtitle}</p>
           </div>
-          <span class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
+          <span id="ref-next-${rate.id}" class="text-[10px] text-cyan-400 font-bold">Ref. ${nextDayLabel}</span>
         </div>
       </div>
     `;
@@ -355,6 +372,43 @@ export class DashboardView {
             this.selectedDay = day;
             this.render();
           }
+        }
+      });
+    });
+
+    const copyBtns = this.container.querySelectorAll('.dash-copy-rate-btn');
+    copyBtns.forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rateId = btn.getAttribute('data-copy-rate');
+        const copyDay = btn.getAttribute('data-copy-day');
+        const currentRates = mockEngine.getRates();
+        const r = currentRates[rateId];
+        if (!r) return;
+        const val = (copyDay === 'prediccion' && r.nextDay && r.nextDay.published && r.nextDay.value)
+          ? r.nextDay.value
+          : r.value;
+        if (typeof val !== 'number' || isNaN(val)) return;
+        const formatted = val.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(formatted);
+          }
+        } catch (err) {}
+        showToast(`${r.name}: Bs. ${formatted} copiado`, 'Tasa Copiada', 'check-circle');
+      });
+    });
+
+    const cards = this.container.querySelectorAll('.dash-rate-card');
+    cards.forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.dash-copy-rate-btn')) return;
+        const rateId = card.getAttribute('data-calc-rate');
+        const day = card.getAttribute('data-calc-day') || 'hoy';
+        if (rateId && typeof window !== 'undefined' && window.dolarfyApp) {
+          window.__dolarfyCalcPreset = { rateId, day };
+          window.dolarfyApp.navigateTo('calculator', true);
         }
       });
     });
@@ -439,6 +493,26 @@ export class DashboardView {
           srcEl.innerHTML = label;
         }
       }
+
+      if (isManana && !isCrypto && r.nextDay && r.nextDay.published) {
+        const nextLabel = this.getNextDayLabel(rates);
+        const dateEl = document.getElementById(`date-next-${key}`);
+        const newDateText = this.cleanText(r.nextDay.date) || `Oficial ${nextLabel}`;
+        if (dateEl && dateEl.textContent !== newDateText) {
+          dateEl.textContent = newDateText;
+        }
+        const refEl = document.getElementById(`ref-next-${key}`);
+        const newRefText = `Ref. ${nextLabel}`;
+        if (refEl && refEl.textContent !== newRefText) {
+          refEl.textContent = newRefText;
+        }
+      }
+    }
+
+    const nextDayBtnLabel = document.getElementById('dash-nextday-label');
+    const currentNextLabel = this.getNextDayLabel(rates);
+    if (nextDayBtnLabel && nextDayBtnLabel.textContent !== currentNextLabel) {
+      nextDayBtnLabel.textContent = currentNextLabel;
     }
 
     // Banner

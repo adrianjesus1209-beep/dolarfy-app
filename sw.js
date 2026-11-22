@@ -1,6 +1,7 @@
-/* Service Worker Dolarfy - Cache en runtime (network-first con offline fallback) */
-const VERSION = 'dolarfy-sw-v2.1.16';
+/* Service Worker Dolarfy - Cache en runtime (network-first con timeout y offline fallback) */
+const VERSION = 'dolarfy-sw-v2.1.17';
 const CACHE_NAME = VERSION;
+const NETWORK_TIMEOUT_MS = 3000;
 
 const APP_SHELL = [
   './',
@@ -21,26 +22,23 @@ const APP_SHELL = [
   './assets/vendor/tailwind.js',
   './assets/vendor/lucide.min.js',
   './assets/vendor/apexcharts.min.js',
-  './js/app.bundle.js',
-  './js/app.js',
-  './js/constants.js',
-  './js/mockData.js',
-  './js/apiService.js',
-  './js/themeService.js',
-  './js/notificationService.js',
-  './js/countriesData.js',
-  './js/calcHistoryService.js',
-  './js/utils/formatters.js',
-  './js/utils/mathEval.js',
-  './js/utils/toast.js',
-  './js/components/dashboard.js',
-  './js/components/calculator.js',
-  './js/components/analytics.js',
-  './js/components/settings.js',
-  './js/components/countryModal.js',
-  './js/components/aboutModal.js',
-  './js/components/notificationModal.js'
+  './js/app.bundle.js'
 ];
+
+function fetchWithTimeout(request, timeoutMs = NETWORK_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('sw-timeout')), timeoutMs);
+    fetch(request)
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -83,7 +81,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(request)
+    fetchWithTimeout(request)
       .then((response) => {
         if (response && response.status === 200) {
           const copy = response.clone();

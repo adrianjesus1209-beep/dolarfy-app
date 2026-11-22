@@ -16,13 +16,29 @@ export class CalculatorView {
 
     // Tasa por defecto
     const rates = this.currentCountry.rates;
-    const rateKeys = Object.keys(rates);
+    const rateKeys = Object.keys(rates).filter(k => k !== '_meta');
     this.selectedRateId = this.currentCountry.defaultRateId && rates[this.currentCountry.defaultRateId] 
       ? this.currentCountry.defaultRateId 
       : rateKeys[0];
 
     // Selector de día: 'hoy' o 'prediccion'
     this.selectedDay = 'hoy';
+    this._userSelectedDay = false;
+    this._lastNextIso = '';
+
+    // Preselección desde tarjeta del Dashboard
+    if (typeof window !== 'undefined' && window.__dolarfyCalcPreset) {
+      const preset = window.__dolarfyCalcPreset;
+      window.__dolarfyCalcPreset = null;
+      if (preset.rateId && rates[preset.rateId]) {
+        this.selectedRateId = preset.rateId;
+      }
+      if (preset.day === 'prediccion' || preset.day === 'hoy') {
+        this.selectedDay = preset.day;
+        this._userSelectedDay = true;
+      }
+    }
+
     this.unsubscribe = null;
   }
 
@@ -33,8 +49,14 @@ export class CalculatorView {
   hasNextDayRate(rates) {
     if (!rates) rates = this.currentCountry?.rates;
     if (!rates || typeof rates !== 'object') return false;
+    const now = new Date();
+    const vetOffsetMs = -4 * 60 * 60 * 1000;
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const todayIso = new Date(utcMs + vetOffsetMs).toISOString().split('T')[0];
+
     return Object.values(rates).some(r =>
-      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0
+      r && r.nextDay && r.nextDay.published && typeof r.nextDay.value === 'number' && r.nextDay.value > 0 &&
+      (!r.nextDay._iso || String(r.nextDay._iso) > todayIso)
     );
   }
 
@@ -110,7 +132,7 @@ export class CalculatorView {
     }
 
     if (!rates[this.selectedRateId]) {
-      this.selectedRateId = this.currentCountry.defaultRateId && rates[this.selectedRateId]
+      this.selectedRateId = this.currentCountry.defaultRateId && rates[this.currentCountry.defaultRateId]
         ? this.currentCountry.defaultRateId
         : rateKeys[0];
     }
@@ -118,6 +140,7 @@ export class CalculatorView {
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
     const activeRate = this.getEffectiveRate(activeRateObj);
     this._lastActiveRate = activeRate;
+    this._lastNextIso = activeRateObj?.nextDay?._iso || rates?.bcv?.nextDay?._iso || '';
     const [baseCode, targetCode] = activeRateObj && activeRateObj.code ? activeRateObj.code.split('/') : ['USD', this.currentCountry.currency.code];
     const ratePair = [baseCode, targetCode];
 
@@ -339,7 +362,7 @@ export class CalculatorView {
       const temp = this.fromCurrency;
       this.fromCurrency = this.toCurrency;
       this.toCurrency = temp;
-      this.calculate();
+      this.render();
     };
 
     swapBtn?.addEventListener('click', triggerSwap);
@@ -354,8 +377,12 @@ export class CalculatorView {
       if (fullText.includes('=')) {
         resultOnly = fullText.split('=').pop().trim();
       }
+      const isNegative = /-\s*\d/.test(resultOnly);
       // Limpiar símbolos de moneda, letras y puntos/comas sobrantes al final (ej. "Bs." -> sin punto al final)
       resultOnly = resultOnly.replace(/[^\d.,]/g, '').replace(/[.,]+$/, '').trim();
+      if (isNegative && resultOnly) {
+        resultOnly = `-${resultOnly}`;
+      }
 
       const performCopy = (text) => {
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -459,7 +486,8 @@ export class CalculatorView {
     try {
       const evalResult = evaluateMath(this.expression);
       if (!isNaN(evalResult) && isFinite(evalResult)) {
-        this.expression = evalResult.toString().replace(/\./g, ',');
+        const cleanStr = Number(evalResult.toFixed(6)).toString();
+        this.expression = cleanStr.replace(/\./g, ',');
       }
     } catch (e) {
       if (e.message && e.message.includes('cero')) {
@@ -476,6 +504,11 @@ export class CalculatorView {
 
     const rates = this.currentCountry.rates;
     const activeRateObj = rates[this.selectedRateId] || Object.values(rates)[0];
+    const effectiveRate = this.getEffectiveRate(activeRateObj);
+    const isPred = this.selectedDay === 'prediccion' && this.hasNextDayRate(rates);
+    const rateLabel = activeRateObj
+      ? (isPred ? `${activeRateObj.name} (${this.getNextDayLabel(rates)})` : activeRateObj.name)
+      : '';
 
     calcHistoryService.addEntry({
       expression: this.expression,
@@ -483,11 +516,12 @@ export class CalculatorView {
       countryId: this.currentCountry.id,
       countryName: this.currentCountry.name,
       flagUrl: this.currentCountry.flagUrl,
-      rateName: activeRateObj ? activeRateObj.name : '',
+      rateName: rateLabel,
       rateId: this.selectedRateId,
-      rateValue: activeRateObj ? activeRateObj.value : 1,
+      rateValue: effectiveRate,
       fromCurrency: this.fromCurrency,
-      toCurrency: this.toCurrency
+      toCurrency: this.toCurrency,
+      selectedDay: this.selectedDay
     });
   }
 
@@ -578,6 +612,10 @@ export class CalculatorView {
           this.selectedRateId = entry.rateId;
           this.fromCurrency = entry.fromCurrency;
           this.toCurrency = entry.toCurrency;
+          if (entry.selectedDay === 'prediccion' || entry.selectedDay === 'hoy') {
+            this.selectedDay = entry.selectedDay;
+            this._userSelectedDay = true;
+          }
           container.innerHTML = '';
           this.render();
         }
@@ -660,13 +698,21 @@ export class CalculatorView {
     if (!activeRateObj) return;
 
     const newRate = this.getEffectiveRate(activeRateObj);
-    if (this._lastActiveRate === newRate) return;
+    const nextIso = activeRateObj?.nextDay?._iso || rates?.bcv?.nextDay?._iso || '';
+    if (this._lastActiveRate === newRate && this._lastNextIso === nextIso) return;
     this._lastActiveRate = newRate;
+    this._lastNextIso = nextIso;
+
+    const nextDayLabel = this.getNextDayLabel(rates);
+    const predBtnLabel = document.querySelector('.calc-day-btn[data-calcday="prediccion"] span:last-child');
+    if (predBtnLabel && predBtnLabel.textContent !== nextDayLabel) {
+      predBtnLabel.textContent = nextDayLabel;
+    }
 
     const pillEl = document.getElementById('rate-badge-pill');
     if (pillEl) {
       pillEl.innerHTML = `${this.selectedDay === 'prediccion' && hasNextDay
-        ? `<i data-lucide="calendar-check" class="w-3 h-3 text-amber-400"></i><span class="text-amber-300">${this.getNextDayLabel(rates)}:</span>`
+        ? `<i data-lucide="calendar-check" class="w-3 h-3 text-amber-400"></i><span class="text-amber-300">${nextDayLabel}:</span>`
         : `<i data-lucide="sun" class="w-3 h-3 text-emerald-400"></i>`} ${newRate.toFixed(newRate < 10 ? 4 : 2)}`;
       if (window.lucide) window.lucide.createIcons();
     }
