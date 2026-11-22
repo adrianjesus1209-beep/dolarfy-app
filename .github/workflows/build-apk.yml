@@ -70,7 +70,7 @@ jobs:
       - name: Verify APK signature
         run: |
           APKSIGNER=$(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)apksigner
-          "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | grep -E "Signer #1 certificate (DN|SHA-256)"
+          "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk
 
       - name: Prepare APK artifact
         run: |
